@@ -33,13 +33,17 @@ reg [39:0] send_buf;
 
 assign setup_done = !(|setup_counter);
 
-wire is_dummy_byte = tx_counter < 16 && quad_send_mode; // For 16 bits (4 clocks) before a quad-read command starts sending data we have high-Z dummy bytes
+// Purely optimizations to avoid wide adders. Also allow to hardcode indexes into the window instead of writing `buf[x+3]` and synthetizing another adder...
+wire [5:0] tx_counter_trailing = {tx_counter[5:4] - 1, tx_counter[3:0]};
+wire [4:0] send_buf_window = send_buf[tx_counter_trailing +: 4];
+
+wire is_dummy_byte = (tx_counter[5:4] == 'b0) && quad_send_mode; // For 16 bits (4 clocks) before a quad-read command starts sending data we have high-Z dummy bytes
 
 assign sclk = !cs && clk;
-assign si = !cs && !is_dummy_byte ? (setup_counter <= 1 ? send_buf[tx_counter - 16] : send_buf[tx_counter]) : 1'bz;
-assign so = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf[tx_counter+1-16] : 1'bz;
-assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? send_buf[tx_counter+2-16] : 1'bz) : 1'b0;
-assign hold = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf[tx_counter+3-16] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
+assign si = !cs && !is_dummy_byte ? (setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter]) : 1'bz;
+assign so = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf_window[1] : 1'bz;
+assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? send_buf_window[2] : 1'bz) : 1'b0;
+assign hold = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf_window[3] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
 
 // Update tx_counter and quad_send_mode
 always @(negedge clk, posedge rst)

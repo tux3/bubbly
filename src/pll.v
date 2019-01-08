@@ -12,7 +12,7 @@ assign reset_out = |(reset_buf);
 SB_PLL40_CORE #(
     .FEEDBACK_PATH("SIMPLE"),
     .DIVR(4'b0000),
-    .DIVF(7'b0011111),
+    .DIVF(7'b0111111),
     .DIVQ(3'b110),
     .FILTER_RANGE(3'b001)
 ) pll_inst (

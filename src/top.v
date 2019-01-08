@@ -22,12 +22,17 @@ module top(
     output reg LED
 );
 
-assign PROBE_1 = FLASH_CS;
-assign PROBE_2 = FLASH_CLK;
-assign PROBE_3 = FLASH_MOSI;
-assign PROBE_4 = FLASH_MISO;
-assign PROBE_5 = FLASH_WP;
-assign PROBE_6 = FLASH_HOLD;
+//assign PROBE_1 = FLASH_CS;
+//assign PROBE_2 = FLASH_CLK;
+//assign PROBE_3 = FLASH_MOSI;
+//assign PROBE_4 = FLASH_MISO;
+//assign PROBE_5 = FLASH_WP;
+//assign PROBE_6 = FLASH_HOLD;
+
+assign PROBE_1 = SPI_SS;
+assign PROBE_2 = SPI_CLK;
+assign PROBE_3 = SPI_MOSI;
+assign PROBE_4 = SPI_MISO;
 
 wire clk;
 wire rst;

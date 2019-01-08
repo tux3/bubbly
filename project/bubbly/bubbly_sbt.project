@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2017.08.27940 - Bui
 ProjectName=bubbly
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=../../src/pll.v,../../src/qspi_flash.v,../../src/qspi_flash_tb.v,../../src/spi_slave.v,../../src/spi_slave_tb.v,../../src/top.v
+ProjectVFiles=../../src/pll.v=work,../../src/qspi_flash.v=work,../../src/qspi_flash_tb.v=work,../../src/spi_slave.v=work,../../src/spi_slave_tb.v=work,../../src/top.v=work
 ProjectCFiles=../../src/constraints/clk.sdc
 CurImplementation=bubbly_Implmnt
 Implementations=bubbly_Implmnt
@@ -20,7 +20,7 @@ NetlistFile=bubbly_Implmnt/bubbly.edf
 AdditionalEDIFFile=
 IPEDIFFile=
 DesignLib=bubbly_Implmnt/sbt/netlist/oadb-top
-DesignView=
+DesignView=_rt
 DesignCell=top
 SynthesisSDCFile=bubbly_Implmnt/bubbly.scf
 UserPinConstraintFile=
