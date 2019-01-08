@@ -1,13 +1,13 @@
 # Generic
 set_io CLK_16MHZ B2
-set_io RESETN A2 -pullup yes
+set_io -pullup yes RESETN A2
 set_io LED B3
 
 # SPI
 set_io SPI_CLK G2
 set_io SPI_MOSI H1
 set_io SPI_MISO J1
-set_io SPI_SS H2 -pullup yes
+set_io -pullup yes SPI_SS H2
 
 # SPI Flash
 set_io FLASH_CS F7

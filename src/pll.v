@@ -1,5 +1,5 @@
-// Maps 16MHZ -> 8MHZ, RESETB pin + LOCK signal -> Buffered RST signal
-// Note that the PLL doesn't officially support generating anything less than 16MHz, but my QSPI Flash driver currently won't run above 10MHz!
+// Maps 16MHZ -> 32MHZ, RESETB pin + LOCK signal -> Buffered RST signal
+// Note that the PLL doesn't officially support generating anything less than 16MHz, sounds like it's just stable enough for testing.
 // Empirically, setting DIVQ at 7 with a high DIVF seems to give horrible broken output, but using a DIVQ of 6 with a lower DIVF works okay well under 16MHz
 
 module pll(input clk_in, input resetb_in, output clk_out, output reset_out);
@@ -13,11 +13,11 @@ SB_PLL40_CORE #(
     .FEEDBACK_PATH("SIMPLE"),
     .DIVR(4'b0000),
     .DIVF(7'b0111111),
-    .DIVQ(3'b110),
+    .DIVQ(3'b101),
     .FILTER_RANGE(3'b001)
 ) pll_inst (
-    .BYPASS(1'b0),
-    .EXTFEEDBACK(1'b0),
+	.BYPASS(1'b0),
+	.EXTFEEDBACK(1'b0),
     .DYNAMICDELAY(8'b0),
     .LATCHINPUTVALUE(1'b0),
     .SDI(1'b0),

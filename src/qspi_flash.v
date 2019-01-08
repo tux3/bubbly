@@ -4,7 +4,9 @@
 //
 // After reset, this module initializes the Flash chip to work in continous quad-read mode (XIP).
 
-module qspi_flash(
+module qspi_flash #(
+    parameter USE_SB_IO = 1
+) (
     // Logic iface
     input clk,
     input rst,
@@ -22,7 +24,7 @@ module qspi_flash(
     inout hold
 );
 
-localparam WRITE_PROTECT_WHEN_IDLE = 0; // Enable write-protect when not in use. Not really necessary.
+localparam WRITE_PROTECT_WHEN_IDLE = 1; // Enable write-protect when not in use. Not really necessary.
 
 reg read_data_mode; // True when reading a data byte, false during any other transmission
 reg quad_send_mode; // True when {hold, wp, so, si} are used as outputs by the flash chip.
@@ -38,12 +40,44 @@ wire [5:0] tx_counter_trailing = {tx_counter[5:4] - 1, tx_counter[3:0]};
 wire [4:0] send_buf_window = send_buf[tx_counter_trailing +: 4];
 
 wire is_dummy_byte = (tx_counter[5:4] == 'b0) && quad_send_mode; // For 16 bits (4 clocks) before a quad-read command starts sending data we have high-Z dummy bytes
+wire quad_should_send = !cs && quad_send_mode && !is_dummy_byte;
 
 assign sclk = !cs && clk;
-assign si = !cs && !is_dummy_byte ? (setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter]) : 1'bz;
-assign so = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf_window[1] : 1'bz;
-assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? send_buf_window[2] : 1'bz) : 1'b0;
-assign hold = (!cs && quad_send_mode && !is_dummy_byte) ? send_buf_window[3] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
+
+wire si_in, so_in, wp_in, hold_in;
+
+generate
+if (!USE_SB_IO) begin
+	assign si = !cs && !is_dummy_byte ? (setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter]) : 1'bz;
+	assign so = quad_should_send ? send_buf_window[1] : 1'bz;
+	assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? send_buf_window[2] : 1'bz) : 1'b0;
+	assign hold = quad_should_send ? send_buf_window[3] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
+
+	assign si_in = si;
+	assign so_in = so;
+	assign wp_in = wp;
+	assign hold_in = hold;
+end else begin
+	wire si_enable = !cs && !is_dummy_byte;
+	wire so_enable = quad_should_send;
+	wire wp_enable = quad_should_send || (WRITE_PROTECT_WHEN_IDLE && cs);
+	wire hold_enable = quad_should_send;
+
+	wire si_out = setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter];
+	wire so_out = send_buf_window[1];
+	wire wp_out = (!cs && quad_send_mode) ? send_buf_window[2] : 1'b0;
+	wire hold_out = send_buf_window[3];
+
+	SB_IO #(
+	    .PIN_TYPE(6'b 1010_01)
+	) quad_io[3:0] (
+	    .PACKAGE_PIN({si, so, wp, hold}),
+	    .OUTPUT_ENABLE({si_enable, so_enable, wp_enable, hold_enable}),
+	    .D_OUT_0({si_out, so_out, wp_out, hold_out}),
+	    .D_IN_0({si_in, so_in, wp_in, hold_in})
+	);
+end
+endgenerate
 
 // Update tx_counter and quad_send_mode
 always @(negedge clk, posedge rst)
@@ -127,7 +161,7 @@ begin
         else if (!read_data_mode)
             send_buf <= {addr, 8'h20};
         else
-            send_buf <= 40'bZ;
+            send_buf <= 40'bX;
     end
 end
 
@@ -135,7 +169,7 @@ end
 always @(negedge clk, posedge rst)
 begin
     if (rst) begin
-        cs <= rst;
+        cs <= 'h1;
     end else if (!setup_done) begin
         cs <= cs_cooldown != 0;
     end else begin
@@ -152,7 +186,7 @@ begin
     end else if (setup_done) begin
         data_ready <= tx_counter == 0 && read_data_mode && !cs;
         if (read_data_mode)
-            data <= {data[3:0], hold, wp, so, si};
+            data <= {data[3:0], hold_in, wp_in, so_in, si_in};
     end
 end
 

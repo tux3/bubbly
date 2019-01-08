@@ -84,6 +84,21 @@ qspi_flash flash(
     .hold(FLASH_HOLD)
 );
 
+/* reg [7:0] waddr; */
+/* reg [7:0] raddr; */
+/* reg [255:0] din; */
+/* reg write_en; */
+/* reg [255:0] dout; */
+/* bram bram( */
+/*     .waddr(waddr), */
+/*     .raddr(raddr), */
+/*     .din(din), */
+/*     .write_en(write_en), */
+/*     .wclk(clk), */
+/*     .rclk(clk), */
+/*     .dout(dout) */
+/* ); */
+
 // Yosys doesn't support enums yet =/
 // TODO: Fix Yosys!
 localparam FLASH_SETUP = 0;
@@ -95,6 +110,7 @@ reg [1:0] flash_state;
 localparam DBG_IDLE = 0;
 localparam DBG_READ_ADDR = 1;
 localparam DBG_REPLYING = 2;
+localparam DBG_ECHO = 3;
 reg [1:0] dbg_state;
 
 reg [23:0] addr_to_read;
@@ -131,7 +147,7 @@ end
 always @(posedge clk, posedge rst)
 begin: set_led
     if (rst) begin
-        LED <= 1;
+        LED <= 0;
         send_data <= 0;
 		addr_to_read <= 0;
 		dbg_state <= DBG_IDLE;
@@ -145,7 +161,7 @@ begin: set_led
 				dbg_state <= DBG_READ_ADDR;
 				dbg_read_addr_count = 'b11;
 				send_data <= dbg_read_addr_count;
-			end else if (recv_data == 8'h02) begin
+			end else if (recv_data == 8'h02)begin
 				LED <= ~LED;
 				send_data <= 'hAB;
 			end else if (recv_data == 8'h10) begin
@@ -156,7 +172,15 @@ begin: set_led
 				send_data <= flash_addr[23:16];
 			end else if (recv_data == 8'hCC) begin
 				send_data <= 'hCC;
+			end else if (recv_data == 8'hCD) begin
+				send_data <= 'hCD;
+				dbg_state <= DBG_ECHO;
+			end else begin
+				send_data <= 'h00;
 			end
+		end else if (dbg_state == DBG_ECHO) begin
+			send_data <= recv_data;
+			dbg_state <= DBG_IDLE;
 		end else if (dbg_state == DBG_READ_ADDR) begin
 			if (dbg_read_addr_count == 'b01) begin
 				dbg_state <= DBG_REPLYING;
@@ -177,8 +201,11 @@ begin: set_led
 			end else begin
 				send_data <= 'hFE;
 			end
+		end else begin
+			send_data <= 'hBB;
+			LED <= 1;
 		end
-    end
+	end
 end
 
 endmodule

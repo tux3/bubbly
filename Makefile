@@ -25,6 +25,6 @@ ${BINDIR}/${PRJ}.bin: ${BINDIR}/${PRJ}.asc
 ${BINDIR}/${PRJ}.asc: ${BINDIR}/${PRJ}.json
 	nextpnr-${FPGA_FAMILY} --${FPGA_MODEL} --package ${FPGA_PACKAGE} --json ${BINDIR}/${PRJ}.json --pcf ${SRCDIR}/constraints/pins.pcf --freq ${TARGET_FREQ_MHZ} --asc ${BINDIR}/${PRJ}.asc --seed 0
 
-${BINDIR}/${PRJ}.json: ${SRCFILES}
-	yosys -p "synth_${FPGA_FAMILY} -top top -json ${BINDIR}/${PRJ}.json -blif ${BINDIR}/${PRJ}.blif" $^
+${BINDIR}/${PRJ}.json: ${SRCFILES} Makefile
+	yosys -p "synth_${FPGA_FAMILY} -top top -json ${BINDIR}/${PRJ}.json -blif ${BINDIR}/${PRJ}.blif" ${SRCFILES}
 
