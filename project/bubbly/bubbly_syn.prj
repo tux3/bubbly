@@ -5,16 +5,16 @@
 
 
 #project files
-add_file -verilog "../../src/pll.v"
-add_file -verilog "../../src/qspi_flash.v"
-add_file -verilog "../../src/qspi_flash_tb.v"
-add_file -verilog "../../src/spi_slave.v"
-add_file -verilog "../../src/spi_slave_tb.v"
-add_file -verilog "../../src/top.v"
-add_file -constraint "../../src/constraints/clk.sdc"
 
 
 
+add_file -verilog -lib work "../../src/pll.v" 
+add_file -verilog -lib work "../../src/qspi_flash.v" 
+add_file -verilog -lib work "../../src/qspi_flash_tb.v" 
+add_file -verilog -lib work "../../src/spi_slave.v" 
+add_file -verilog -lib work "../../src/spi_slave_tb.v" 
+add_file -verilog -lib work "../../src/top.v" 
+add_file -constraint -lib work "../../src/constraints/clk.sdc"
 #implementation: "bubbly_Implmnt"
 impl -add bubbly_Implmnt -type fpga
 
@@ -28,7 +28,7 @@ set_option -project_relative_includes 1
 set_option -technology SBTiCE40
 set_option -part iCE40LP8K
 set_option -package CM81
-set_option -speed_grade ""
+set_option -speed_grade 
 set_option -part_companion ""
 
 #compilation/mapping options
@@ -72,4 +72,5 @@ set_option -write_apr_constraint 1
 
 #set result format/file last
 project -result_file "bubbly_Implmnt/bubbly.edf"
-impl -active "bubbly_Implmnt"
+impl -active bubbly_Implmnt
+project -run synthesis -clean
