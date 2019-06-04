@@ -109,9 +109,10 @@ reg [1:0] flash_state;
 
 localparam DBG_IDLE = 0;
 localparam DBG_READ_ADDR = 1;
-localparam DBG_REPLYING = 2;
-localparam DBG_ECHO = 3;
-reg [1:0] dbg_state;
+localparam DBG_WAIT_FLASH = 2;
+localparam DBG_REPLYING = 3;
+localparam DBG_ECHO = 4;
+reg [2:0] dbg_state;
 
 reg [23:0] addr_to_read;
 reg [7:0] data_read;
@@ -132,10 +133,11 @@ begin
 		if (flash_data_ready) begin
 			data_read <= flash_data;
 			flash_do_read <= 0;
-			flash_state <= FLASH_IDLE;
-		end else if (flash_state == FLASH_IDLE && dbg_state == DBG_READ_ADDR) begin
-			flash_state <= FLASH_WAIT_ADDR;
-		end else if (flash_state == FLASH_WAIT_ADDR && dbg_state == DBG_REPLYING) begin
+        end
+
+        if (flash_state == FLASH_READING && dbg_state != DBG_WAIT_FLASH) begin
+            flash_state <= FLASH_IDLE;
+		end else if (flash_state == FLASH_IDLE && dbg_state == DBG_WAIT_FLASH) begin
 			flash_addr <= addr_to_read;
 			flash_do_read <= 1;
 			flash_state <= FLASH_READING;
@@ -183,12 +185,12 @@ begin: set_led
 			dbg_state <= DBG_IDLE;
 		end else if (dbg_state == DBG_READ_ADDR) begin
 			if (dbg_read_addr_count == 'b01) begin
-				dbg_state <= DBG_REPLYING;
+				dbg_state <= DBG_WAIT_FLASH;
 			end
 			addr_to_read <= {addr_to_read[15:0], recv_data[7:0]};
 			dbg_read_addr_count = dbg_read_addr_count - 1;
 			send_data <= dbg_read_addr_count;
-		end else if (dbg_state == DBG_REPLYING) begin
+		end else if (dbg_state == DBG_WAIT_FLASH) begin
 			if (flash_state == FLASH_IDLE) begin
 				if (dbg_reply_signaled == 0) begin
 					send_data <= 'hFF;
