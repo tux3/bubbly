@@ -46,7 +46,7 @@ begin
     #50 ext_clk = 1;
     #50 ext_clk = 0;
     rst = 0;
-    
+
     forever begin
         #50 ext_clk = !ext_clk;
     end
@@ -62,10 +62,10 @@ begin: spiloop
     mosi = MOSI_TO_SEND[MOSI_TX_COUNT];
     MOSI_TX_COUNT--;
     sclk = 0;
-    
+
     for (j = 0; j < 16; ++j) begin
         #425 ss = 0;
-        
+
         for (i = 0; i < 8*2; i++) begin
             #503 sclk = !sclk;
         end
@@ -73,6 +73,8 @@ begin: spiloop
         #431 ss = 1;
         #1000;
     end
+
+    #1000 $finish;
 end
 
 always @(negedge sclk)

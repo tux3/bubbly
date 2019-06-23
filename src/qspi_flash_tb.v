@@ -232,6 +232,8 @@ begin
     addr <= 'bx;
     to_send_pos <= size_to_send;
 
+    #1000 $finish;
+
 end
 
 endmodule
