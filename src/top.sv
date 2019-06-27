@@ -41,7 +41,7 @@ pll pll(
     .clk_in(CLK_16MHZ),
     .resetb_in(RESETN),
     .clk_out(clk),
-    .reset_out(rst)
+    .resetb_out(rst)
 );
 
 reg [7:0] send_data;
@@ -120,9 +120,9 @@ reg [1:0] dbg_read_addr_count;
 reg dbg_reply_signaled;
 
 // Read from Flash when requested by SPI command
-always @(posedge clk, posedge rst)
+always @(posedge clk, negedge rst)
 begin
-	if (rst) begin
+	if (!rst) begin
 		flash_state <= FLASH_SETUP;
 		flash_do_read <= 0;
 		flash_addr <= 0;
@@ -146,9 +146,9 @@ begin
 end
 
 // Handle received SPI commands
-always @(posedge clk, posedge rst)
+always @(posedge clk, negedge rst)
 begin: set_led
-    if (rst) begin
+    if (!rst) begin
         LED <= 0;
         send_data <= 0;
 		addr_to_read <= 0;

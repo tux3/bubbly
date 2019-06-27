@@ -2,11 +2,11 @@
 // Note that the PLL doesn't officially support generating anything less than 16MHz, sounds like it's just stable enough for testing.
 // Empirically, setting DIVQ at 7 with a high DIVF seems to give horrible broken output, but using a DIVQ of 6 with a lower DIVF works okay well under 16MHz
 
-module pll(input clk_in, input resetb_in, output clk_out, output reset_out);
+module pll(input clk_in, input resetb_in, output clk_out, output resetb_out);
 
 wire locked;
 reg [3:0] reset_buf = 0;
-assign reset_out = |(reset_buf);
+assign resetb_out = &reset_buf;
 
 // Fout = Fin*(DIVF+1)/(2^DIVQ)
 SB_PLL40_CORE #(
@@ -29,6 +29,6 @@ SB_PLL40_CORE #(
 );
 
 always @(posedge clk_out)
-    reset_buf <= {reset_buf, !(locked & resetb_in)};
+    reset_buf <= {reset_buf, locked & resetb_in};
 
 endmodule

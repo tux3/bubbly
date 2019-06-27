@@ -4,7 +4,7 @@ timeprecision 10ns;
 module flash_reader_tb;
 
     bit clk = 0;
-    bit rst = 0;
+    bit rst = 1;
 
     logic [23:0] addr = 0;
     logic start_read = 0;
@@ -60,14 +60,14 @@ module flash_reader_tb;
     endtask
 
     initial begin
-        #0 rst = 1;
-        #1.5 rst = 0;
+        #0 rst = 0;
+        #1.5 rst = 1;
         forever
             #0.5 clk = !clk;
     end
 
     initial begin
-        @(negedge rst);
+        @(posedge rst);
 
         $display("[%t] 1. Start new simple 4 byte read", $time);
         start_read_task(.reset(0), .read_addr('h4389E1));

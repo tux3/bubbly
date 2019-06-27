@@ -80,9 +80,9 @@ end
 endgenerate
 
 // Update tx_counter and quad_send_mode
-always @(negedge clk, posedge rst)
+always @(negedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
         tx_counter <= 'h08;
         read_data_mode <= 'b0;
         quad_send_mode = 'b0;
@@ -121,9 +121,9 @@ end
 
 
 // Update setup_counter
-always @(negedge clk, posedge rst)
+always @(negedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
         setup_counter <= 'h5;
     end else if (!setup_done) begin
         if (tx_counter == 0)
@@ -132,9 +132,9 @@ begin
 end
 
 // Ensure CS stays up long enough between commands
-always @(posedge clk, posedge rst)
+always @(posedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
         cs_cooldown <= 'b00;
     end else begin
         if (cs_cooldown != 0)
@@ -147,9 +147,9 @@ begin
 end
 
 // Prepare data to send
-always @(negedge clk, posedge rst)
+always @(negedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
 		send_buf <= {32'bx, 8'hAB}; // Wake opcode
     end else if (tx_counter == 0) begin
 		if (setup_counter == 'h5)
@@ -168,9 +168,9 @@ begin
 end
 
 // Maintain cs
-always @(negedge clk, posedge rst)
+always @(negedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
         cs <= 'h1;
     end else if (!setup_done) begin
         cs <= cs_cooldown != 0;
@@ -180,9 +180,9 @@ begin
 end
 
 // Receive data
-always @(posedge clk, posedge rst)
+always @(posedge clk, negedge rst)
 begin
-    if (rst) begin
+    if (!rst) begin
         data_ready <= 'b0;
         data <= 'x;
     end else if (setup_done) begin

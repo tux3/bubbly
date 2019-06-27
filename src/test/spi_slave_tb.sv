@@ -1,7 +1,7 @@
 module spi_slave_tb();
 
-reg ext_clk;
-reg rst;
+bit ext_clk = 0;
+bit rst = 1;
 
 reg led;
 
@@ -41,11 +41,10 @@ end
 // Main clock
 initial
 begin
-    ext_clk = 0;
-    rst = 1;
+    #0 rst = 0;
     #50 ext_clk = 1;
     #50 ext_clk = 0;
-    rst = 0;
+    rst = 1;
 
     forever begin
         #50 ext_clk = !ext_clk;
@@ -89,7 +88,7 @@ always @(posedge ext_clk)
 begin: set_led
     reg next_led_val;
 
-    if (rst) begin
+    if (!rst) begin
         led <= 1;
     end else if (recv_ready) begin
         $display("-- Read SPI data: %h", recv_data);

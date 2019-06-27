@@ -3,8 +3,8 @@ module qspi_flash_tb();
 timeunit 1ps;
 timeprecision 1ps;
 
-reg clk;
-reg rst;
+bit clk = 0;
+bit rst = 1;
 
 reg [23:0] addr;
 reg do_read;
@@ -37,13 +37,12 @@ qspi_flash flash(
 // Main clock
 initial
 begin
-    clk = 0;
-    rst = 1;
+    #0 rst = 0;
     #50 clk = 1;
     #50 clk = 0;
     #50 clk = 1;
     #35 // Inconveniently short up level.
-    rst = 0;
+    rst = 1;
     #15 clk = 0;
 
     forever begin

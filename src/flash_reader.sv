@@ -57,8 +57,8 @@ module flash_reader #(
 
     assign data_ready = data_ready_raw && keep_reading;
 
-    always_ff @(posedge clk, posedge rst) begin
-        if (rst) begin
+    always_ff @(posedge clk, negedge rst) begin
+        if (!rst) begin
             state <= IDLE;
             read_scheduled <= 0;
             active_addr <= 'x;
