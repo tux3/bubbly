@@ -1,24 +1,26 @@
-// Set addr and pulse read_from_addr to start a read at a new address
-// Read the result from data on the rising edge of data_ready
-// Assert read_next after a rising edge of data_ready to start a read at the next address.
-// If read_from_addr and read_next are both asserted, read_from_addr takes precedence
+// To start a new read pulse start_read, !keep_reading, and addr, then hold keep_reading
+// The read starts immediately and stays pending until data_ready.
+// Any previously pending read is aborted (because keep_reading pulsed low).
+// Unset keep_reading to abort all reads, so that data_ready never triggers.
 
-// TODO:
-// - Treat read_from_add as essentially a reset. We pull cs high and reset our state machine, when it goes low
-// - After a read keep the spi module clock-gated, set our state to idle, and if we get read_next at any time while idle we un-clock-gate it
-// - Make sure
+// To schedule the next read set start_read while a read is pending (hold keep_reading)
+// The read will go from scheduled to pending at data_ready. Hold addr until data_ready.
+// (start_read doesn't need to be held until data_ready, a pulse is enough)
+// Scheduling a read when no read is pending starts a new read immediately instead.
 
-module flash_reader (
+module flash_reader #(
+    parameter USE_SB_IO = 1
+) (
     // Logic iface
     input clk,
     input rst,
     input [23:0] addr,
-    input read_from_addr,
-    input read_next,
-    output reg data_ready,
-    output reg [7:0] data,
+    input start_read,
+    input keep_reading,
+    output data_ready,
+    output [7:0] data,
     // Pins iface
-    output reg cs,
+    output cs,
     output sclk,
     inout si,
     inout so,
@@ -26,16 +28,24 @@ module flash_reader (
     inout hold
     );
 
-    wire setup_done;
-    wire do_read = 0;
+    localparam IDLE = 2'b00;
+    localparam READING = 2'b01;
+    localparam NEW_ADDR = 2'b10;
 
-    qspi_flash flash(
+    logic [1:0] state;
+    logic [23:0] active_addr;
+    logic read_scheduled;
+
+    wire setup_done;
+    wire data_ready_raw;
+    wire do_read = state == READING && setup_done;
+    qspi_flash #(.USE_SB_IO(USE_SB_IO)) flash (
         .clk,
         .rst,
-        .addr,
+        .addr(active_addr),
         .setup_done,
         .do_read,
-        .data_ready,
+        .data_ready(data_ready_raw),
         .data,
         .cs,
         .sclk,
@@ -43,29 +53,66 @@ module flash_reader (
         .so,
         .wp,
         .hold
-        );
+    );
 
-    localparam SETUP = 2'b00;
-    localparam IDLE = 2'b01;
-    localparam READING = 2'b10;
+    assign data_ready = data_ready_raw && keep_reading;
 
-    logic [1:0] state;
-
-    // TODO: Do we really want the interface to be "either keep reading or give a new address"? We could also take just an address and as long as it increments as we read we don't need to reset!
-    // > Well we have the info before we increment PC, we know if we want to increment it or jump, so this interface is efficient, we avoid counters and comparators inside.
-
-    always_ff @(posedge clk, negedge rst) begin
-        if (!rst) begin
-            state <= SETUP;
-        end else
+    always_ff @(posedge clk, posedge rst) begin
+        if (rst) begin
+            state <= IDLE;
+            read_scheduled <= 0;
+            active_addr <= 'x;
+        end else if (!keep_reading) begin
+            read_scheduled <= 0;
+            if (start_read) begin
+                active_addr <= addr;
+                if (do_read)
+                    state <= NEW_ADDR;
+                else
+                    state <= READING;
+            end else begin
+                state <= IDLE;
+                active_addr <= 'x;
+            end
+        end else begin
             unique case (state)
-                SETUP: begin
-                    if (setup_done)
-                        state <= IDLE;
-                end
                 IDLE: begin
-
+                    if (start_read) begin
+                        state <= READING;
+                        active_addr <= addr;
+                    end
+                end
+                READING: begin
+                    if (data_ready) begin
+                        if (start_read || read_scheduled) begin
+                            read_scheduled <= 0;
+                            active_addr <= addr;
+                            state <= NEW_ADDR;
+                        end else if (!start_read) begin
+                            active_addr <= 'x;
+                        end
+                    end else if (start_read) begin
+                        read_scheduled <= 1;
+                    end
+                end
+                NEW_ADDR: begin
+                    if (start_read)
+                        read_scheduled <= 1;
+                    state <= READING;
                 end
             endcase
+        end
     end
+
+    `ifndef SYNTHESIS
+    always @(posedge clk) begin
+        assert property (@(posedge clk) start_read && keep_reading && !data_ready |=> state == READING);
+        assert property (@(posedge clk) start_read && !keep_reading |=> state == READING || state == NEW_ADDR);
+        assert property (@(posedge clk) read_scheduled |=> $stable(addr) || start_read);
+        assert property (@(posedge clk) !keep_reading |=> (!do_read || $rose(do_read)) && !data_ready && !read_scheduled);
+
+        assert property (@(posedge clk) read_scheduled |-> state == READING);
+        assert property (@(posedge clk) data_ready |-> state == READING);
+    end
+    `endif
 endmodule

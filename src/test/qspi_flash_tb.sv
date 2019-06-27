@@ -12,6 +12,8 @@ wire setup_done;
 wire data_ready;
 wire [7:0] data;
 
+wire cs, sclk, si, so, wp, hold;
+
 qspi_flash_mock flash_mock(
     .*
 );

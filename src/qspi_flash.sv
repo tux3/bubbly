@@ -87,7 +87,12 @@ begin
         read_data_mode <= 'b0;
         quad_send_mode = 'b0;
     end else begin
-        if (tx_counter != 0 && cs_cooldown == 0) begin
+        if (setup_done && !do_read) begin
+            tx_counter <= 0;
+            read_data_mode <= 'b0;
+        end
+
+        else if (tx_counter != 0 && cs_cooldown == 0) begin
             if (setup_counter == 'h1 && tx_counter == 'h30)
                 quad_send_mode = 'b1;
 
@@ -95,9 +100,6 @@ begin
                 tx_counter <= tx_counter - 4;
             else
                 tx_counter <= tx_counter - 1;
-        end else if (setup_done && !do_read) begin
-            tx_counter <= 0;
-            read_data_mode <= 'b0;
         end else if (tx_counter == 0) begin
 			if (setup_counter == 'h05)
                 tx_counter <= 'h08;
@@ -148,20 +150,20 @@ end
 always @(negedge clk, posedge rst)
 begin
     if (rst) begin
-		send_buf <= {8'hAB}; // Wake opcode
+		send_buf <= {32'bx, 8'hAB}; // Wake opcode
     end else if (tx_counter == 0) begin
 		if (setup_counter == 'h5)
-            send_buf <= 'h06; // Write-enable opcode
+            send_buf <= {32'bx, 8'h06}; // Write-enable opcode
         else if (setup_counter == 'h4)
-            send_buf <= {8'h01, 8'b1000_0000, 8'b0000_0010}; // Write status register to disable irrelevant protections and set QE bit
+            send_buf <= {32'bx, 8'h01, 8'b1000_0000, 8'b0000_0010}; // Write status register to disable irrelevant protections and set QE bit
         else if (setup_counter == 'h3)
-            send_buf <= {8'h04}; // Write-disable opcode
+            send_buf <= {32'bx, 8'h04}; // Write-disable opcode
         else if (setup_counter == 'h2)
-            send_buf <= {8'hEB, 32'h00000020}; // Start quad-read in continuous mode
+            send_buf <= {32'bx, 8'hEB, 32'h00000020}; // Start quad-read in continuous mode
         else if (!read_data_mode)
-            send_buf <= {addr, 8'h20};
+            send_buf <= {32'bx, addr, 8'h20};
         else
-            send_buf <= 40'bX;
+            send_buf <= 'x;
     end
 end
 
