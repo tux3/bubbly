@@ -182,7 +182,7 @@ always @(posedge clk, posedge rst)
 begin
     if (rst) begin
         data_ready <= 'b0;
-        data <= 'b0;
+        data <= 'x;
     end else if (setup_done) begin
         data_ready <= tx_counter == 0 && read_data_mode && !cs;
         if (read_data_mode)

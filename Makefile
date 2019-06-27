@@ -7,7 +7,8 @@ TARGET_FREQ_MHZ=32
 SRCDIR=./src
 BINDIR=./build
 PRJ=$(notdir ${PWD})
-SRCFILES=$(filter-out $(wildcard ${SRCDIR}/**_tb.v), $(wildcard ${SRCDIR}/**.v)) # Take all .v files, except testbenches
+SRCFILES=$(filter-out $(wildcard ${SRCDIR}/test/*), $(shell find ${SRCDIR} -name *.v -or -name *.sv))
+
 
 all: ${BINDIR}/${PRJ}.bin
 	

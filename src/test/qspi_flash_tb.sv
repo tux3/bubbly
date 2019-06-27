@@ -1,11 +1,10 @@
 module qspi_flash_tb();
 
+timeunit 1ps;
+timeprecision 1ps;
+
 reg clk;
 reg rst;
-
-reg [31:0] data_to_send = 'h0201FF7A;
-reg [7:0] size_to_send = $bits(data_to_send);
-reg [7:0] to_send_pos = size_to_send;
 
 reg [23:0] addr;
 reg do_read;
@@ -13,12 +12,9 @@ wire setup_done;
 wire data_ready;
 wire [7:0] data;
 
-wire cs = 1'bz;
-wire sclk = 1'bz;
-wire si = to_send_pos >= size_to_send ? 1'bz : data_to_send[to_send_pos];
-wire so = to_send_pos >= size_to_send ? 1'bz : data_to_send[to_send_pos+1];
-wire wp = to_send_pos >= size_to_send ? 1'bz : data_to_send[to_send_pos+2];
-wire hold = to_send_pos >= size_to_send ? 1'bz : data_to_send[to_send_pos+3];
+qspi_flash_mock flash_mock(
+    .*
+);
 
 qspi_flash flash(
     .clk(clk),
@@ -92,11 +88,8 @@ endtask
 task assert_transfer_quad_byte;
 input [7:0] byte_to_send;
 begin
-    to_send_pos -= 4;
     #1 @(posedge sclk);
-    @(negedge sclk) begin
-        to_send_pos -= 4;
-    end
+    @(negedge sclk);
     @(posedge sclk) begin
         #1
         assert(data_ready == 1'b1) else $error("[%t] Expected data_ready to go high", $time);
@@ -111,6 +104,11 @@ begin
         #1 assert(cs == 'b1);
 end
 endtask
+
+// Our mock always returns the xor'd addr as data
+function [7:0] expected_reply(input [23:0] addr);
+    expected_reply = addr[23:16] ^ addr[15:8] ^ addr[7:0];
+endfunction
 
 // Init and wait for setup to be done
 initial
@@ -177,14 +175,13 @@ begin
     assert_read_quad_high_impedance();  // Dummy byte
 
     // Start data transfer and check that we receive it correctly
-    assert_transfer_quad_byte(data_to_send[31:24]);
-    assert_transfer_quad_byte(data_to_send[23:16]);
-    assert_transfer_quad_byte(data_to_send[15:8]);
-    assert_transfer_quad_byte(data_to_send[7:0]);
+    assert_transfer_quad_byte(expected_reply(addr));
+    assert_transfer_quad_byte(expected_reply(addr+1));
+    assert_transfer_quad_byte(expected_reply(addr+2));
+    assert_transfer_quad_byte(expected_reply(addr+3));
 
     // Stop reading for a short time
     do_read <= 'b0;
-    to_send_pos <= size_to_send;
     #50
 
     // Restart reading from different addresss
@@ -199,20 +196,19 @@ begin
     assert_read_quad_byte('h20); // Mode (continuous read)
     assert_read_quad_high_impedance();  // Dummy byte
     assert_read_quad_high_impedance();  // Dummy byte
-    assert_transfer_quad_byte(data_to_send[31:24]);
-    assert_transfer_quad_byte(data_to_send[23:16]);
-    assert_transfer_quad_byte(data_to_send[15:8]);
-    assert_transfer_quad_byte(data_to_send[7:0]);
+    assert_transfer_quad_byte(expected_reply(addr));
+    assert_transfer_quad_byte(expected_reply(addr+1));
+    assert_transfer_quad_byte(expected_reply(addr+2));
+    assert_transfer_quad_byte(expected_reply(addr+3));
 
     // Stop reading for a long time, at an odd cycle
     @(posedge clk);
     do_read <= 'b0;
-    to_send_pos <= size_to_send;
     #400
 
     // Restart reading from different addresss
     @(posedge clk);
-    addr <= addr ^ (addr <<< 3);
+    addr <= addr ^ (addr <<< 3) + 'hABCD;
     do_read <= 'b1;
 
     @(negedge cs);
@@ -222,15 +218,14 @@ begin
     assert_read_quad_byte('h20); // Mode (continuous read)
     assert_read_quad_high_impedance();  // Dummy byte
     assert_read_quad_high_impedance();  // Dummy byte
-    assert_transfer_quad_byte(data_to_send[31:24]);
-    assert_transfer_quad_byte(data_to_send[23:16]);
-    assert_transfer_quad_byte(data_to_send[15:8]);
-    assert_transfer_quad_byte(data_to_send[7:0]);
+    assert_transfer_quad_byte(expected_reply(addr));
+    assert_transfer_quad_byte(expected_reply(addr+1));
+    assert_transfer_quad_byte(expected_reply(addr+2));
+    assert_transfer_quad_byte(expected_reply(addr+3));
 
     // Stop
     do_read <= 0;
     addr <= 'bx;
-    to_send_pos <= size_to_send;
 
     #1000 $finish;
 
