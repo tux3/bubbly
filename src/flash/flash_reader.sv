@@ -26,7 +26,7 @@ module flash_reader #(
     inout so,
     inout wp,
     inout hold
-    );
+);
 
     localparam IDLE = 2'b00;
     localparam READING = 2'b01;
@@ -55,7 +55,7 @@ module flash_reader #(
         .hold
     );
 
-    assign data_ready = data_ready_raw && keep_reading;
+    assign data_ready = data_ready_raw && keep_reading && state == READING;
 
     always_ff @(posedge clk, negedge rst) begin
         if (!rst) begin
@@ -113,6 +113,7 @@ module flash_reader #(
 
         assert property (@(posedge clk) read_scheduled |-> state == READING);
         assert property (@(posedge clk) data_ready |-> state == READING);
+        assert property (@(posedge clk) data_ready |-> !$isunknown(data));
     end
     `endif
 endmodule

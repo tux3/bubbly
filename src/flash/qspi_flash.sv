@@ -16,12 +16,9 @@ module qspi_flash #(
     output reg data_ready,
     output reg [7:0] data,
     // Pins iface
-    output reg cs,
     output sclk,
-    inout si,
-    inout so,
-    inout wp,
-    inout hold
+    output cs,
+    inout si, so, wp, hold
 );
 
 localparam WRITE_PROTECT_WHEN_IDLE = 1; // Enable write-protect when not in use. Not really necessary.
@@ -29,6 +26,7 @@ localparam WRITE_PROTECT_WHEN_IDLE = 1; // Enable write-protect when not in use.
 reg read_data_mode; // True when reading a data byte, false during any other transmission
 reg quad_send_mode; // True when {hold, wp, so, si} are used as outputs by the flash chip.
 reg [1:0] cs_cooldown; // To respect timings we need to hold cs high at least two cycles before asserting it back down
+reg cs_reg;
 reg [3:0] setup_counter;
 reg [5:0] tx_counter;
 reg [39:0] send_buf;
@@ -42,6 +40,7 @@ wire [4:0] send_buf_window = send_buf[tx_counter_trailing +: 4];
 wire is_dummy_byte = (tx_counter[5:4] == 'b0) && quad_send_mode; // For 16 bits (4 clocks) before a quad-read command starts sending data we have high-Z dummy bytes
 wire quad_should_send = !cs && quad_send_mode && !is_dummy_byte;
 
+assign cs = cs_reg;
 assign sclk = !cs && clk;
 
 wire si_in, so_in, wp_in, hold_in;
@@ -171,11 +170,11 @@ end
 always @(negedge clk, negedge rst)
 begin
     if (!rst) begin
-        cs <= 'h1;
+        cs_reg <= 'h1;
     end else if (!setup_done) begin
-        cs <= cs_cooldown != 0;
+        cs_reg <= cs_cooldown != 0;
     end else begin
-        cs <= !do_read || cs_cooldown != 0;
+        cs_reg <= !do_read || cs_cooldown != 0;
     end
 end
 

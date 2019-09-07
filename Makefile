@@ -2,12 +2,12 @@ FPGA_FAMILY=ice40
 FPGA_MODEL=lp8k
 FPGA_PACKAGE=cm81
 
-TARGET_FREQ_MHZ=32
+TARGET_FREQ_MHZ=50
 
 SRCDIR=./src
 BINDIR=./build
 PRJ=$(notdir ${PWD})
-SRCFILES=$(filter-out $(wildcard ${SRCDIR}/test/*), $(shell find ${SRCDIR} -name *.v -or -name *.sv))
+SRCFILES=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), $(shell find ${SRCDIR} -name *.v -or -name *.sv))
 
 
 all: ${BINDIR}/${PRJ}.bin

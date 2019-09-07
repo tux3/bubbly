@@ -19,7 +19,7 @@ module flash_reader_tb;
     );
 
     flash_reader flash_reader(
-            .*
+        .*
     );
 
     task start_read_task(input reset, input [23:0] read_addr);

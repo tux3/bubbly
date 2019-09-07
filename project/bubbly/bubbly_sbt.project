@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2017.08.27940 - Bui
 ProjectName=bubbly
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=../../src/pll.v=work,../../src/qspi_flash.v=work,../../src/qspi_flash_tb.v=work,../../src/spi_slave.v=work,../../src/spi_slave_tb.v=work,../../src/top.v=work,../../src/flash_reader.v
+ProjectVFiles=../../src/pll.v=work,../../src/axi4lite.sv=work,../../src/bram.sv=work,../../src/spi_slave.sv=work,../../src/top.sv=work,../../src/core/core.sv=work,../../src/core/ifetch.sv=work,../../src/core/params.svh=work,../../src/core/pc_control.sv=work,../../src/flash/axi4lite_flash.sv=work,../../src/flash/flash_reader.sv=work,../../src/flash/qspi_flash.sv=work
 ProjectCFiles=../../src/constraints/clk.sdc
 CurImplementation=bubbly_Implmnt
 Implementations=bubbly_Implmnt
@@ -19,9 +19,9 @@ DevicePower=
 NetlistFile=bubbly_Implmnt/bubbly.edf
 AdditionalEDIFFile=
 IPEDIFFile=
-DesignLib=bubbly_Implmnt/sbt/netlist/oadb-flash_reader
-DesignView=_ep
-DesignCell=flash_reader
+DesignLib=bubbly_Implmnt/sbt/netlist/oadb-top
+DesignView=_rt
+DesignCell=top
 SynthesisSDCFile=bubbly_Implmnt/bubbly.scf
 UserPinConstraintFile=
 UserSDCFile=

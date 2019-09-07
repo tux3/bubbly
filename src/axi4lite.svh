@@ -1,0 +1,9 @@
+`ifndef _AXI4LITE_INCLUDE
+`define _AXI4LITE_INCLUDE
+
+localparam AXI4LITE_RESP_OKAY = 'b00;
+localparam AXI4LITE_RESP_EXOKAY = 'b01;
+localparam AXI4LITE_RESP_SLVERR = 'b10;
+localparam AXI4LITE_RESP_DECERR = 'b11;
+
+`endif // _AXI4LITE_INCLUDE
