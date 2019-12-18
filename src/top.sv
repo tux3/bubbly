@@ -31,7 +31,6 @@ assign PROBE_6 = '0;
 
 logic clk;
 logic rst;
-logic rstn = !rst;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
@@ -62,7 +61,7 @@ spi_slave spi(
     .recv_ready(recv_ready)
 );
 
-axi4lite sys_bus(.aclk(clk), .aresetn(rstn));
+axi4lite sys_bus();
 axi4lite_flash flash(
     .bus(sys_bus),
     .cs(FLASH_CS),

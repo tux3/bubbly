@@ -107,10 +107,11 @@ module flash_reader #(
     `ifndef SYNTHESIS
     always @(posedge clk) begin
         assert property (@(posedge clk) start_read && keep_reading && !data_ready |=> state == READING);
-        assert property (@(posedge clk) start_read && !keep_reading |=> state == READING || state == NEW_ADDR);
+        assert property (@(posedge clk) start_read && !keep_reading && !rst |=> state == READING || state == NEW_ADDR);
         assert property (@(posedge clk) read_scheduled |=> $stable(addr) || start_read);
         assert property (@(posedge clk) !keep_reading |=> (!do_read || $rose(do_read)) && !data_ready && !read_scheduled);
 
+        assert property (@(posedge clk) !rst |-> !$isunknown(setup_done));
         assert property (@(posedge clk) read_scheduled |-> state == READING);
         assert property (@(posedge clk) data_ready |-> state == READING);
         assert property (@(posedge clk) data_ready |-> !$isunknown(data));

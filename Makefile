@@ -2,12 +2,12 @@ FPGA_FAMILY=ice40
 FPGA_MODEL=lp8k
 FPGA_PACKAGE=cm81
 
-TARGET_FREQ_MHZ=50
+TARGET_FREQ_MHZ=32
 
 SRCDIR=./src
 BINDIR=./build
 PRJ=$(notdir ${PWD})
-SRCFILES=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), $(shell find ${SRCDIR} -name *.v -or -name *.sv))
+SRCFILES=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), ${SRCDIR}/global.svh $(shell find ${SRCDIR} -name *.v -or -name *.sv))
 
 
 all: ${BINDIR}/${PRJ}.bin
@@ -24,7 +24,7 @@ ${BINDIR}/${PRJ}.bin: ${BINDIR}/${PRJ}.asc
 	icepack ${BINDIR}/${PRJ}.asc ${BINDIR}/${PRJ}.bin
 
 ${BINDIR}/${PRJ}.asc: ${BINDIR}/${PRJ}.json
-	nextpnr-${FPGA_FAMILY} --${FPGA_MODEL} --package ${FPGA_PACKAGE} --json ${BINDIR}/${PRJ}.json --pcf ${SRCDIR}/constraints/pins.pcf --freq ${TARGET_FREQ_MHZ} --asc ${BINDIR}/${PRJ}.asc --seed 0
+	nextpnr-${FPGA_FAMILY} --${FPGA_MODEL} --package ${FPGA_PACKAGE} --json ${BINDIR}/${PRJ}.json --pcf ${SRCDIR}/constraints/pins.pcf --freq ${TARGET_FREQ_MHZ} --asc ${BINDIR}/${PRJ}.asc -r
 
 ${BINDIR}/${PRJ}.json: ${SRCFILES} Makefile
 	yosys -f "verilog -sv" -p "synth_${FPGA_FAMILY} -top top -json ${BINDIR}/${PRJ}.json -blif ${BINDIR}/${PRJ}.blif" ${SRCFILES}

@@ -47,7 +47,7 @@ module bram #(
     parameter blocks = 1,            // More BRAM blocks increase bandwidth
     parameter block_addr_width = 8,  // Address width of the BRAM
     parameter block_data_width = 16, // Bits each BRAM block can r/w per cycle
-    parameter data_width = block_data_width*blocks // Total bits/cycle bandwidth
+    localparam data_width = block_data_width*blocks // Total bits/cycle bandwidth
 ) (
     input wclk,
     input rclk,

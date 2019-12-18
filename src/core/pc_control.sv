@@ -2,18 +2,17 @@
 
 module pc_control(
     input clk, rst,
-    input next_stalled,
-    output reg stall,
+    input instr_retired,
     output reg [`XLEN-1:0] pc
 );
+
+// TODO: Support compressed instructions
 
 always_ff @(posedge clk) begin
     if (rst) begin
         pc <= '0;
-        stall <= '0;
     end else begin
-        stall <= '0; // NOTE: For now we have no reason to initiate a stall, we just wait for the fetch's handshake to tick ahead
-        if (!stall && !next_stalled)
+        if (instr_retired)
             pc <= pc + 'h4;
     end
 end

@@ -122,8 +122,8 @@ module axi4lite_flash #(
     initial assert($bits(bus.rdata) == $bits(read_data));
 
     always @(posedge bus.aclk) begin
-        assert property (@(posedge bus.aclk) bus.arready && bus.arvalid |=> start_read | keep_reading);
-        assert property (@(posedge bus.aclk) bus.arready && bus.arvalid |=> |read_counter);
+        assert property (@(posedge bus.aclk) bus.arready && bus.arvalid && !rst |=> start_read | keep_reading);
+        assert property (@(posedge bus.aclk) bus.arready && bus.arvalid && !rst |=> |read_counter);
         assert property (@(posedge bus.aclk) bus.rvalid |=> !data_ready); // Don't overwrite valid read data
 
         assert property (@(posedge bus.aclk) start_read |-> !$isunknown(flash_reader.addr));

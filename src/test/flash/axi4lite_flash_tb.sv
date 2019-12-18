@@ -10,7 +10,7 @@ module axi4lite_flash_tb;
 
     wire cs, sclk, si, so, wp, hold;
 
-    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(!rst));
+    axi4lite #(.ADDR_WIDTH(24)) bus();
     axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
         .bus,
 
@@ -24,6 +24,9 @@ module axi4lite_flash_tb;
     qspi_flash_mock qspi_flash_mock(
         .*
     );
+    
+    assign bus.aclk = clk;
+    assign bus.aresetn = !rst;
 
     initial begin
         #0 rst = 1;

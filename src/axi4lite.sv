@@ -1,8 +1,8 @@
 // Due to a bug in Yosys, we need a dummy parameter when instantiating interfaces or they fail to synthetize
-interface axi4lite #(ADDR_WIDTH = 32, DATA_WIDTH = 64) (
-    input aclk,
-    input aresetn
-);
+interface axi4lite #(ADDR_WIDTH = 32, DATA_WIDTH = 64)();
+    // Control
+    logic aclk;
+    logic aresetn;
 
     // Adress Read channel
     logic [ADDR_WIDTH-1:0] araddr;
@@ -34,9 +34,8 @@ interface axi4lite #(ADDR_WIDTH = 32, DATA_WIDTH = 64) (
     logic bready;
 
     modport master(
-        // NOTE: We only plug in aclk and aresetn in the master to make Yosys happy. It seems to want every wire in every modport.
-        input aclk,
-        input aresetn,
+        output aclk,
+        output aresetn,
 
         output araddr,
         output arprot,

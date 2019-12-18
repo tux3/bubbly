@@ -11,7 +11,7 @@ module ifetch_tb;
 
     wire cs, sclk, si, so, wp, hold;
 
-    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(!rst));
+    axi4lite #(.ADDR_WIDTH(24)) bus();
     axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
         .bus,
 
@@ -29,18 +29,14 @@ module ifetch_tb;
     logic [`ALEN-1:0] source_addr = 'x;
     wire [`ILEN-1:0] instruction;
     wire ifetch_exception;
-    logic source_stall = 'b1;
-    wire ifetch_stall_prev;
     wire ifetch_stall_next;
     ifetch ifetch(
         .clk,
         .rst,
 
-        .addr(source_addr),
+        .pc(source_addr),
         .instruction,
         .ifetch_exception,
-        .prev_stalled(source_stall),
-        .stall_prev(ifetch_stall_prev),
         .stall_next(ifetch_stall_next),
 
         .sys_bus(bus)
@@ -48,7 +44,6 @@ module ifetch_tb;
 
     initial begin
         #0 rst = 1;
-        #3 rst = 0;
     end
 
     initial forever
@@ -65,18 +60,17 @@ module ifetch_tb;
     endfunction
 
     task automatic read_instr_simple(input [`ALEN-1:0] addr);
-        logic expect_exception = addr[0]; // Must be 16bit aligned
+        logic [7:0] expected_low_byte = expected_bytes(addr, 1);
+        logic expect_exception = addr[0] || expected_low_byte[4:0] == 'b11111; // Check alignment and instr len > 32b exceptions
+        logic is_compressed_instr = expected_low_byte[1:0] != 'b11;
     
         @(posedge clk) begin
             source_addr <= addr;
-            source_stall <= 'b0;
+            rst <= 'b0;
         end
 
-        if (ifetch_stall_prev)
-            @(negedge ifetch_stall_prev);
         @(posedge clk) begin
             source_addr <= 'x;
-            source_stall <= '1;
         end
         
         @(negedge ifetch_stall_next);
@@ -85,100 +79,53 @@ module ifetch_tb;
             assert(instruction === 'x);
         end else begin
             assert(!ifetch_exception);
-            assert(instruction === expected_bytes(addr, `ILEN/8)) else $error("[%t] At addr %h expected 0x%h, but got 0x%h", $time, addr, expected_bytes(addr, `ILEN/8), instruction);
+            if (is_compressed_instr)
+                assert(instruction[15:0] === expected_bytes(addr, 2)) else $error("[%t] At addr %h expected 0x%h, but got 0x%h", $time, addr, expected_bytes(addr, 2), instruction);
+            else
+                assert(instruction === expected_bytes(addr, `ILEN/8)) else $error("[%t] At addr %h expected 0x%h, but got 0x%h", $time, addr, expected_bytes(addr, `ILEN/8), instruction);
         end
-        @(posedge clk)
-            #0.1 assert(ifetch_stall_next === 'b1);
-    endtask
-    
-    task automatic start_fast_read(input [`ALEN-1:0] addr);
-        // ifetch_stall_prev is not registered, it can spuriously go down
-        forever @(posedge clk) begin
-            #0.1;
-            if (ifetch_stall_prev)
-                continue;
-            source_addr = addr;
-            source_stall = 'b0;
-            break;
+            
+        @(posedge clk) begin
+            source_addr <= 'x;
+            rst <= 'b1;
         end
     endtask
-    
-    task automatic check_fast_read(input [`ALEN-1:0] addr);
-        logic expect_exception = addr[0]; // Must be 16bit aligned
-        
-        forever @(posedge clk) begin
-            #0.1;
-            if (!ifetch_stall_next)
-                break;
-        end
-        
-        if (expect_exception) begin
-            assert(ifetch_exception);
-            assert(instruction === 'x);
-        end else begin
-            assert(!ifetch_exception);
-            assert(instruction === expected_bytes(addr, `ILEN/8)) else $error("[%t] At addr %h expected data %h, but got %h", $time, addr, expected_bytes(addr, `ILEN/8), instruction);
-        end
-    endtask
-
 
     localparam RAND_READ_COUNT = 8192;
     initial begin
-        @(negedge rst);
-        
+        #2; @(posedge clk);
+    
         $display("Starting manual unit tests");
 
-        // 1. Simple reads
+        // 1. Simple reads (uncompressed instr)
+        read_instr_simple(.addr('h30));
+        read_instr_simple(.addr('h2211));
+        read_instr_simple(.addr('hD1E));
+        
+        // 2. Simple reads (compressed instr)
         read_instr_simple(.addr('h0));
-        read_instr_simple(.addr('h1));
         read_instr_simple(.addr('h1234));
         read_instr_simple(.addr('hA1E));
+             
+        // 3. Read that crosses a cache line, where the 2nd line is cached, but not the first
+        read_instr_simple(.addr('hFFF8));
+        read_instr_simple(.addr('hFFF6));
         
-        // 2. Read that crosses a cache line, where the 2nd line is cached, but not the first
-        read_instr_simple(.addr('hCCC8));
-        read_instr_simple(.addr('hCCC6));
+        // 4. Read that crosses a cache line, where both are in cache
+        read_instr_simple(.addr('hFFF6));
         
-        // 3. Read that crosses a cache line, where both are in cache
-        read_instr_simple(.addr('hCCC6));
+        // 5. Alignment exceptions
+        read_instr_simple(.addr('h1));
+        read_instr_simple(.addr('h3));
+        read_instr_simple(.addr('h4321));
         
-        // 4. Reads with unstalled source
-        fork
-            // Start reads
-            begin
-                start_fast_read(.addr('hAA0536));
-                start_fast_read(.addr('hAA0536));
-                start_fast_read(.addr('hAA0530));
-                start_fast_read(.addr('hAA0530));
-                start_fast_read(.addr('hCC));
-                start_fast_read(.addr('hCD));
-                start_fast_read(.addr('hCE));
-                start_fast_read(.addr('hCF));
-                start_fast_read(.addr('hD0));
-                start_fast_read(.addr('hAA052E));
-                
-                @(posedge clk)
-                    source_stall <= '1;
-            end
-            
-            // Check results
-            begin
-                check_fast_read(.addr('hAA0536));
-                check_fast_read(.addr('hAA0536));
-                check_fast_read(.addr('hAA0530));
-                check_fast_read(.addr('hAA0530));
-                check_fast_read(.addr('hCC));
-                check_fast_read(.addr('hCD));
-                check_fast_read(.addr('hCE));
-                check_fast_read(.addr('hCF));
-                check_fast_read(.addr('hD0));
-                check_fast_read(.addr('hAA052E));
-            end
-        join
-        
-        // 5. Random reads
+        // 6. Instruction too long exception
+        read_instr_simple(.addr('h1FE));
+       
+        // 7. Random reads
         $display("Starting random read tests, please stand by...");
         for (int i=0; i<RAND_READ_COUNT; ++i) begin: rand_read
-            logic [`ALEN-1 - (ifetch.icache_tag_size-5):0] rand_addr; // NOTE: We're only keeping 5 tag bits to increase collisions!
+            logic [`ALEN-1 - (icache_params::tag_size-5):0] rand_addr; // NOTE: We're only keeping 5 tag bits to increase collisions!
             assert(std::randomize(rand_addr));
             read_instr_simple(.addr(rand_addr));
         end    
