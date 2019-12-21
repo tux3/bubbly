@@ -4,7 +4,7 @@ timeunit 1ps;
 timeprecision 1ps;
 
 bit clk = 0;
-bit rst = 1;
+bit rst = 0;
 
 reg [23:0] addr;
 reg do_read;
@@ -37,12 +37,12 @@ qspi_flash flash(
 // Main clock
 initial
 begin
-    #0 rst = 0;
+    #0 rst = 1;
     #50 clk = 1;
     #50 clk = 0;
     #50 clk = 1;
-    #35 // Inconveniently short up level.
-    rst = 1;
+    #35 // Pretend we just barely meet release timing (for some reason?)
+    rst = 0;
     #15 clk = 0;
 
     forever begin

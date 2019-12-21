@@ -100,8 +100,8 @@ bram #(
 );
 
 // Outputs
-always @(posedge clk, negedge rst) begin
-    if (!rst) begin
+always @(posedge clk) begin
+    if (rst) begin
         stall_next <= '1;
         ifetch_exception <= 'x;
         instruction <= 'x;
@@ -145,8 +145,8 @@ always @(posedge clk, negedge rst) begin
 end
 
 // First stage: handshake with prev, manage next_addr_buf and look it up in the cache
-always @(posedge clk, negedge rst) begin
-    if (!rst) begin
+always @(posedge clk) begin
+    if (rst) begin
         next_addr_valid <= 'b0;
         next_addr_buf <= 'x;
         next_second_addr_buf <= 'x;
@@ -164,8 +164,8 @@ always @(posedge clk, negedge rst) begin
 end    
 
 // Second stage: Main FSM, read from sys_bus, second cache lookup
-always @(posedge clk, negedge rst) begin
-    if (!rst) begin
+always @(posedge clk) begin
+    if (rst) begin
         state <= STATE_READY;
         addr_buf <= 'x;
         second_addr_buf <= 'x;
@@ -208,8 +208,8 @@ always_comb begin
 end
 
 // Write cache lines
-always @(posedge clk, negedge rst) begin
-    if (!rst) begin
+always @(posedge clk) begin
+    if (rst) begin
         icache_write_enable <= 'b0;
         icache_waddr <= 'x;
         icache_wdata <= 'x;

@@ -18,18 +18,19 @@ module axi4lite_flash #(
 //          Note that if we scheduled the read on the flash without accepting it on the master, the master could cancel it before we go ready!
 //          It's probably simpler to accept the transaction and hold the address than to handle cancellation on the next data_ready (a lot happens on data_ready already...)
 
-    logic start_read;
-    logic keep_reading;
-
+    wire rst = !bus.aresetn; // Enjoy the extra LUT of delay on each side of the bus courtesy of the AMBA spec!
     wire data_ready;
     wire [7:0] data_byte;
+
+    logic start_read;
+    logic keep_reading;
 
     logic [63:0] read_data;
     logic [3:0] read_counter;
 
     flash_reader flash_reader(
         .clk(bus.aclk),
-        .rst(bus.aresetn),
+        .rst(rst),
         .addr(bus.araddr),
         .start_read,
         .keep_reading,
@@ -59,8 +60,8 @@ module axi4lite_flash #(
         end
     end
 
-    always_ff @(posedge bus.aclk, negedge bus.aresetn) begin
-        if (!bus.aresetn) begin
+    always_ff @(posedge bus.aclk) begin
+        if (rst) begin
             read_counter <= 'h0;
         end else if (bus.arready && bus.arvalid) begin
             read_counter <= 'h8;
@@ -69,8 +70,8 @@ module axi4lite_flash #(
         end
     end
 
-    always_ff @(posedge bus.aclk, negedge bus.aresetn) begin
-        if (!bus.aresetn) begin
+    always_ff @(posedge bus.aclk) begin
+        if (rst) begin
             read_data <= 'x;
         end else if (data_ready) begin
             read_data <= {data_byte, read_data[$bits(read_data)-1 : $bits(data_byte)]};
@@ -78,8 +79,8 @@ module axi4lite_flash #(
     end
 
     // Accept read requests
-    always_ff @(posedge bus.aclk, negedge bus.aresetn) begin
-        if (!bus.aresetn) begin
+    always_ff @(posedge bus.aclk) begin
+        if (rst) begin
             bus.arready <= 'b1;
         end else if (bus.arready && bus.arvalid) begin
             bus.arready <= 'b0;
@@ -89,8 +90,8 @@ module axi4lite_flash #(
     end
 
     // Sign read responses
-    always @(posedge bus.aclk, negedge bus.aresetn) begin
-        if (!bus.aresetn) begin
+    always @(posedge bus.aclk) begin
+        if (rst) begin
             bus.rvalid <= 'b0;
         end else if (bus.rready && bus.rvalid) begin
             bus.rvalid <= 'b0;
@@ -100,8 +101,8 @@ module axi4lite_flash #(
     end
 
     // Respond to all writes with an error
-    always @(posedge bus.aclk, negedge bus.aresetn) begin
-        if (!bus.aresetn) begin
+    always @(posedge bus.aclk) begin
+        if (rst) begin
             bus.awready <= 'b0;
             bus.wready <= 'b0;
             bus.bvalid <= 'b0;

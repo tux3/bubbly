@@ -7,11 +7,11 @@ timeprecision 10ns;
 module ifetch_tb;
 
     bit clk = 0;
-    bit rst = 1;
+    bit rst = 0;
 
     wire cs, sclk, si, so, wp, hold;
 
-    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(rst));
+    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(!rst));
     axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
         .bus,
 
@@ -47,8 +47,8 @@ module ifetch_tb;
     );
 
     initial begin
-        #0 rst = 0;
-        #1 rst = 1;
+        #0 rst = 1;
+        #3 rst = 0;
     end
 
     initial forever
@@ -124,7 +124,7 @@ module ifetch_tb;
 
     localparam RAND_READ_COUNT = 8192;
     initial begin
-        @(posedge rst);
+        @(negedge rst);
         
         $display("Starting manual unit tests");
 

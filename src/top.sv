@@ -31,6 +31,7 @@ assign PROBE_6 = sys_bus.rvalid;
 
 logic clk;
 logic rst;
+logic rstn = !rst;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
@@ -40,7 +41,7 @@ pll pll(
     .clk_in(CLK_16MHZ),
     .resetb_in(RESETN),
     .clk_out(clk),
-    .resetb_out(rst)
+    .reset_out(rst)
 );
 
 reg [7:0] send_data;
@@ -61,7 +62,7 @@ spi_slave spi(
     .recv_ready(recv_ready)
 );
 
-axi4lite sys_bus(.aclk(clk), .aresetn(rst));
+axi4lite sys_bus(.aclk(clk), .aresetn(rstn));
 axi4lite_flash flash(
     .bus(sys_bus),
     .cs(FLASH_CS),
@@ -106,8 +107,8 @@ logic [3:0] send_buf_count;
 reg [7:0] data_read;
 reg dbg_reply_signaled;
 
-always @(negedge clk, negedge rst) begin
-    if (!rst) begin
+always @(negedge clk) begin
+    if (rst) begin
         core_clk_enable_reg <= '0;
         core_clk_pulse_reg <= '0;
     end else begin
@@ -117,9 +118,9 @@ always @(negedge clk, negedge rst) begin
 end    
 
 // Handle received SPI commands
-always @(posedge clk, negedge rst)
+always @(posedge clk)
 begin: set_led
-    if (!rst) begin
+    if (rst) begin
         LED <= '0;
         send_data <= '0;
 		send_buf <= 'x;

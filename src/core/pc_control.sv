@@ -7,8 +7,8 @@ module pc_control(
     output reg [`XLEN-1:0] pc
 );
 
-always_ff @(posedge clk, negedge rst) begin
-    if (!rst) begin
+always_ff @(posedge clk) begin
+    if (rst) begin
         pc <= '0;
         stall <= '0;
     end else begin

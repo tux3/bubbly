@@ -6,11 +6,11 @@ timeprecision 10ns;
 module axi4lite_flash_tb;
 
     bit clk = 0;
-    bit rst = 1;
+    bit rst = 0;
 
     wire cs, sclk, si, so, wp, hold;
 
-    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(rst));
+    axi4lite #(.ADDR_WIDTH(24)) bus(.aclk(clk), .aresetn(!rst));
     axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
         .bus,
 
@@ -26,8 +26,8 @@ module axi4lite_flash_tb;
     );
 
     initial begin
-        #0 rst = 0;
-        #1 rst = 1;
+        #0 rst = 1;
+        #3 rst = 0;
     end
 
     initial begin
@@ -298,12 +298,11 @@ module axi4lite_flash_tb;
     endtask
 
     initial begin
-        // 0-cycle wait for reset on the other side to propagate so our asserts don't fail
+        // Wait for reset on the other side to propagate so our asserts don't fail
         @(negedge (bus.rvalid | bus.bvalid));
-        assert($time == 0);
 
         master_reset_to_idle();
-        @(posedge rst);
+        @(negedge rst);
 
         // Simple read while waiting for setup
         master_read_one(.addr('hAABBCC));
@@ -322,7 +321,7 @@ module axi4lite_flash_tb;
     end
 
     initial begin
-        @(posedge rst);
+        @(negedge rst);
 
         master_write_simple('h414141);
 

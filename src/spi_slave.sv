@@ -16,7 +16,7 @@ module spi_slave(
     output recv_ready
 );
 
-wire ssb_or_rst = rst && !ss_idle_sync2;
+wire rst_or_ss = rst || ss_idle_sync2;
 
 // sclk domain registers
 reg [2:0] txed_bits_count;
@@ -38,9 +38,9 @@ assign send_ready = ss_idle_sync2 || recv_ready;
 assign miso = !ss && send_buf[3'b111 - txed_bits_count];
 
 // Shift in incoming data
-always @(posedge sclk, negedge rst)
+always @(posedge sclk, posedge rst)
 begin
-    if (!rst) begin
+    if (rst) begin
         recv_buf <= 0;
     end else if (!ss_idle_sync2) begin
         recv_buf <= {recv_buf[6:0], mosi};
@@ -48,9 +48,9 @@ begin
 end
 
 // Move in outgoing data
-always @(negedge ext_clk, negedge rst)
+always @(negedge ext_clk, posedge rst)
 begin
-    if (!rst) begin
+    if (rst) begin
         send_buf <= 0;
     end else begin
         send_buf <= send_data;
@@ -58,9 +58,9 @@ begin
 end
 
 // Keep transfered bits count (reset if ss abruptly goes up)
-always @(negedge sclk, negedge ssb_or_rst)
+always @(negedge sclk, posedge rst_or_ss)
 begin
-    if (!ssb_or_rst) begin
+    if (rst_or_ss) begin
         txed_bits_count <= 0;
     end else if (!ss) begin
         txed_bits_count <= txed_bits_count + 1;
@@ -68,9 +68,9 @@ begin
 end
 
 // Output recv_ready signal
-always @(posedge ext_clk, negedge rst)
+always @(posedge ext_clk, posedge rst)
 begin
-    if (!rst) begin
+    if (rst) begin
         recv_ready_sync1 <= 1;
         recv_ready_sync2 <= 1;
         recv_already_read <= 1;
