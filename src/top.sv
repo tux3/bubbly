@@ -7,27 +7,27 @@ module top(
     input SPI_MOSI,
     output SPI_MISO,
     input SPI_SS,
-	output FLASH_CS,
-	output FLASH_CLK,
-	inout FLASH_MOSI,
-	inout FLASH_MISO,
-	inout FLASH_WP,
-	inout FLASH_HOLD,
-	output PROBE_1,
-	output PROBE_2,
-	output PROBE_3,
-	output PROBE_4,
-	output PROBE_5,
-	output PROBE_6,
+    output FLASH_CS,
+    output FLASH_CLK,
+    inout FLASH_MOSI,
+    inout FLASH_MISO,
+    inout FLASH_WP,
+    inout FLASH_HOLD,
+    output PROBE_1,
+    output PROBE_2,
+    output PROBE_3,
+    output PROBE_4,
+    output PROBE_5,
+    output PROBE_6,
     output reg LED
 );
 
 assign PROBE_1 = RESETN;
-assign PROBE_2 = gated_core_clk;
-assign PROBE_3 = SPI_SS;
-assign PROBE_4 = SPI_CLK;
-assign PROBE_5 = sys_bus.rready;
-assign PROBE_6 = sys_bus.rvalid;
+assign PROBE_2 = '0;
+assign PROBE_3 = '0;
+assign PROBE_4 = '0;
+assign PROBE_5 = '0;
+assign PROBE_6 = '0;
 
 logic clk;
 logic rst;
@@ -117,34 +117,47 @@ always @(negedge clk) begin
     end
 end    
 
+reg led_buf;
+always @(posedge clk)
+    LED <= led_buf;
+
 // Handle received SPI commands
 always @(posedge clk)
 begin: set_led
     if (rst) begin
-        LED <= '0;
+        led_buf <= '0;
         send_data <= '0;
-		send_buf <= 'x;
+        send_buf <= 'x;
         send_buf_count <= '0;
-		dbg_state <= DBG_IDLE;
-		dbg_reply_signaled <= '0;
+        dbg_state <= DBG_IDLE;
+        dbg_reply_signaled <= '0;
         core_clk_enable <= '0;
         core_clk_pulse <= '0;
     end else if (recv_ready) begin
-		if (dbg_state == DBG_IDLE) begin
-			if (recv_data == DBG_CMD_NOP) begin
-				send_data <= '0;
-			end else if (recv_data == DBG_CMD_ECHO) begin
-				send_data <= DBG_CMD_ECHO;
-				dbg_state <= DBG_ECHO;
+        if (dbg_state == DBG_IDLE) begin
+            if (recv_data == DBG_CMD_NOP) begin
+                send_data <= '0;
+                send_buf_count <= 'x;
+            end else if (recv_data == DBG_CMD_ECHO) begin
+                send_data <= DBG_CMD_ECHO;
+                dbg_state <= DBG_ECHO;
+                send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_TOGGLE_LED)begin
                 send_data <= '0;
-				LED <= ~LED;
+                send_buf_count <= 'x;
+                led_buf <= ~led_buf;
             end else if (recv_data == DBG_CMD_ENABLE_CLOCK) begin
                 core_clk_enable <= '1;
+                send_data <= '0;
+                send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_DISABLE_CLOCK) begin
                 core_clk_enable <= '0;
+                send_data <= '0;
+                send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_STEP_CLOCK) begin
                 core_clk_pulse <= !core_clk_pulse;
+                send_data <= '0;
+                send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_GET_PC) begin
                 send_buf <= reg_pc;
                 send_buf_count <= 8;
@@ -155,22 +168,23 @@ begin: set_led
                 send_buf_count <= 4;
                 dbg_state <= DBG_REPLYING;
                 send_data <= send_buf_count;
-			end else begin
-				send_data <= 'h00;
-			end
-		end else if (dbg_state == DBG_ECHO) begin
-			send_data <= recv_data;
-			dbg_state <= DBG_IDLE;
+            end else begin
+                send_data <= 'h00;
+                send_buf_count <= 'x;
+            end
+        end else if (dbg_state == DBG_ECHO) begin
+            send_data <= recv_data;
+            dbg_state <= DBG_IDLE;
         end else if (dbg_state == DBG_REPLYING) begin
             send_data <= send_buf[send_buf_count*8-1 -: 8];
             if (send_buf_count == 1)
                 dbg_state <= DBG_IDLE;
             send_buf_count <= send_buf_count-1;
-		end else begin
-			send_data <= 'hFF;
-			LED <= 1;
-		end
-	end
+        end else begin
+            send_data <= 'hFF;
+            led_buf <= 1;
+        end
+    end
 end
 
 endmodule
