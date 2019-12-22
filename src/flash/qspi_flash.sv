@@ -30,27 +30,24 @@ reg cs_reg;
 reg [3:0] setup_counter;
 reg [5:0] tx_counter;
 reg [39:0] send_buf;
-
-assign setup_done = !(|setup_counter);
-
-// Purely optimizations to avoid wide adders. Also allow to hardcode indexes into the window instead of writing `buf[x+3]` and synthetizing another adder...
-wire [5:0] tx_counter_trailing = {tx_counter[5:4] - 1, tx_counter[3:0]};
-wire [4:0] send_buf_window = send_buf[tx_counter_trailing +: 4];
+reg [0:39] sliding_send_buf;
 
 wire is_dummy_byte = (tx_counter[5:4] == 'b0) && quad_send_mode; // For 16 bits (4 clocks) before a quad-read command starts sending data we have high-Z dummy bytes
 wire quad_should_send = !cs && quad_send_mode && !is_dummy_byte;
-
-assign cs = cs_reg;
-assign sclk = !cs && clk;
+wire switch_to_quad_send_mode = setup_counter == 'h1 && tx_counter == 'h30;
 
 wire si_in, so_in, wp_in, hold_in;
 
+assign cs = cs_reg;
+assign sclk = !cs && clk;
+assign setup_done = !(|setup_counter);
+
 generate
 if (!USE_SB_IO) begin
-	assign si = !cs && !is_dummy_byte ? (setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter]) : 1'bz;
-	assign so = quad_should_send ? send_buf_window[1] : 1'bz;
-	assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? send_buf_window[2] : 1'bz) : 1'b0;
-	assign hold = quad_should_send ? send_buf_window[3] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
+	assign si = !cs && !is_dummy_byte ? (setup_counter == '0 ? sliding_send_buf[3] : sliding_send_buf[0]) : 1'bz;
+	assign so = quad_should_send ? sliding_send_buf[2] : 1'bz;
+	assign wp = (!cs || !WRITE_PROTECT_WHEN_IDLE) ? (quad_send_mode && !is_dummy_byte && cs == 0 ? sliding_send_buf[1] : 1'bz) : 1'b0;
+	assign hold = quad_should_send ? sliding_send_buf[0] : 1'bz; // Hold is pulled-high by Flash, we can leave it floating
 
 	assign si_in = si;
 	assign so_in = so;
@@ -62,10 +59,10 @@ end else begin
 	wire wp_enable = quad_should_send || (WRITE_PROTECT_WHEN_IDLE && cs);
 	wire hold_enable = quad_should_send;
 
-	wire si_out = setup_counter <= 1 ? send_buf_window[0] : send_buf[tx_counter];
-	wire so_out = send_buf_window[1];
-	wire wp_out = (!cs && quad_send_mode) ? send_buf_window[2] : 1'b0;
-	wire hold_out = send_buf_window[3];
+    wire si_out = setup_counter == '0 ? sliding_send_buf[3] : sliding_send_buf[0];
+    wire so_out = sliding_send_buf[2];
+	wire wp_out = (!cs && quad_send_mode) ? sliding_send_buf[1] : 1'b0;
+	wire hold_out = sliding_send_buf[0];
 
 	SB_IO #(
 	    .PIN_TYPE(6'b 1010_01)
@@ -84,7 +81,7 @@ begin
     if (rst) begin
         tx_counter <= 'h08;
         read_data_mode <= 'b0;
-        quad_send_mode = 'b0;
+        quad_send_mode <= 'b0;
     end else begin
         if (setup_done && !do_read) begin
             tx_counter <= 0;
@@ -92,10 +89,10 @@ begin
         end
 
         else if (tx_counter != 0 && cs_cooldown == 0) begin
-            if (setup_counter == 'h1 && tx_counter == 'h30)
-                quad_send_mode = 'b1;
+            if (switch_to_quad_send_mode)
+                quad_send_mode <= 'b1;
 
-            if (quad_send_mode)
+            if (quad_send_mode || switch_to_quad_send_mode)
                 tx_counter <= tx_counter - 4;
             else
                 tx_counter <= tx_counter - 1;
@@ -163,6 +160,32 @@ begin
             send_buf <= {32'bx, addr, 8'h20};
         else
             send_buf <= 'x;
+    end
+end
+
+// Prepare data to send
+always @(negedge clk)
+begin
+    if (rst) begin
+		sliding_send_buf <= {8'hAB, {32{'x}}}; // Wake opcode
+    end else if (tx_counter == 0) begin
+		if (setup_counter == 'h5)
+            sliding_send_buf <= {8'h06, {32{'x}}}; // Write-enable opcode
+        else if (setup_counter == 'h4)
+            sliding_send_buf <= {8'h01, 8'b1000_0000, 8'b0000_0010, {16{'x}}}; // Write status register to disable irrelevant protections and set QE bit
+        else if (setup_counter == 'h3)
+            sliding_send_buf <= {8'h04, {32{'x}}}; // Write-disable opcode
+        else if (setup_counter == 'h2)
+            sliding_send_buf <= {8'hEB, 32'h00000020}; // Start quad-read in continuous mode
+        else if (!read_data_mode)
+            sliding_send_buf <= {addr, 8'h20, {8{'x}}};
+        else
+            sliding_send_buf <= 'x;
+    end else if (!cs_reg) begin
+        if (quad_send_mode)
+            sliding_send_buf <= {sliding_send_buf[4 +: $size(sliding_send_buf)-4], 4'bx};
+        else
+            sliding_send_buf <= {sliding_send_buf[1 +: $size(sliding_send_buf)-1], 1'bx};
     end
 end
 

@@ -18,7 +18,7 @@ qspi_flash_mock flash_mock(
     .*
 );
 
-qspi_flash flash(
+qspi_flash #(.USE_SB_IO(0)) flash(
     .clk(clk),
     .rst(rst),
     .addr(addr),
