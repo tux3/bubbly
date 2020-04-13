@@ -6,15 +6,15 @@ localparam instr_size = 64; // Up to two uncompressed instructions / four compre
 localparam align_bits = $clog2(instr_size/8);
 localparam aligned_addr_size = `ALEN - align_bits;
 localparam flags_size = 1; // Valid flag
-localparam bram_blocks = 5;
+localparam bram_blocks = 6;
 localparam bram_addr_width = 8;
 localparam bram_block_data_width = 16;
 localparam entry_size = bram_blocks*bram_block_data_width;
 localparam tag_size = entry_size - instr_size - flags_size;
 endpackage
 
-// Our icache stores 64bits of instructions (64bit aligned), with ALEN=26 it requires 15 bits of tags (and valid 1bit), for 80bit per entry
-// On the iCE40 a BRAM is 4kbits 16-bit addressable, so we fit 256*80bit icache entries in 5 BRAMs
+// Our icache stores 64bits of instructions (64bit aligned), with ALEN=42 it requires 31 bits of tags (and valid 1bit), for 96bit per entry
+// On the iCE40 a BRAM is 4kbits 16-bit addressable, so we fit 256*96bit icache entries in 6 BRAMs
 // Cache line entry format: | Tag | Valid | Data |
 module icache (
 	input clk,
@@ -28,7 +28,7 @@ module icache (
 
 // The icache's width and tag size depend directly on `ALEN, make sure everything is correct before changing this
 generate
-	if (`ALEN != 26)
+	if (`ALEN != 42)
 		$error("Cannot change `ALEN without updating the icache!");
 	if (icache_params::aligned_addr_size != icache_params::bram_addr_width + icache_params::tag_size)
 		$error("icache's aligned_addr_size is inconsistent with other params");

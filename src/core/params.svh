@@ -3,7 +3,7 @@
 `ifndef _CORE_PARAMS_INCLUDE
 `define _CORE_PARAMS_INCLUDE
 
-`define ALEN 26 // Maximum address size. Constrained by tag size we can fit in a cache entry with the iCE40's BRAM!
+`define ALEN 42 // Maximum usable address size. Constrained by the tag size in our icache entries
 `define XLEN 64 // Register size
 `define ILEN 32 // Maximum instruction size
 
