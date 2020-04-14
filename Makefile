@@ -16,6 +16,9 @@ all: ${BINDIR}/${PRJ}.bin
 clean:
 	rm -f $(wildcard ${BINDIR}/${PRJ}.*)
 
+check:
+	yosys -f "verilog -sv" -p "read_verilog -icells -lib +/${FPGA_FAMILY}/cells_sim.v; hierarchy; proc; check;" ${SRCFILES}
+
 flash: ${BINDIR}/${PRJ}.bin
 	rsync -avzh "$^" "pi:/tmp/${PRJ}.bin"
 	ssh pi tinyprog -p "/tmp/${PRJ}.bin"

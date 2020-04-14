@@ -76,6 +76,7 @@ axi4lite_flash flash(
 
 wire [`XLEN-1:0] reg_pc;
 wire [`ILEN-1:0] fetched_instruction;
+wire [`XLEN-1:0] core_reg_read_data;
 
 core core(
     .clk,
@@ -84,12 +85,16 @@ core core(
     .sys_bus,
 
     .reg_pc,
-    .fetched_instruction
+    .fetched_instruction,
+    
+    .reg_read_sel(recv_data[4:0]),
+    .reg_read_data(core_reg_read_data)
 );
 
 localparam DBG_IDLE = 0;
 localparam DBG_REPLYING = 1;
 localparam DBG_ECHO = 2;
+localparam DBG_READ_REG = 3;
 
 localparam DBG_CMD_NOP = 'h00;
 localparam DBG_CMD_ECHO = 'h01;
@@ -99,6 +104,7 @@ localparam DBG_CMD_DISABLE_CLOCK = 'h04;
 localparam DBG_CMD_STEP_CLOCK = 'h05;
 localparam DBG_CMD_GET_PC = 'h06;
 localparam DBG_CMD_GET_FETCHED_INSTRUCTION = 'h07;
+localparam DBG_CMD_GET_REG = 'h08;
 logic [2:0] dbg_state;
 
 logic [63:0] send_buf;
@@ -167,6 +173,10 @@ begin: set_led
                 send_buf_count <= 4;
                 dbg_state <= DBG_REPLYING;
                 send_data <= send_buf_count;
+            end else if (recv_data == DBG_CMD_GET_REG) begin
+                send_data <= '0;
+                send_buf_count <= 'x;
+                dbg_state <= DBG_READ_REG;
             end else begin
                 send_data <= 'h00;
                 send_buf_count <= 'x;
@@ -174,6 +184,11 @@ begin: set_led
         end else if (dbg_state == DBG_ECHO) begin
             send_data <= recv_data;
             dbg_state <= DBG_IDLE;
+        end else if (dbg_state == DBG_READ_REG) begin
+            send_buf <= core_reg_read_data;
+            send_buf_count <= 8;
+            dbg_state <= DBG_REPLYING;
+            send_data <= '0;
         end else if (dbg_state == DBG_REPLYING) begin
             send_data <= send_buf[send_buf_count*8-1 -: 8];
             if (send_buf_count == 1)
@@ -181,7 +196,6 @@ begin: set_led
             send_buf_count <= send_buf_count-1;
         end else begin
             send_data <= 'hFF;
-            led_buf <= 1;
         end
     end
 end

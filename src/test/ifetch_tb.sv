@@ -28,15 +28,23 @@ module ifetch_tb;
 
     logic [`ALEN-1:0] source_addr = 'x;
     wire [`ILEN-1:0] instruction;
+    wire [`ALEN-1:0] instruction_addr;
+    wire [`ALEN-1:0] instruction_next_addr;
     wire ifetch_exception;
     wire ifetch_stall_next;
+	wire next_stalled = '0;
+    wire flush = '0;
     ifetch ifetch(
         .clk,
         .rst,
+        .flush,
 
         .pc(source_addr),
         .instruction,
+        .instruction_addr,
+        .instruction_next_addr,
         .ifetch_exception,
+		.next_stalled(next_stalled),
         .stall_next(ifetch_stall_next),
 
         .sys_bus(bus)
@@ -79,6 +87,7 @@ module ifetch_tb;
             assert(instruction === 'x);
         end else begin
             assert(!ifetch_exception);
+            assert(instruction_addr == addr);
             if (is_compressed_instr)
                 assert(instruction[15:0] === expected_bytes(addr, 2)) else $error("[%t] At addr %h expected 0x%h, but got 0x%h", $time, addr, expected_bytes(addr, 2), instruction);
             else
@@ -101,11 +110,13 @@ module ifetch_tb;
         read_instr_simple(.addr('h30));
         read_instr_simple(.addr('h2211));
         read_instr_simple(.addr('hD1E));
+        read_instr_simple(.addr('h253123));
         
         // 2. Simple reads (compressed instr)
         read_instr_simple(.addr('h0));
         read_instr_simple(.addr('h1234));
         read_instr_simple(.addr('hA1E));
+        read_instr_simple(.addr('h900FA3));
              
         // 3. Read that crosses a cache line, where the 2nd line is cached, but not the first
         read_instr_simple(.addr('hFFF8));

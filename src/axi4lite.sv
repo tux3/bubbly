@@ -1,5 +1,4 @@
-// Due to a bug in Yosys, we need a dummy parameter when instantiating interfaces or they fail to synthetize
-interface axi4lite #(ADDR_WIDTH = 32, DATA_WIDTH = 64)();
+interface axi4lite #(ADDR_WIDTH = 64, DATA_WIDTH = 64)();
     // Control
     logic aclk;
     logic aresetn;

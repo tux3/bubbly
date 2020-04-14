@@ -1,5 +1,4 @@
 // SPI Slave module
-// Ensure ext_clk is about 16*sclk to allow responsing immediately after a read.
 // - Read recv_data when recv_ready is high.
 // - Write send_data when send_ready is high, and keep it stable when send_ready is low.
 
@@ -11,9 +10,9 @@ module spi_slave(
     output miso,
     input ss,
     input [7:0] send_data,
-    output send_ready,
-    output [7:0] recv_data,
-    output recv_ready
+    output logic send_ready,
+    output logic [7:0] recv_data,
+    output logic recv_ready
 );
 
 wire rst_or_ss = rst || ss_idle_sync2;
@@ -32,10 +31,20 @@ reg recv_already_read;
 reg ss_idle_sync1;
 reg ss_idle_sync2;
 
-assign recv_data = recv_buf;
-assign recv_ready = recv_ready_sync2 && recv_ready_sync1 && tx_done_internal && !recv_already_read;
-assign send_ready = ss_idle_sync2 || recv_ready;
 assign miso = !ss && send_buf[3'b111 - txed_bits_count];
+
+// Register outputs
+always_ff @(posedge ext_clk, posedge rst) begin
+    if (rst) begin
+        recv_data <= 'x;
+        recv_ready <= '0;
+        send_ready <= '0;
+    end else begin
+        recv_data <= recv_buf;
+        recv_ready <= recv_ready_sync2 && recv_ready_sync1 && tx_done_internal && !recv_already_read;
+        send_ready <= ss_idle_sync2 || recv_ready;
+    end
+end
 
 // Shift in incoming data
 always @(posedge sclk, posedge rst)
