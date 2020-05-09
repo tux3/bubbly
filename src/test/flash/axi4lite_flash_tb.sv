@@ -21,7 +21,7 @@ module axi4lite_flash_tb;
         .wp,
         .hold
     );
-    qspi_flash_mock qspi_flash_mock(
+    qspi_flash_pattern_mock qspi_flash_mock(
         .*
     );
     

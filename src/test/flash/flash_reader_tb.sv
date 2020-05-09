@@ -14,7 +14,7 @@ module flash_reader_tb;
 
     wire cs, sclk, si, so, wp, hold;
 
-    qspi_flash_mock flash(
+    qspi_flash_pattern_mock flash(
         .*
     );
 

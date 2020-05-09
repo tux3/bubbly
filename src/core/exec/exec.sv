@@ -51,7 +51,6 @@ exec_branch exec_branch(
 );
 
 wire input_is_int = opcode[4] == 0 && opcode[2] == 1;
-wire exec_int_next_output_valid_comb;
 wire exec_int_output_valid;
 wire exec_int_exception;
 wire [`XLEN-1:0] exec_int_result;

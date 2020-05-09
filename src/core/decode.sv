@@ -144,7 +144,7 @@ always @(posedge clk) begin
     u_imm <= instruction[31:12];
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
     
-    decode_is_compressed_instr <= instruction[1:0] == 'b11;
+    decode_is_compressed_instr <= instruction[1:0] != 'b11;
     decode_is_jump <= instruction[6:5] == 'b11;
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
                         && instruction[6:2] != decode_types::OP_SYSTEM
@@ -162,7 +162,7 @@ always @(posedge clk) begin
         
         if (ifetch_exception)
             decode_exception <= '1;
-        else if (instruction[1:0] == 'b11) // TODO: Support for compressed instr decoding
+        else if (instruction[1:0] != 'b11) // TODO: Support for compressed instr decoding
             decode_exception <= '1;
         else
             decode_exception <= '0;

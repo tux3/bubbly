@@ -1,8 +1,8 @@
 timeunit 100ns;
 timeprecision 10ns;
 
-`include "../core/params.svh"
-`include "../axi4lite.svh"
+`include "../../core/params.svh"
+`include "../../axi4lite.svh"
 
 module ifetch_tb;
 
@@ -22,7 +22,7 @@ module ifetch_tb;
         .wp,
         .hold
     );
-    qspi_flash_mock qspi_flash_mock(
+    qspi_flash_pattern_mock qspi_flash_mock(
         .*
     );
 

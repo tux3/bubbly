@@ -35,10 +35,6 @@ end
 // TODO: Cond branches!
 wire branch_taken = '1;
 
-// Note that this is not the branch target, it's the value JAL write in rd
-assign exec_branch_result = decode_instruction_next_addr;
-assign exec_branch_exception = '0;
-
 logic [`ALEN-1:0] exec_branch_target_comb;
 
 always_comb begin
@@ -50,8 +46,12 @@ always_comb begin
 end
 
 always_ff @(posedge clk) begin
-    if (input_valid && input_is_branch)
+    if (input_valid && input_is_branch) begin
+        exec_branch_exception <= exec_branch_target_comb[0]; // Bad branch target alignment
         exec_branch_target <= exec_branch_target_comb;
+        // Note that this is not the branch target, it's the value JAL write in rd
+        exec_branch_result <= decode_instruction_next_addr;
+    end
 end
 
 // Detect mispredicts by comparing the last taken branch to the next instr's address
@@ -61,10 +61,14 @@ reg [`ALEN-1:0] last_branch_target;
 assign exec_mispredict_detected = input_valid_unless_mispredict && last_branch_just_taken && last_branch_target != decode_instruction_addr;
 
 always_ff @(posedge clk) begin
-    if (input_valid_unless_mispredict)
-        last_branch_just_taken <= input_valid && input_is_branch && branch_taken;
-    if (input_valid && input_is_branch && branch_taken)
-        last_branch_target <= exec_branch_target_comb;
+    if (rst) begin
+        last_branch_just_taken <= '0;
+    end else begin
+        if (input_valid_unless_mispredict)
+            last_branch_just_taken <= input_valid && input_is_branch && branch_taken;
+        if (input_valid && input_is_branch && branch_taken)
+            last_branch_target <= exec_branch_target_comb;
+    end    
 end
 
 endmodule

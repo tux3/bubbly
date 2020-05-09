@@ -14,7 +14,7 @@ wire [7:0] data;
 
 wire cs, sclk, si, so, wp, hold;
 
-qspi_flash_mock flash_mock(
+qspi_flash_pattern_mock flash_mock(
     .*
 );
 
