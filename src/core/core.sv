@@ -3,7 +3,8 @@
 module core(
     input clk, rst,
 
-    axi4lite.master sys_bus,
+    axi4lite.master ifetch_port,
+    axi4lite.master data_port,
 
     // State outputs
     output [`XLEN-1:0] reg_pc,
@@ -13,6 +14,15 @@ module core(
 );
 
 assign reg_pc = pc;
+
+// TODO: Give the data bus to our load/store unit
+assign data_port.aclk = clk;
+assign data_port.aresetn = !rst;
+assign data_port.arvalid = '0;
+assign data_port.rready = '0;
+assign data_port.awvalid = '0;
+assign data_port.wvalid = '0;
+assign data_port.bready = '0;
 
 // Pipeline handshake
 // - prev_stalled: Input data is NOT valid, can be asserted at any clock tick.
@@ -60,7 +70,7 @@ ifetch ifetch(
     .ifetch_exception,
 	.next_stalled(decode_stall_prev),
     .stall_next(ifetch_stall_next),
-    .sys_bus
+    .sys_bus(ifetch_port)
 );
 
 wire decode_stall_prev;

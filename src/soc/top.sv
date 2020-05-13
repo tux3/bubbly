@@ -1,4 +1,4 @@
-`include "core/params.svh"
+`include "../core/params.svh"
 
 module top(
     input CLK_16MHZ,
@@ -61,27 +61,19 @@ spi_slave spi(
     .recv_ready(recv_ready)
 );
 
-axi4lite sys_bus();
-axi4lite_flash flash(
-    .bus(sys_bus),
+wire [`XLEN-1:0] reg_pc;
+wire [`XLEN-1:0] core_reg_read_data;
+
+basic_soc basic_soc(
+    .clk,
+    .rst,
+    
     .cs(FLASH_CS),
     .sclk(FLASH_CLK),
     .si(FLASH_MOSI),
     .so(FLASH_MISO),
     .wp(FLASH_WP),
-    .hold(FLASH_HOLD)
-);
-
-// TODO: For debug purposes, we can try assigning the gated core clock to the flash_reader and core
-
-wire [`XLEN-1:0] reg_pc;
-wire [`XLEN-1:0] core_reg_read_data;
-
-core core(
-    .clk,
-    .rst,
-
-    .sys_bus,
+    .hold(FLASH_HOLD),
 
     .reg_pc,
     .reg_read_sel(recv_data[4:0]),

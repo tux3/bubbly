@@ -2,7 +2,7 @@ timeunit 100ns;
 timeprecision 10ns;
 
 `include "../../core/params.svh"
-`include "../../axi4lite.svh"
+`include "../../axi/axi4lite.svh"
 
 module ifetch_tb;
 
@@ -26,7 +26,7 @@ module ifetch_tb;
         .*
     );
 
-    logic [`ALEN-1:0] source_addr = 'x;
+    logic [`XLEN-1:0] source_addr = 'x;
     wire [`ILEN-1:0] instruction;
     wire [`ALEN-1:0] instruction_addr;
     wire [`ALEN-1:0] instruction_next_addr;

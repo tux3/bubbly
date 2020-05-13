@@ -1,4 +1,4 @@
-`include "../axi4lite.svh"
+`include "../axi/axi4lite.svh"
 
 module axi4lite_flash #(
     parameter USE_SB_IO = 1

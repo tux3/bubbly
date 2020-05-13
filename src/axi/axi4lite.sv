@@ -1,4 +1,6 @@
-interface axi4lite #(ADDR_WIDTH = 64, DATA_WIDTH = 64)();
+`include "../core/params.svh"
+
+interface axi4lite #(ADDR_WIDTH = `ALEN, DATA_WIDTH = 64)();
     // Control
     logic aclk;
     logic aresetn;

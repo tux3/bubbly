@@ -1,7 +1,7 @@
 timeunit 100ns;
 timeprecision 10ns;
 
-`include "../../axi4lite.svh"
+`include "../../axi/axi4lite.svh"
 
 module axi4lite_flash_tb;
 

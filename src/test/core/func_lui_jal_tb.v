@@ -2,7 +2,7 @@ timeunit 100ns;
 timeprecision 10ns;
 
 `include "../../core/params.svh"
-`include "../../axi4lite.svh"
+`include "../../axi/axi4lite.svh"
 
 module func_lui_jal_tb;
 
@@ -17,16 +17,6 @@ module func_lui_jal_tb;
     }};
 
     wire cs, sclk, si, so, wp, hold;
-    axi4lite sys_bus();
-    axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
-        .bus(sys_bus),
-        .cs,
-        .sclk,
-        .si,
-        .so,
-        .wp,
-        .hold
-    );
     qspi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
@@ -36,12 +26,17 @@ module func_lui_jal_tb;
     wire [4:0] reg_read_sel;
     wire [`XLEN-1:0] reg_read_data;
     
-    core core(
+    basic_soc soc(
         .clk,
         .rst,
-    
-        .sys_bus,
-    
+        
+        .cs,
+        .sclk,
+        .si,
+        .so,
+        .wp,
+        .hold,
+        
         .reg_pc,
         .reg_read_sel,
         .reg_read_data
@@ -60,10 +55,10 @@ module func_lui_jal_tb;
     
         #500;
 
-        assert($signed(core.regs.xreg[1]) == 32'sh00000008);
-        assert($signed(core.regs.xreg[2]) == 32'shABCDE000);
+        assert($signed(soc.core.regs.xreg[1]) == 32'sh00000008);
+        assert($signed(soc.core.regs.xreg[2]) == 32'shABCDE000);
         for (int i=3; i<32; i+=1)
-            assert(core.regs.xreg[i] == '0);
+            assert(soc.core.regs.xreg[i] == '0);
         $finish();
     end
 endmodule

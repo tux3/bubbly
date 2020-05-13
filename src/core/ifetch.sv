@@ -1,10 +1,10 @@
 `include "params.svh"
-`include "../axi4lite.svh"
+`include "../axi/axi4lite.svh"
 
 module ifetch(
     input clk, rst,
     input flush,
-    input [`ALEN-1:0] pc,
+    input [`XLEN-1:0] pc,
 	input next_stalled,
     output reg stall_next,
     output reg ifetch_exception,
