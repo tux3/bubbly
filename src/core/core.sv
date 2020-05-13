@@ -7,14 +7,12 @@ module core(
 
     // State outputs
     output [`XLEN-1:0] reg_pc,
-    output [`ILEN-1:0] fetched_instruction,
     
     input [4:0] reg_read_sel,
     output [`XLEN-1:0] reg_read_data
 );
 
 assign reg_pc = pc;
-assign fetched_instruction = instruction;
 
 // Pipeline handshake
 // - prev_stalled: Input data is NOT valid, can be asserted at any clock tick.

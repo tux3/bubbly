@@ -43,8 +43,6 @@ module func_lui_jal_tb;
         .sys_bus,
     
         .reg_pc,
-        .fetched_instruction(),
-        
         .reg_read_sel,
         .reg_read_data
     );

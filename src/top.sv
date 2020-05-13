@@ -75,7 +75,6 @@ axi4lite_flash flash(
 // TODO: For debug purposes, we can try assigning the gated core clock to the flash_reader and core
 
 wire [`XLEN-1:0] reg_pc;
-wire [`ILEN-1:0] fetched_instruction;
 wire [`XLEN-1:0] core_reg_read_data;
 
 core core(
@@ -85,8 +84,6 @@ core core(
     .sys_bus,
 
     .reg_pc,
-    .fetched_instruction,
-    
     .reg_read_sel(recv_data[4:0]),
     .reg_read_data(core_reg_read_data)
 );
@@ -103,8 +100,7 @@ localparam DBG_CMD_ENABLE_CLOCK = 'h03;
 localparam DBG_CMD_DISABLE_CLOCK = 'h04;
 localparam DBG_CMD_STEP_CLOCK = 'h05;
 localparam DBG_CMD_GET_PC = 'h06;
-localparam DBG_CMD_GET_FETCHED_INSTRUCTION = 'h07;
-localparam DBG_CMD_GET_REG = 'h08;
+localparam DBG_CMD_GET_REG = 'h07;
 logic [2:0] dbg_state;
 
 logic [63:0] send_buf;
@@ -166,11 +162,6 @@ begin: set_led
             end else if (recv_data == DBG_CMD_GET_PC) begin
                 send_buf <= reg_pc;
                 send_buf_count <= 8;
-                dbg_state <= DBG_REPLYING;
-                send_data <= send_buf_count;
-            end else if (recv_data == DBG_CMD_GET_FETCHED_INSTRUCTION) begin
-                send_buf <= fetched_instruction;
-                send_buf_count <= 4;
                 dbg_state <= DBG_REPLYING;
                 send_data <= send_buf_count;
             end else if (recv_data == DBG_CMD_GET_REG) begin
