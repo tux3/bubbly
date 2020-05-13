@@ -28,9 +28,12 @@ always_ff @(posedge clk) begin
 end   
 
 always_ff @(posedge clk) begin
+    exec_int_exception <= '0;
+
     if (opcode == decode_types::OP_LUI) begin
-        exec_int_exception <= '0;
         exec_int_result <= {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
+    end else if (opcode == decode_types::OP_AUIPC) begin
+        exec_int_result <= decode_instruction_addr + {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
     end else begin
         exec_int_exception <= '1;
         exec_int_result <= 'x;
