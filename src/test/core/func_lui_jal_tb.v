@@ -9,11 +9,12 @@ module func_lui_jal_tb;
     bit clk = 0;
     bit rst = 0; 
 
-    const logic [4*32-1:0] code_buf = {<<32{
+    const logic [5*32-1:0] code_buf = {<<32{
         'b10101011110011011110_00010_0110111, // LUI r2, 0xABCDE000
         'b11111111110111111111_00001_1101111, // JAL r1, -4
         'b11111111111111111111_00010_0110111, // LUI r2, 0xFFFFF000 (never reached)
-        'b00000000000000000000_00000_0000000  // Padding (prevent out of bounds read asserts by the ifetch running ahead)
+        'b00000000000000000000_00000_0000000,  // Padding (prevent out of bounds read asserts by the ifetch running ahead)
+        'b00000000000000000000_00000_0000000
     }};
 
     wire cs, sclk, si, so, wp, hold;

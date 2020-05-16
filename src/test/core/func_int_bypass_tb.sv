@@ -9,7 +9,7 @@ module func_int_bypass_tb;
     bit clk = 0;
     bit rst = 0; 
 
-    const logic [14*32-1:0] code_buf = {<<32{
+    const logic [15*32-1:0] code_buf = {<<32{
         'b111111111111_00000_000_00001_0010011, // ADDI r1, r0, -1
         'b111111111111_00001_100_00010_0010011, // XORI r2, r1, -1
         'b010000000100_00001_101_00011_0010011, // SRAI r3, r1, 4
@@ -21,7 +21,8 @@ module func_int_bypass_tb;
         'b100000000000_00011_011_01001_0010011, // SLTIU r9, r3, 2**(XLEN-1)
         'b100000000000_00100_010_01010_0010011, // SLTI r10, r4, -(2**XLEN-1)
         'b100000000000_00100_011_01011_0010011, // SLTIU r11, r4, 2**(XLEN-1)
-        'b00000000000000000000_00000_1101111, // JAL r0, 0
+        'b000000000000000_00000_01100_0010111, // AUIPC r12, 0
+        'b000000000100_01100_000_00000_1100111, // JALR r12, 4
         'b00000000000000000000_00000_0000000,  // Padding (prevent out of bounds read asserts by the ifetch running ahead)
         'b00000000000000000000_00000_0000000
     }};
@@ -76,7 +77,8 @@ module func_int_bypass_tb;
         assert($signed(soc.core.regs.xreg[09]) == 32'sh00000000);
         assert($signed(soc.core.regs.xreg[10]) == 32'sh00000000);
         assert($signed(soc.core.regs.xreg[11]) == 32'sh00000001);
-        for (int i=12; i<32; i+=1)
+        assert($signed(soc.core.regs.xreg[12]) == 32'sh0000002C);
+        for (int i=13; i<32; i+=1)
             assert(soc.core.regs.xreg[i] == '0);
         $finish();
     end
