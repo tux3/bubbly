@@ -13,6 +13,11 @@ module decode(
     output logic stall_prev,
     output logic stall_next,
     
+    input wire [4:0] bypass_net_exec_reg,
+    input wire [`XLEN-1:0] bypass_net_exec_data,
+    input wire [4:0] bypass_net_writeback_reg,
+    input wire [`XLEN-1:0] bypass_net_writeback_data,
+    
     output wire [4:0] decode_reg_read1_sel,
     input wire [`XLEN-1:0] decode_reg_read1_data,
     output wire [4:0] decode_reg_read2_sel,
@@ -29,7 +34,11 @@ module decode(
     output logic [2:0] funct3,
     output logic [4:0] rs1,
     output logic [4:0] rs2,
+    // Note: decode_rsX_data don't check the exec comb bypass (they're 1 cycle late), and may be invalid as a result
+    output logic [`XLEN-1:0] decode_rs1_data,
+    output logic [`XLEN-1:0] decode_rs2_data,
     output logic [6:0] funct7,
+    output logic [31:20] i_imm,
     output logic [31:12] u_imm,
     output logic [20:1] j_imm
 );
@@ -85,7 +94,9 @@ endmodule
 package decode_types;
 typedef enum bit [6:2] {
     OP_LOAD =   'b00_000,
+    OP_OP_IMM = 'b00_100,
     OP_AUIPC =  'b00_101,
+    OP_OP =     'b01_100,
     OP_LUI =    'b01_101,
     OP_STORE =  'b01_000,
     OP_BRANCH = 'b11_000,
@@ -105,6 +116,11 @@ module decode_impl(
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
     
+    input wire [4:0] bypass_net_exec_reg,
+    input wire [`XLEN-1:0] bypass_net_exec_data,
+    input wire [4:0] bypass_net_writeback_reg,
+    input wire [`XLEN-1:0] bypass_net_writeback_data,
+    
     output logic [4:0] decode_reg_read1_sel,
     input wire [`XLEN-1:0] decode_reg_read1_data,
     output logic [4:0] decode_reg_read2_sel,
@@ -121,26 +137,31 @@ module decode_impl(
     output reg [2:0] funct3,
     output reg [4:0] rs1,
     output reg [4:0] rs2,
+    output reg [`XLEN-1:0] decode_rs1_data,
+    output reg [`XLEN-1:0] decode_rs2_data,
     output reg [6:0] funct7,
+    output reg [31:20] i_imm,
     output reg [31:12] u_imm,
     output reg [20:1] j_imm
 );
 
-// TODO: Lay out the bypass network
+wire [4:0] rs1_comb = instruction[19:15];
+wire [4:0] rs2_comb = instruction[24:20];
 
 always_comb begin
-    decode_reg_read1_sel = instruction[19:15];
-    decode_reg_read2_sel = instruction[24:20];
+    decode_reg_read1_sel = rs1_comb;
+    decode_reg_read2_sel = rs2_comb;
 end
 
 always @(posedge clk) begin
     opcode <= instruction[6:2];
     rd <= instruction[11:7];
     funct3 <= instruction[14:12];
-    rs1 <= instruction[19:15];
-    rs2 <= instruction[24:20];
+    rs1 <= rs1_comb;
+    rs2 <= rs2_comb;
     funct7 <= instruction[31:25];
     
+    i_imm <= instruction[31:20];
     u_imm <= instruction[31:12];
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
     
@@ -149,6 +170,20 @@ always @(posedge clk) begin
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
                         && instruction[6:2] != decode_types::OP_SYSTEM
                         && instruction[6:2] != decode_types::OP_BRANCH;
+    
+    if (bypass_net_exec_reg == rs1_comb)
+        decode_rs1_data <= bypass_net_exec_data;
+    else if (bypass_net_writeback_reg == rs1_comb)
+        decode_rs1_data <= bypass_net_writeback_data;
+    else
+        decode_rs1_data <= decode_reg_read1_data;
+        
+    if (bypass_net_exec_reg == rs2_comb)
+        decode_rs2_data <= bypass_net_exec_data;
+    else if (bypass_net_writeback_reg == rs2_comb)
+        decode_rs2_data <= bypass_net_writeback_data;
+    else
+        decode_rs2_data <= decode_reg_read1_data;
 end
 
 always @(posedge clk) begin

@@ -19,9 +19,9 @@ module int_regfile(
 bit [`XLEN-1:0] xreg [1:31];
 
 always_comb begin
-    read1_data = xreg[read1_sel];
-    read2_data = xreg[read2_sel];
-    read3_data = xreg[read3_sel];
+    read1_data = read1_sel == '0 ? '0 : xreg[read1_sel];
+    read2_data = read2_sel == '0 ? '0 : xreg[read2_sel];
+    read3_data = read3_sel == '0 ? '0 : xreg[read3_sel];
 end
 
 integer i;

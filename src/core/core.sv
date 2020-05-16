@@ -90,7 +90,10 @@ wire [4:0] rd;
 wire [2:0] funct3;
 wire [4:0] rs1;
 wire [4:0] rs2;
+wire [`XLEN-1:0] decode_rs1_data;
+wire [`XLEN-1:0] decode_rs2_data;
 wire [6:0] funct7;
+wire [31:20] i_imm;
 wire [31:12] u_imm;
 wire [20:1] j_imm;
 decode decode(
@@ -105,6 +108,10 @@ decode decode(
     .next_stalled(exec_stall_prev),
     .stall_prev(decode_stall_prev),
     .stall_next(decode_stall_next),
+    .bypass_net_exec_reg(exec_reg_write_sel),
+    .bypass_net_exec_data(exec_result),
+    .bypass_net_writeback_reg(writeback_reg_write_sel),
+    .bypass_net_writeback_data(writeback_reg_write_data),
     .*
 );
 

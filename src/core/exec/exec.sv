@@ -18,7 +18,10 @@ module exec(
     input [2:0] funct3,
     input [4:0] rs1,
     input [4:0] rs2,
+    input [`XLEN-1:0] decode_rs1_data,
+    input [`XLEN-1:0] decode_rs2_data,
     input [6:0] funct7,
+    input [31:20] i_imm,
     input [31:12] u_imm,
     input [20:1] j_imm,
     
@@ -34,10 +37,14 @@ module exec(
     output wire exec_pipeline_flush
 );
 
+// The decoder's bypass inputs are registered, so they can't bypass directly from an exec cycle to the next
+wire [`XLEN-1:0] rs1_data = exec_reg_write_sel == rs1 ? exec_result : decode_rs1_data;
+wire [`XLEN-1:0] rs2_data = exec_reg_write_sel == rs2 ? exec_result : decode_rs2_data;
+
 reg busy;
 reg stopped_after_exception;
-wire input_valid_unless_mispredict = !prev_stalled && !stall_prev && !decode_exception;
-wire input_valid = input_valid_unless_mispredict && !exec_pipeline_flush;
+wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
+wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
 assign exec_is_branch = exec_branch_output_valid;
 
 wire input_is_branch = decode_is_jump;
@@ -65,7 +72,7 @@ always_ff @(posedge clk) begin
         stopped_after_exception <= '0;
         busy <= '0;
         exec_is_reg_write <= 'x;
-        exec_reg_write_sel <= 'x;
+        exec_reg_write_sel <= '0;
         exec_instruction_next_addr <= 'x;
     end else begin
         if (!prev_stalled && !stall_prev) begin
@@ -80,6 +87,7 @@ always_ff @(posedge clk) begin
             exec_reg_write_sel <= rd;
         end else if (!stall_next) begin
             busy <= '0;
+            exec_reg_write_sel <= '0;
         end
     end
 end
@@ -98,7 +106,7 @@ always_comb unique case (1'b1)
     default: begin
         exec_exception = stopped_after_exception;
         stall_next = !exec_exception;
-        exec_result = 'x;
+        exec_result = '0;
     end
 endcase
 
