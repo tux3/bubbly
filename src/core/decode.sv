@@ -93,16 +93,17 @@ endmodule
 
 package decode_types;
 typedef enum bit [6:2] {
-    OP_LOAD =   'b00_000,
-    OP_OP_IMM = 'b00_100,
-    OP_AUIPC =  'b00_101,
-    OP_OP =     'b01_100,
-    OP_LUI =    'b01_101,
-    OP_STORE =  'b01_000,
-    OP_BRANCH = 'b11_000,
-    OP_JALR =   'b11_001,
-    OP_JAL =    'b11_011,
-    OP_SYSTEM = 'b11_100
+    OP_LOAD =       'b00_000,
+    OP_MISC_MEM =   'b00_011,
+    OP_OP_IMM =     'b00_100,
+    OP_AUIPC =      'b00_101,
+    OP_OP =         'b01_100,
+    OP_LUI =        'b01_101,
+    OP_STORE =      'b01_000,
+    OP_BRANCH =     'b11_000,
+    OP_JALR =       'b11_001,
+    OP_JAL =        'b11_011,
+    OP_SYSTEM =     'b11_100
 } opcodes_type;
 endpackage
 
@@ -145,6 +146,7 @@ module decode_impl(
     output reg [20:1] j_imm
 );
 
+wire [4:0] rd_comb = instruction[11:7];
 wire [4:0] rs1_comb = instruction[19:15];
 wire [4:0] rs2_comb = instruction[24:20];
 
@@ -155,7 +157,7 @@ end
 
 always @(posedge clk) begin
     opcode <= instruction[6:2];
-    rd <= instruction[11:7];
+    rd <= rd_comb;
     funct3 <= instruction[14:12];
     rs1 <= rs1_comb;
     rs2 <= rs2_comb;

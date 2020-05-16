@@ -65,6 +65,14 @@ exec_int exec_int(
     .*
 );
 
+wire input_is_mem = opcode[4] == 0 && opcode[2] == 0;
+wire exec_mem_output_valid;
+wire exec_mem_exception;
+wire [`XLEN-1:0] exec_mem_result;
+exec_mem exec_mem(
+    .*
+);
+
 assign stall_prev = busy && stall_next;
 
 always_ff @(posedge clk) begin
@@ -102,6 +110,11 @@ always_comb unique case (1'b1)
         stall_next = '0;
         exec_exception = exec_int_exception;
         exec_result = exec_int_result;
+    end
+    exec_mem_output_valid: begin
+        stall_next = '0;
+        exec_exception = exec_mem_exception;
+        exec_result = exec_mem_result;
     end
     default: begin
         exec_exception = stopped_after_exception;
