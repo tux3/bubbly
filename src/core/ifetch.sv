@@ -19,7 +19,7 @@ assign sys_bus.aclk = clk;
 assign sys_bus.aresetn = !rst;
 
 assign sys_bus.arvalid = state == STATE_START_1ST_READ || state == STATE_START_2ND_READ;
-assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:icache_params::align_bits] << icache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
+assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:basic_cache_params::align_bits] << basic_cache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
 assign sys_bus.arprot = 'b000;
 
 assign sys_bus.rready = state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ || state == STATE_DISCARD_FLUSHED_READ;
@@ -33,7 +33,12 @@ assign sys_bus.wstrb = 'x;
 assign sys_bus.wvalid = 0;
 assign sys_bus.bready = 0;
 
-icache icache(
+generate
+	if (basic_cache_params::data_size != 64)
+		$error("icache's data_size must be 64bit (required by ifetch)");
+endgenerate
+
+basic_cache icache(
 	.clk,
 	.write_enable(icache_write_enable),
 	.waddr(icache_waddr),
@@ -44,10 +49,10 @@ icache icache(
 );
 
 logic icache_write_enable;
-logic [icache_params::aligned_addr_size-1:0] icache_waddr;
-logic [icache_params::instr_size-1:0] icache_wdata;
-logic [icache_params::aligned_addr_size-1:0] icache_raddr;
-wire [icache_params::instr_size-1:0] icache_rdata;
+logic [basic_cache_params::aligned_addr_size-1:0] icache_waddr;
+logic [basic_cache_params::data_size-1:0] icache_wdata;
+logic [basic_cache_params::aligned_addr_size-1:0] icache_raddr;
+wire [basic_cache_params::data_size-1:0] icache_rdata;
 wire icache_lookup_valid;
 
 enum bit[3:0] { 
@@ -64,15 +69,15 @@ enum bit[3:0] {
 } state;
 logic [`ALEN-1:0] fetch_pc;
 logic [`ALEN-1:0] next_fetch_pc_comb;
-logic [icache_params::align_bits-1:0] next_line_offset_comb;
-logic [icache_params::aligned_addr_size-1:0] next_cache_line_addr;
+logic [basic_cache_params::align_bits-1:0] next_line_offset_comb;
+logic [basic_cache_params::aligned_addr_size-1:0] next_cache_line_addr;
 
 // A cache line's content is addressed by align_bits bits, fetch_pc is 8bit granular, and instr are 16bit aligned so that's $clog2(16)=4 trailing zeros in the offset
-wire [icache_params::align_bits-1:0] line_instr_byte_offset = {fetch_pc[1 +: icache_params::align_bits-1], 1'b0};
-wire [icache_params::instr_size+3-1:0] line_instr_offset = {line_instr_byte_offset, 3'b000};
+wire [basic_cache_params::align_bits-1:0] line_instr_byte_offset = {fetch_pc[1 +: basic_cache_params::align_bits-1], 1'b0};
+wire [basic_cache_params::data_size+3-1:0] line_instr_offset = {line_instr_byte_offset, 3'b000};
 wire is_cache_compressed_instr = icache_rdata[line_instr_offset +: 2] != 2'b11;
 wire is_bus_compressed_instr = sys_bus.rdata[line_instr_offset +: 2] != 2'b11;
-integer parcels_per_line = icache_params::instr_size/16;
+integer parcels_per_line = basic_cache_params::data_size/16;
 integer byte_offset_to_last_parcel = (parcels_per_line-1)*2;
 wire cache_fetch_crosses_lines = !is_cache_compressed_instr && line_instr_offset[$size(line_instr_offset)-1 : 3] == byte_offset_to_last_parcel; // 2 bytes are cut off
 wire bus_fetch_crosses_lines = !is_bus_compressed_instr && line_instr_offset[$size(line_instr_offset)-1 : 3] == byte_offset_to_last_parcel; // 2 bytes are cut off
@@ -116,7 +121,7 @@ always_comb begin
         icache_wdata = 'x;
     end else if ((state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ) && sys_bus.rvalid) begin
 		// We update fetch_pc after the 1st read is done, so this fetch_pc is in fact at the 2nd line's address in WAIT_2ND_READ!
-        icache_waddr = fetch_pc[$size(fetch_pc)-1 : icache_params::align_bits];
+        icache_waddr = fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits];
 		icache_wdata = sys_bus.rdata;
     	icache_write_enable = 'b1;
     end else begin
@@ -140,22 +145,22 @@ always_comb begin
 	end else if (state == STATE_CHECK_1ST_LOOKUP) begin
         // By switching on fetch_crosses_lines, we can get all the high bits from either fetch_pc or next_cache_line_addr
         // This avoids a very wide addition, and we can also exclude the last bit from the math since it's always 0 (2B alignment)
-        next_line_offset_comb = {fetch_pc[1 +: icache_params::align_bits-1] + (is_cache_compressed_instr ? 'h1 : 'h2), 1'b0};
+        next_line_offset_comb = {fetch_pc[1 +: basic_cache_params::align_bits-1] + (is_cache_compressed_instr ? 'h1 : 'h2), 1'b0};
         if (cache_next_instr_on_next_line)
             next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
         else
-            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : icache_params::align_bits], next_line_offset_comb};
+            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
             
         `ifndef SYNTHESIS
 		if (!icache_lookup_valid)
 			next_fetch_pc_comb = 'x;
 		`endif
 	end else if (state == STATE_WAIT_1ST_READ) begin
-        next_line_offset_comb = {fetch_pc[1 +: icache_params::align_bits-1] + (is_bus_compressed_instr ? 'h1 : 'h2), 1'b0};
+        next_line_offset_comb = {fetch_pc[1 +: basic_cache_params::align_bits-1] + (is_bus_compressed_instr ? 'h1 : 'h2), 1'b0};
         if (bus_next_instr_on_next_line)
             next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
         else
-            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : icache_params::align_bits], next_line_offset_comb};
+            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
         
 		`ifndef SYNTHESIS
 		if (!sys_bus.rvalid)
@@ -181,7 +186,7 @@ always @(posedge clk) begin
         else
 		    state <= STATE_CHECK_1ST_LOOKUP;
 		fetch_pc <= pc;
-		next_cache_line_addr <= pc[$bits(pc)-1:icache_params::align_bits] + 1;
+		next_cache_line_addr <= pc[$bits(pc)-1:basic_cache_params::align_bits] + 1;
 	end
 	STATE_CHECK_1ST_LOOKUP: begin
 		if (icache_lookup_valid) begin
@@ -326,7 +331,7 @@ always @(posedge clk) begin
     assert property (sys_bus.rvalid |-> sys_bus.rresp === AXI4LITE_RESP_OKAY);
     assert property (state == STATE_EXCEPTION && !rst && !flush |=> instruction === 'x);
     assert property (state == STATE_EXCEPTION && !rst && !flush |=> ifetch_exception);
-    assert property (!$isunknown(fetch_pc) |-> next_cache_line_addr == fetch_pc[$bits(fetch_pc)-1:icache_params::align_bits] + 1);
+    assert property (!$isunknown(fetch_pc) |-> next_cache_line_addr == fetch_pc[$bits(fetch_pc)-1:basic_cache_params::align_bits] + 1);
 end
 `endif
 

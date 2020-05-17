@@ -136,7 +136,7 @@ module ifetch_tb;
         // 7. Random reads
         $display("Starting random read tests, please stand by...");
         for (int i=0; i<RAND_READ_COUNT; ++i) begin: rand_read
-            logic [`ALEN-1 - (icache_params::tag_size-5):0] rand_addr; // NOTE: We're only keeping 5 tag bits to increase collisions!
+            logic [`ALEN-1 - (basic_cache_params::tag_size-5):0] rand_addr; // NOTE: We're only keeping 5 tag bits to increase collisions!
             assert(std::randomize(rand_addr));
             read_instr_simple(.addr(rand_addr));
         end    
