@@ -34,7 +34,9 @@ module exec(
     output reg [`ALEN-1:0] exec_instruction_next_addr, // This is NOT the next PC, it's still just the addr following the current instr
 
     // We require every previous stage to reset/stall their output on flush
-    output wire exec_pipeline_flush
+    output wire exec_pipeline_flush,
+    
+    axi4lite.master data_bus
 );
 
 // The decoder's bypass inputs are registered, so they can't bypass directly from an exec cycle to the next
@@ -73,6 +75,30 @@ exec_mem exec_mem(
     .*
 );
 
+wire lsu_prev_stalled;
+wire lsu_stall_next;
+wire [basic_cache_params::aligned_addr_size-1:0] lsu_addr;
+wire lsu_access_fault;
+wire lsu_do_load;
+wire [`XLEN-1:0] lsu_load_data;
+wire lsu_do_store;
+wire [`XLEN-1:0] lsu_store_data;
+wire [(`XLEN/8)-1:0] lsu_store_mask;
+load_store lsu(
+    .clk,
+    .rst,
+    .prev_stalled(lsu_prev_stalled),
+    .stall_next(lsu_stall_next),
+    .addr(lsu_addr),
+    .access_fault(lsu_access_fault),
+    .do_load(lsu_do_load),
+    .load_data(lsu_load_data),
+    .do_store(lsu_do_store),
+    .store_data(lsu_store_data),
+    .store_mask(lsu_store_mask),
+    .data_bus(data_bus)
+);
+
 assign stall_prev = busy && stall_next;
 
 always_ff @(posedge clk) begin
@@ -100,26 +126,40 @@ always_ff @(posedge clk) begin
     end
 end
 
-always_comb unique case (1'b1)
-    exec_branch_output_valid: begin
+// This is really a simple unique case(1'b1), except it's not *actually* unique during fucking delta cycle....
+// So we have to do this syntactic horror
+enum {
+	NO_OUTPUT_VALID =       'b000,
+    BRANCH_OUTPUT_VALID =   'b100,
+    INT_OUTPUT_VALID =      'b010,
+    MEM_OUTPUT_VALID =      'b001
+} valid_output_types;
+always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_mem_output_valid})
+    NO_OUTPUT_VALID: begin
+        exec_exception = stopped_after_exception;
+        stall_next = !exec_exception;
+        exec_result = '0;
+    end
+    BRANCH_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_branch_exception;
         exec_result = exec_branch_result;
     end
-    exec_int_output_valid: begin
+    INT_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_int_exception;
         exec_result = exec_int_result;
     end
-    exec_mem_output_valid: begin
+    MEM_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_mem_exception;
         exec_result = exec_mem_result;
     end
     default: begin
-        exec_exception = stopped_after_exception;
-        stall_next = !exec_exception;
-        exec_result = '0;
+        // This can happen during delta cycles... and hopefully only delta cycles.
+        stall_next = 'x;
+        exec_exception = 'x;
+        exec_result = 'x;
     end
 endcase
 

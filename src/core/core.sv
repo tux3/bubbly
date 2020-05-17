@@ -15,15 +15,6 @@ module core(
 
 assign reg_pc = pc;
 
-// TODO: Give the data bus to our load/store unit
-assign data_port.aclk = clk;
-assign data_port.aresetn = !rst;
-assign data_port.arvalid = '0;
-assign data_port.rready = '0;
-assign data_port.awvalid = '0;
-assign data_port.wvalid = '0;
-assign data_port.bready = '0;
-
 // Pipeline handshake
 // - prev_stalled: Input data is NOT valid, can be asserted at any clock tick.
 // - next_stalled: Next stage is NOT ready to accept output.
@@ -131,6 +122,7 @@ exec exec(
     .prev_stalled(decode_stall_next),
     .stall_prev(exec_stall_prev),
     .stall_next(exec_stall_next),
+    .data_bus(data_port),
     .*
 );
 
