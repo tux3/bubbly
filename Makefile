@@ -7,8 +7,10 @@ TARGET_FREQ_MHZ=32
 SRCDIR=./src
 BINDIR=./build
 PRJ=$(notdir ${PWD})
-SRCFILES=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), ${SRCDIR}/global.svh $(shell find ${SRCDIR} -name *.v -or -name *.sv))
+SRCFILES_UNORDERED=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), ${SRCDIR}/global.svh $(shell find ${SRCDIR} -name *.v -or -name *.sv))
 
+$(info Analyzing compilation order...)
+SRCFILES=$(shell sv_auto_order ${SRCFILES_UNORDERED})
 
 all: ${BINDIR}/${PRJ}.bin
 	

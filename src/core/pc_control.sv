@@ -4,7 +4,7 @@ module pc_control(
     input clk, rst,
     input instr_retired,
     input [`ALEN-1:0] next_pc,
-    output reg [`XLEN-1:0] pc,
+    output reg [`XLEN-1:0] pc
 );
 
 always_ff @(posedge clk) begin

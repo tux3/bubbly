@@ -20,7 +20,7 @@ module exec_mem(
     
     output reg exec_mem_output_valid,
     output reg exec_mem_exception,
-    output reg [`XLEN-1:0] exec_mem_result,
+    output reg [`XLEN-1:0] exec_mem_result
 );
 
 always_ff @(posedge clk) begin

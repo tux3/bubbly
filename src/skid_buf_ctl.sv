@@ -8,7 +8,7 @@ module skid_buf_ctl (
     input next_stalled,
     output buf_full,
     output logic stall_prev,
-    output logic stall_next,
+    output logic stall_next
 );
 
 enum { EMPTY, FULL } state;

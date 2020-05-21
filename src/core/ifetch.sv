@@ -12,7 +12,7 @@ module ifetch(
     output reg [`ALEN-1:0] instruction_addr,
     output reg [`ALEN-1:0] instruction_next_addr,
 
-    axi4lite.master sys_bus,
+    axi4lite.master sys_bus
 );
 
 assign sys_bus.aclk = clk;

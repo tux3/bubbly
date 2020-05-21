@@ -20,7 +20,7 @@ module exec_int(
     
     output reg exec_int_output_valid,
     output reg exec_int_exception,
-    output reg [`XLEN-1:0] exec_int_result,
+    output reg [`XLEN-1:0] exec_int_result
 );
 
 always_ff @(posedge clk) begin
