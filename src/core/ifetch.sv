@@ -100,7 +100,7 @@ always_comb begin
 	unique // Yosys does not parse "unique if" ...
 	`endif
 	if (state == STATE_START_1ST_LOOKUP_FROM_PC)
-		icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)];
+		icache_raddr = pc[`ALEN-1 -: $size(icache_raddr)];
 	else if (state == STATE_CHECK_1ST_LOOKUP)
 		icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)]; // Valid whether we cross into next line or not
 	else if (state == STATE_START_1ST_READ || (state == STATE_WAIT_1ST_READ && !sys_bus.rvalid))
@@ -115,7 +115,7 @@ end
 
 // Write cache lines
 always_comb begin
-    if (rst || flush) begin
+    if (rst || flush || state == STATE_DISCARD_FLUSHED_READ) begin
         icache_write_enable = 'b0;
         icache_waddr = 'x;
         icache_wdata = 'x;
@@ -127,7 +127,7 @@ always_comb begin
     end else begin
 		`ifndef SYNTHESIS
 		if (sys_bus.rvalid)
-        	$error("Trying to write a cache line in an unexpected state!");
+        	$error("[%t] Trying to write a cache line in unexpected state %s!", $time, state.name());
         `endif
         icache_waddr = 'x;
         icache_wdata = 'x;
@@ -189,19 +189,20 @@ always @(posedge clk) begin
 		next_cache_line_addr <= pc[$bits(pc)-1:basic_cache_params::align_bits] + 1;
 	end
 	STATE_CHECK_1ST_LOOKUP: begin
-		if (icache_lookup_valid) begin
+        if (next_stalled && !stall_next) begin
+            // We have valid output but failed the handshake, stall to avoid completing a new read and overwriting pending outputs
+			state <= STATE_STALLED;
+		end else if (icache_lookup_valid) begin
 			// Whether we go to 2nd read or the next instruction, those are updated as soon as we get the 1st instruction (see WAIT_1ST_READ for details)
 			fetch_pc <= next_fetch_pc_comb;
             instruction_next_addr <= next_fetch_pc_comb;
             if (cache_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
-
+            
             if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin
-                state <= STATE_EXCEPTION; // Instr too long
+                state <= STATE_EXCEPTION; // Instr too long        
 			end else if (cache_fetch_crosses_lines) begin
 				state <= STATE_CHECK_2ND_LOOKUP;
-			end else if (next_stalled) begin
-				state <= STATE_STALLED;
 			end else begin
 				// Next line addr is primed, continue 1st lookups!
 			end
@@ -226,7 +227,7 @@ always @(posedge clk) begin
             if (sys_bus.rdata[line_instr_offset +: 5] == 5'b11111) begin
                 state <= STATE_EXCEPTION; // Instr too long
 			end else if (!bus_fetch_crosses_lines || icache_lookup_valid) begin // We do a 2nd lookup check at the same time as the 1st read finishes to save a cycle
-				state <= next_stalled ? STATE_STALLED : STATE_CHECK_1ST_LOOKUP;
+				state <= STATE_CHECK_1ST_LOOKUP;
 			end else begin
 				state <= STATE_START_2ND_READ;
             end
@@ -235,7 +236,7 @@ always @(posedge clk) begin
 	STATE_CHECK_2ND_LOOKUP: begin
 		if (icache_lookup_valid) begin
 			// Cache stays primed at fetch_pc. Since we JUST crossed, we know we'll just be reading the same line again
-			state <= next_stalled ? STATE_STALLED : STATE_CHECK_1ST_LOOKUP;
+			state <= STATE_CHECK_1ST_LOOKUP;
 		end else begin
 			state <= STATE_START_2ND_READ;
 		end
@@ -246,7 +247,7 @@ always @(posedge clk) begin
 	end
 	STATE_WAIT_2ND_READ: begin
 		if (sys_bus.rvalid)
-			state <= next_stalled ? STATE_STALLED : STATE_CHECK_1ST_LOOKUP;
+			state <= STATE_CHECK_1ST_LOOKUP;
 	end
 	STATE_STALLED: begin
 		if (!next_stalled)
@@ -288,7 +289,11 @@ always @(posedge clk) begin
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && !bus_fetch_crosses_lines) begin
             next_instruction = sys_bus.rdata[line_instr_offset +: `ILEN];
             stall_next <= '0;
-        end else if (state == STATE_CHECK_1ST_LOOKUP && icache_lookup_valid && !cache_fetch_crosses_lines) begin
+        end else if (state == STATE_CHECK_1ST_LOOKUP && next_stalled && !stall_next) begin
+            // We're going to STATE_STALLED, our outputs are valid and we don't want to overwrite them before the next handshake
+            next_instruction = instruction;
+            stall_next <= '0;
+        end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && !cache_fetch_crosses_lines) begin
             next_instruction = icache_rdata[line_instr_offset +: `ILEN];
             stall_next <= '0;
         // Complete instruction with 2nd read
@@ -302,7 +307,7 @@ always @(posedge clk) begin
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && bus_fetch_crosses_lines) begin
             next_instruction = {icache_rdata[0 +: 16], sys_bus.rdata[$size(sys_bus.rdata)-1 -: 16]};
             stall_next <= !icache_lookup_valid;
-        end else if (state == STATE_CHECK_1ST_LOOKUP && icache_lookup_valid && cache_fetch_crosses_lines) begin
+        end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && cache_fetch_crosses_lines) begin
             next_instruction = {16'bx, icache_rdata[$size(icache_rdata)-1 -: 16]}; // A 1st lookup can't complete simultaneously w/ a 2nd, so just xpad
             stall_next <= '1;
         // Yay more waiting. This pipeline isn't called bubbly for nothing
@@ -311,10 +316,10 @@ always @(posedge clk) begin
             stall_next <= '1;
         end
         
-        // This is safe, we go through this state exactly once per instruction, and only when unstalled
-        if (state == STATE_CHECK_1ST_LOOKUP)
+        // This is safe, we go through this state exactly once per instruction, but only when unstalled
+        if (state == STATE_CHECK_1ST_LOOKUP && (!next_stalled || stall_next))
             instruction_addr <= fetch_pc;
-        else if (state == STATE_STALLED)
+        else if (state == STATE_STALLED && !next_stalled)
             instruction_addr <= 'x;
 		
 		invalid_len_exception = next_instruction[4:0] == 'b11111;
