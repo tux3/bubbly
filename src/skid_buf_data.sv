@@ -5,31 +5,49 @@ module skid_buf_data #(
     input clk,
     input rst,
     input buf_full,
+    input prev_stalled,
     input next_stalled,
+    input stall_next,
     input [WIDTH-1:0] in,
-    output [WIDTH-1:0] out
+    output logic [WIDTH-1:0] out
 );
 
+logic [WIDTH-1:0] skid_buf;
 logic [WIDTH-1:0] out_buf;
-assign out = buf_full ? out_buf : in;
+
+always_comb begin
+    if (buf_full) begin
+        out = next_stalled ? out_buf : skid_buf;
+    end else begin
+        if (!prev_stalled && (!next_stalled || stall_next))
+            out = in;
+        else
+            out = out_buf;
+    end
+end
 
 always_ff @(posedge clk) begin
     if (rst) begin
         out_buf <= 'x;
+        skid_buf <= 'x;
     end else if (buf_full) begin
-        if (!next_stalled)
-            out_buf <= 'x;
+        if (!next_stalled) begin
+            out_buf <= skid_buf;
+            skid_buf <= 'x;
+        end
     end else begin
-        if (next_stalled)
+        if (!prev_stalled && next_stalled && !stall_next) begin
+            skid_buf <= in;
+        end else begin
             out_buf <= in;
-        else
-            out_buf <= 'x;
+        end
     end
 end
 
 `ifndef SYNTHESIS
 always @(posedge clk) begin
-    assert property (buf_full == !$isunknown(out_buf));
+    assert property (buf_full |-> !$isunknown(out_buf) && !$isunknown(skid_buf));
+    assert property (!buf_full |-> $isunknown(skid_buf));
 end
 `endif
 
