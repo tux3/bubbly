@@ -13,27 +13,29 @@ module bram_block #(
     output logic [data_width-1:0] rdata
 );
     logic [data_width-1:0] mem [(1<<addr_width)-1:0];
-    
+
     `ifndef SYNTHESIS
     initial begin
         for (int i = 0; i<(1<<data_width); i = i+1)
             mem[i] = '0;
     end
     `endif
-    
+
     generate
         if (read_after_write) begin
             reg [addr_width-1:0] raddr_reg;
             assign rdata = mem[raddr_reg];
-            
+
             always_ff @(posedge rclk)
                 raddr_reg <= raddr;
+
             always_ff @(posedge wclk)
                 if (write_enable)
                     mem[waddr] <= wdata;
-        end else begin            
+        end else begin
             always_ff @(posedge rclk)
                 rdata <= mem[raddr];
+
             always_ff @(posedge wclk)
                 if (write_enable)
                     mem[waddr] <= wdata;

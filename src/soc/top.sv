@@ -67,7 +67,7 @@ wire [`XLEN-1:0] core_reg_read_data;
 basic_soc basic_soc(
     .clk,
     .rst,
-    
+
     .cs(FLASH_CS),
     .sclk(FLASH_CLK),
     .si(FLASH_MOSI),
@@ -108,7 +108,7 @@ always @(negedge clk) begin
         core_clk_enable_reg <= core_clk_enable | (core_clk_pulse != core_clk_pulse_reg);
         core_clk_pulse_reg <= core_clk_pulse;
     end
-end    
+end
 
 reg led_buf;
 always @(posedge clk)

@@ -3,12 +3,12 @@
 // Do not blindly modify params. The basic_cache is not fully parametrized, and also interracts with the `ALEN parameter
 package basic_cache_params;
 localparam data_size = 64;
+localparam bram_blocks = 6; // Adjust to match ALEN
+localparam bram_addr_width = 8;
+localparam bram_block_data_width = 16;
 localparam align_bits = $clog2(data_size/8);
 localparam aligned_addr_size = `ALEN - align_bits;
 localparam flags_size = 1; // Valid flag
-localparam bram_blocks = 6;
-localparam bram_addr_width = 8;
-localparam bram_block_data_width = 16;
 localparam entry_size = bram_blocks*bram_block_data_width;
 localparam tag_size = entry_size - data_size - flags_size;
 endpackage
