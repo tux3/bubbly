@@ -8,7 +8,7 @@ module core(
 
     // State outputs
     output [`XLEN-1:0] reg_pc,
-    
+
     input [4:0] reg_read_sel,
     output [`XLEN-1:0] reg_read_data
 );
@@ -33,7 +33,7 @@ pc_control pc_control(
 int_regfile regs(
     .clk,
     .rst,
-    
+
     .write1_enable(writeback_reg_write_enable),
     .write1_sel(writeback_reg_write_sel),
     .write1_data(writeback_reg_write_data),
@@ -85,6 +85,7 @@ wire [`XLEN-1:0] decode_rs1_data;
 wire [`XLEN-1:0] decode_rs2_data;
 wire [6:0] funct7;
 wire [31:20] i_imm;
+wire [11:0] s_imm;
 wire [31:12] u_imm;
 wire [20:1] j_imm;
 decode decode(

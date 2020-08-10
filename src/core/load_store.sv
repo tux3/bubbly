@@ -14,7 +14,7 @@ module load_store(
 
     input do_load,
     output logic [`XLEN-1:0] load_data,
-    
+
     input do_store,
     input [`XLEN-1:0] store_data,
     input [(`XLEN/8)-1:0] store_mask,
@@ -25,22 +25,22 @@ module load_store(
 assign data_bus.aclk = clk;
 assign data_bus.aresetn = !rst;
 
-assign data_bus.arvalid = state == STATE_CHECK_CACHE_LOAD && !dcache_lookup_valid;
+assign data_bus.arvalid = state == STATE_LOAD_CHECK_CACHE && !dcache_lookup_valid;
 assign data_bus.araddr = {addr_buf, 3'b000};
 assign data_bus.arprot = 'b000;
 
 assign data_bus.rready = state == STATE_LOAD_PENDING;
 
-assign data_bus.awaddr = 'x;
-assign data_bus.awprot = 'x;
-assign data_bus.awvalid = 0;
+assign data_bus.awaddr = {addr_buf, 3'b000};
+assign data_bus.awprot = 'b000;
 
-assign data_bus.wdata = 'x;
-assign data_bus.wstrb = 'x;
-assign data_bus.wvalid = 0;
-assign data_bus.bready = 0;
+assign data_bus.wdata = store_data_buf;
+assign data_bus.wstrb = store_mask_buf;
+assign data_bus.bready = 1;
 
 reg [basic_cache_params::aligned_addr_size-1:0] addr_buf;
+reg [`XLEN-1:0] store_data_buf;
+reg [(`XLEN/8)-1:0] store_mask_buf;
 
 generate
 	if (basic_cache_params::data_size != 64)
@@ -48,10 +48,15 @@ generate
 endgenerate
 
 always @(posedge clk) begin
-    if (rst)
+    if (rst) begin
         addr_buf <= 'x;
-    else if (!prev_stalled)
+        store_data_buf <= 'x;
+        store_mask_buf <= 'x;
+    end else if (!prev_stalled) begin
         addr_buf <= addr;
+        store_data_buf <= store_data;
+        store_mask_buf <= store_mask;
+    end
 end
 
 logic dcache_write_enable;
@@ -71,20 +76,28 @@ basic_cache dcache(
 	.lookup_valid(dcache_lookup_valid)
 );
 
+integer mask_idx;
 always_comb begin
+    mask_idx = 'x;
     if (state == STATE_LOAD_PENDING) begin
         dcache_write_enable = data_bus.rvalid;
         dcache_wdata = data_bus.rdata;
+    end else if (state == STATE_STORE_CHECK_CACHE) begin
+        dcache_write_enable = dcache_lookup_valid;
+        for (mask_idx=0; mask_idx<$size(dcache_wdata)/8; mask_idx+=1)
+            dcache_wdata[mask_idx*8 +: 8] = store_mask_buf[mask_idx] ? dcache_rdata[mask_idx*8 +: 8] : store_data_buf[mask_idx*8 +: 8];
     end else begin
         dcache_write_enable = '0;
         dcache_wdata = 'x;
     end
 end
 
-enum bit[3:0] { 
+enum bit[3:0] {
 	STATE_IDLE,
-    STATE_CHECK_CACHE_LOAD,
-	STATE_LOAD_PENDING
+    STATE_LOAD_CHECK_CACHE,
+	STATE_LOAD_PENDING,
+    STATE_STORE_CHECK_CACHE,
+    STATE_STORE_PENDING
 } state;
 
 always_comb begin
@@ -94,16 +107,14 @@ always_comb begin
 		access_fault = 'x;
 	end else begin
         stall_next = '1;
+        access_fault = '0;
         load_data = 'x;
-        access_fault = 'x;
-    
+
         unique case (state)
-    	STATE_IDLE: begin
+    	STATE_IDLE:
             stall_next = '1;
-    	end
-        STATE_CHECK_CACHE_LOAD: begin
+        STATE_LOAD_CHECK_CACHE: begin
             stall_next = !dcache_lookup_valid;
-            access_fault = '0;
             load_data = dcache_rdata;
         end
     	STATE_LOAD_PENDING: begin
@@ -111,6 +122,10 @@ always_comb begin
             access_fault = data_bus.rresp != AXI4LITE_RESP_OKAY;
             load_data = data_bus.rdata;
     	end
+        STATE_STORE_CHECK_CACHE:
+            stall_next = !(awhandshaked && whandshaked);
+        STATE_STORE_PENDING:
+            stall_next = !(awhandshaked && whandshaked);
     	endcase
     end
 end
@@ -121,20 +136,20 @@ always @(posedge clk) begin
 	end else unique case (state)
 	STATE_IDLE: begin
         if (!prev_stalled && do_load) begin
-            state <= STATE_CHECK_CACHE_LOAD;            
+            state <= STATE_LOAD_CHECK_CACHE;
+        end else if (!prev_stalled && do_store) begin
+            state <= STATE_STORE_CHECK_CACHE;
         end
 	end
-    STATE_CHECK_CACHE_LOAD: begin
+    STATE_LOAD_CHECK_CACHE: begin
         if (!dcache_lookup_valid) begin
             state <= STATE_LOAD_PENDING;
         end else if (prev_stalled) begin
             state <= STATE_IDLE;
         end else if (do_load) begin
             // Stay for the next cache check
-        end else begin
-            `ifndef SYNTHESIS
-            $error("Unimplemented store-after-load-cache-hit state");
-            `endif
+        end else if (do_store) begin
+            state <= STATE_STORE_CHECK_CACHE;
         end
     end
 	STATE_LOAD_PENDING: begin
@@ -142,16 +157,72 @@ always @(posedge clk) begin
             if (prev_stalled) begin
                 state <= STATE_IDLE;
             end else if (do_load) begin
-                state <= STATE_CHECK_CACHE_LOAD;
-            end else begin
-                `ifndef SYNTHESIS
-                $error("Unimplemented store-after-load-from-mem state");
-                `endif
+                state <= STATE_LOAD_CHECK_CACHE;
+            end else if (do_store) begin
+                state <= STATE_STORE_CHECK_CACHE;
             end
-            
         end
 	end
+    STATE_STORE_CHECK_CACHE: begin
+        if (awhandshaked && whandshaked) begin
+            if (prev_stalled) begin
+                state <= STATE_IDLE;
+            end else if (do_load) begin
+                state <= STATE_LOAD_CHECK_CACHE;
+            end else if (do_store) begin
+                // Stay for the next cache check
+            end else begin
+                state <= STATE_STORE_PENDING;
+            end
+        end
+    end
+    STATE_STORE_PENDING: begin
+        if (awhandshaked && whandshaked) begin
+            if (prev_stalled) begin
+                state <= STATE_IDLE;
+            end else if (do_load) begin
+                state <= STATE_LOAD_CHECK_CACHE;
+            end else if (do_store) begin
+                state <= STATE_STORE_CHECK_CACHE;
+            end
+        end
+    end
 	endcase
+end
+
+logic awpending;
+logic wpending;
+wire awhandshaked = (data_bus.awvalid && data_bus.awready) || awpending;
+wire whandshaked = (data_bus.wvalid && data_bus.wready) || wpending;
+
+always @(posedge clk) begin
+	if (rst) begin
+        data_bus.awvalid <= '0;
+        data_bus.wvalid <= '0;
+    end else if (!prev_stalled && do_store) begin
+        data_bus.awvalid <= '1;
+        data_bus.wvalid <= '1;
+    end else begin
+        if (data_bus.awready)
+            data_bus.awvalid <= '0;
+        if (data_bus.wready)
+            data_bus.wvalid <= '0;
+    end
+end
+
+always @(posedge clk) begin
+	if (rst) begin
+        awpending <= '0;
+        wpending <= '0;
+    end else if (awhandshaked && whandshaked) begin
+        awpending <= '0;
+        wpending <= '0;
+    end else begin
+        if (data_bus.awvalid && data_bus.awready)
+            awpending <= '1;
+        if (data_bus.wvalid && data_bus.wready)
+            wpending <= '1;
+    end
 end
 
 `ifndef SYNTHESIS
@@ -160,6 +231,7 @@ always @(posedge clk) begin
     assert property (!prev_stalled |-> !$isunknown(addr));
     assert property (!prev_stalled && do_store |-> !$isunknown(store_data));
     assert property (!prev_stalled && do_store |-> !$isunknown(store_mask));
+    assert property (data_bus.bvalid |-> data_bus.bresp == AXI4LITE_RESP_OKAY);
 end
 `endif
 

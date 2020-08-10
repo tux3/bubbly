@@ -7,7 +7,7 @@ timeprecision 10ns;
 module func_load_tb;
 
     bit clk = 0;
-    bit rst = 0; 
+    bit rst = 0;
 
     const logic [14*32-1:0] code_buf = {<<32{
         'b000000101100_00000_000_00001_0010011, // ADDI r1, r0, data_addr
@@ -31,27 +31,27 @@ module func_load_tb;
         .*,
         .buffer(code_buf)
     );
-    
+
     wire [`XLEN-1:0] reg_pc;
     wire [4:0] reg_read_sel;
     wire [`XLEN-1:0] reg_read_data;
-    
+
     basic_soc soc(
         .clk,
         .rst,
-        
+
         .cs,
         .sclk,
         .si,
         .so,
         .wp,
         .hold,
-        
+
         .reg_pc,
         .reg_read_sel,
         .reg_read_data
     );
-    
+
     initial begin
         #0 rst = 1;
         #2 rst = 0;
@@ -59,12 +59,12 @@ module func_load_tb;
 
     initial forever
         #0.5 clk = !clk;
-    
+
     initial begin
         #2; @(posedge clk);
-    
+
         #1000;
-        
+
         assert($signed(soc.core.regs.xreg[2]) == 8'shC7);
         assert($signed(soc.core.regs.xreg[3]) == 8'sh8A);
         assert($signed(soc.core.regs.xreg[4]) == 8'h8A);

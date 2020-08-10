@@ -6,7 +6,7 @@ module exec(
     input prev_stalled,
     output wire stall_prev,
     output reg stall_next,
-    
+
     input decode_exception,
     input decode_is_compressed_instr,
     input decode_is_jump,
@@ -22,9 +22,10 @@ module exec(
     input [`XLEN-1:0] decode_rs2_data,
     input [6:0] funct7,
     input [31:20] i_imm,
+    input [11:0] s_imm,
     input [31:12] u_imm,
     input [20:1] j_imm,
-    
+
     output logic exec_exception,
     output logic exec_is_branch,
     output logic exec_is_reg_write,
@@ -35,7 +36,7 @@ module exec(
 
     // We require every previous stage to reset/stall their output on flush
     output wire exec_pipeline_flush,
-    
+
     axi4lite.master data_bus
 );
 
@@ -114,7 +115,7 @@ always_ff @(posedge clk) begin
             if (decode_exception)
                 stopped_after_exception <= '1;
         end
-        
+
         if (input_valid) begin
             busy <= '1;
             exec_is_reg_write <= decode_is_reg_write;

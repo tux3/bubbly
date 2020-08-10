@@ -13,11 +13,11 @@ module exec_mem(
     input [`XLEN-1:0] rs2_data,
     input [6:0] funct7,
     input [31:20] i_imm,
-    input [31:12] u_imm,
-    
+    input [11:0] s_imm,
+
     input input_valid,
     input input_is_mem,
-    
+
     output lsu_prev_stalled,
     input lsu_stall_next,
     output [basic_cache_params::aligned_addr_size-1:0] lsu_addr,
@@ -33,7 +33,8 @@ module exec_mem(
     output wire [`XLEN-1:0] exec_mem_result
 );
 
-wire [`ALEN-1:0] memory_addr_comb = $signed(rs1_data) + $signed(i_imm);
+wire [11:0] mem_imm = {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
+wire [`ALEN-1:0] memory_addr_comb = $signed(rs1_data) + $signed(mem_imm);
 wire [basic_cache_params::aligned_addr_size-1:0] cache_line_addr_comb = memory_addr_comb[`ALEN-1 -: basic_cache_params::aligned_addr_size];
 wire [basic_cache_params::align_bits-1:0] cache_line_offset_comb = memory_addr_comb[0 +: basic_cache_params::align_bits];
 reg [basic_cache_params::align_bits-1:0] cache_line_offset;
@@ -44,7 +45,7 @@ always_ff @(posedge clk) begin
     end
 end
 
-enum { 
+enum {
 	SIZE_BYTE = 'b00,
     SIZE_HALF = 'b01,
     SIZE_WORD = 'b10,
@@ -72,8 +73,9 @@ wire is_read_misaligned = (access_size_comb == SIZE_HALF  && cache_line_offset_c
                        || (access_size_comb == SIZE_DWORD && cache_line_offset_comb[2:0]);
 
 // Instructions that go directly to the LSU
-wire is_load_store = opcode == decode_types::OP_LOAD 
+wire is_load_store = opcode == decode_types::OP_LOAD
                   || opcode == decode_types::OP_STORE;
+wire store_bit = opcode[3];
 
 // NOTE: We do all this swizzling combinatorially for the loaded data output! This goes right into writeback stage input delay...
 wire [7:0] loaded_byte = lsu_load_data[cache_line_offset[2:0] * 8 +: 8];
@@ -93,8 +95,36 @@ end
 
 assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store) || is_read_misaligned;
 assign lsu_addr = cache_line_addr_comb;
-assign lsu_do_load = opcode == decode_types::OP_LOAD;
-assign lsu_do_store = 'b0; // TODO: Stores
+assign lsu_do_load = !store_bit;
+assign lsu_do_store = store_bit;
+assign lsu_store_data = store_data;
+assign lsu_store_mask = store_mask;
+
+integer mask_idx;
+logic [`XLEN-1:0] store_data;
+logic [(`XLEN/8)-1:0] store_mask;
+always_comb begin
+    mask_idx = 'x;
+    unique case (access_size_comb)
+        SIZE_BYTE: for (mask_idx=0; mask_idx*8<`XLEN; mask_idx+=1) begin
+                       store_data[mask_idx*8 +: 8] = rs2_data[7:0];
+                       store_mask[mask_idx*1 +: 1] = {1{cache_line_offset_comb[2:0] == mask_idx}};
+                   end
+        SIZE_HALF: for (mask_idx=0; mask_idx*16<`XLEN; mask_idx+=1) begin
+                       store_data[mask_idx*16 +: 16] = rs2_data[15:0];
+                       store_mask[mask_idx*2 +: 2] = {2{cache_line_offset_comb[2:1] == mask_idx}};
+                   end
+        SIZE_WORD: for (mask_idx=0; mask_idx*32<`XLEN; mask_idx+=1) begin
+                       store_data[mask_idx*32 +: 32] = rs2_data[31:0];
+                       store_mask[mask_idx*4 +: 4] = {4{cache_line_offset_comb[2] == mask_idx}};
+                   end
+        SIZE_DWORD: begin
+            store_data = rs2_data;
+            store_mask = {8{1'b1}};
+        end
+        default: store_mask = 'x;
+    endcase
+end
 
 assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || !lsu_stall_next;
 reg exec_mem_output_valid_single_cycle;
@@ -105,7 +135,7 @@ always_ff @(posedge clk) begin
         exec_mem_output_valid_single_cycle <= is_read_misaligned;
     else
         exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
-end   
+end
 
 assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
 assign exec_mem_result = lsu_stall_next ? exec_mem_result_reg : loaded_data;

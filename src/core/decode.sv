@@ -12,17 +12,17 @@ module decode(
     input next_stalled,
     output logic stall_prev,
     output logic stall_next,
-    
+
     input wire [4:0] bypass_net_exec_reg,
     input wire [`XLEN-1:0] bypass_net_exec_data,
     input wire [4:0] bypass_net_writeback_reg,
     input wire [`XLEN-1:0] bypass_net_writeback_data,
-    
+
     output wire [4:0] decode_reg_read1_sel,
     input wire [`XLEN-1:0] decode_reg_read1_data,
     output wire [4:0] decode_reg_read2_sel,
     input wire [`XLEN-1:0] decode_reg_read2_data,
-    
+
     output logic decode_exception,
     output logic decode_is_compressed_instr,
     output logic decode_is_jump,
@@ -39,6 +39,7 @@ module decode(
     output logic [`XLEN-1:0] decode_rs2_data,
     output logic [6:0] funct7,
     output logic [31:20] i_imm,
+    output logic [11:0] s_imm,
     output logic [31:12] u_imm,
     output logic [20:1] j_imm
 );
@@ -116,17 +117,17 @@ module decode_impl(
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
-    
+
     input wire [4:0] bypass_net_exec_reg,
     input wire [`XLEN-1:0] bypass_net_exec_data,
     input wire [4:0] bypass_net_writeback_reg,
     input wire [`XLEN-1:0] bypass_net_writeback_data,
-    
+
     output logic [4:0] decode_reg_read1_sel,
     input wire [`XLEN-1:0] decode_reg_read1_data,
     output logic [4:0] decode_reg_read2_sel,
     input wire [`XLEN-1:0] decode_reg_read2_data,
-    
+
     output reg decode_exception,
     output reg decode_is_compressed_instr,
     output reg decode_is_jump,
@@ -142,6 +143,7 @@ module decode_impl(
     output reg [`XLEN-1:0] decode_rs2_data,
     output reg [6:0] funct7,
     output reg [31:20] i_imm,
+    output reg [11:0] s_imm,
     output reg [31:12] u_imm,
     output reg [20:1] j_imm
 );
@@ -162,24 +164,25 @@ always @(posedge clk) begin
     rs1 <= rs1_comb;
     rs2 <= rs2_comb;
     funct7 <= instruction[31:25];
-    
+
     i_imm <= instruction[31:20];
+    s_imm <= {instruction[31:25], instruction[11:7]};
     u_imm <= instruction[31:12];
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
-    
+
     decode_is_compressed_instr <= instruction[1:0] != 'b11;
     decode_is_jump <= instruction[6:5] == 'b11;
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
                         && instruction[6:2] != decode_types::OP_SYSTEM
                         && instruction[6:2] != decode_types::OP_BRANCH;
-    
+
     if (bypass_net_exec_reg == rs1_comb)
         decode_rs1_data <= bypass_net_exec_data;
     else if (bypass_net_writeback_reg == rs1_comb)
         decode_rs1_data <= bypass_net_writeback_data;
     else
         decode_rs1_data <= decode_reg_read1_data;
-        
+
     if (bypass_net_exec_reg == rs2_comb)
         decode_rs2_data <= bypass_net_exec_data;
     else if (bypass_net_writeback_reg == rs2_comb)
@@ -196,7 +199,7 @@ always @(posedge clk) begin
     end else begin
         decode_instruction_addr <= instruction_addr;
         decode_instruction_next_addr <= instruction_next_addr;
-        
+
         if (ifetch_exception)
             decode_exception <= '1;
         else if (instruction[1:0] != 'b11) // TODO: Support for compressed instr decoding
