@@ -185,7 +185,7 @@ always @(posedge clk) begin
     else if (bypass_net_writeback_reg == rs2_comb)
         decode_rs2_data <= bypass_net_writeback_data;
     else
-        decode_rs2_data <= decode_reg_read1_data;
+        decode_rs2_data <= decode_reg_read2_data;
 end
 
 always @(posedge clk) begin
