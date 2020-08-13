@@ -23,11 +23,12 @@ module exec(
     input [6:0] funct7,
     input [31:20] i_imm,
     input [11:0] s_imm,
+    input [12:1] b_imm,
     input [31:12] u_imm,
     input [20:1] j_imm,
 
     output logic exec_exception,
-    output logic exec_is_branch,
+    output logic exec_is_taken_branch,
     output logic exec_is_reg_write,
     output logic [4:0] exec_reg_write_sel,
     output logic [`XLEN-1:0] exec_result,
@@ -48,12 +49,13 @@ reg busy;
 reg stopped_after_exception;
 wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
 wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
-assign exec_is_branch = exec_branch_output_valid;
+assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
 
 wire input_is_branch = decode_is_jump;
 wire exec_branch_next_output_valid_comb;
 wire exec_branch_output_valid;
 wire exec_branch_exception;
+wire exec_branch_taken;
 wire [`XLEN-1:0] exec_branch_result;
 exec_branch exec_branch(
     .exec_mispredict_detected(exec_pipeline_flush),

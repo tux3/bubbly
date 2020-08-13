@@ -40,6 +40,7 @@ module decode(
     output logic [6:0] funct7,
     output logic [31:20] i_imm,
     output logic [11:0] s_imm,
+    output logic [12:1] b_imm,
     output logic [31:12] u_imm,
     output logic [20:1] j_imm
 );
@@ -146,6 +147,7 @@ module decode_impl(
     output reg [6:0] funct7,
     output reg [31:20] i_imm,
     output reg [11:0] s_imm,
+    output reg [12:1] b_imm,
     output reg [31:12] u_imm,
     output reg [20:1] j_imm
 );
@@ -169,6 +171,7 @@ always @(posedge clk) begin
 
     i_imm <= instruction[31:20];
     s_imm <= {instruction[31:25], instruction[11:7]};
+    b_imm <= {instruction[31], instruction[7], instruction[30:25], instruction[11:8]};
     u_imm <= instruction[31:12];
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
 

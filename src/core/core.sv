@@ -86,6 +86,7 @@ wire [`XLEN-1:0] decode_rs2_data;
 wire [6:0] funct7;
 wire [31:20] i_imm;
 wire [11:0] s_imm;
+wire [12:1] b_imm;
 wire [31:12] u_imm;
 wire [20:1] j_imm;
 decode decode(
@@ -110,7 +111,7 @@ decode decode(
 wire exec_stall_prev;
 wire exec_stall_next;
 wire exec_exception;
-wire exec_is_branch;
+wire exec_is_taken_branch;
 wire exec_is_reg_write;
 wire [4:0] exec_reg_write_sel;
 wire [`XLEN-1:0] exec_result;
