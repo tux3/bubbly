@@ -18,7 +18,7 @@ module ifetch(
 assign sys_bus.aclk = clk;
 assign sys_bus.aresetn = !rst;
 
-assign sys_bus.arvalid = state == STATE_START_1ST_READ || state == STATE_START_2ND_READ;
+assign sys_bus.arvalid = (state == STATE_START_1ST_READ || state == STATE_START_2ND_READ) && !flush;
 assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:basic_cache_params::align_bits] << basic_cache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
 assign sys_bus.arprot = 'b000;
 
@@ -55,7 +55,7 @@ logic [basic_cache_params::aligned_addr_size-1:0] icache_raddr;
 wire [basic_cache_params::data_size-1:0] icache_rdata;
 wire icache_lookup_valid;
 
-enum bit[3:0] { 
+enum bit[3:0] {
 	STATE_START_1ST_LOOKUP_FROM_PC,
 	STATE_CHECK_1ST_LOOKUP,
 	STATE_START_1ST_READ,
@@ -91,8 +91,8 @@ always @(posedge clk) begin
     else if (sys_bus.arvalid && sys_bus.arready)
         bus_read_pending <= '1;
     else if (sys_bus.rready && sys_bus.rvalid)
-        bus_read_pending <= '0; 
-end    
+        bus_read_pending <= '0;
+end
 
 // Read cache lines
 always_comb begin
@@ -150,7 +150,7 @@ always_comb begin
             next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
         else
             next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
-            
+
         `ifndef SYNTHESIS
 		if (!icache_lookup_valid)
 			next_fetch_pc_comb = 'x;
@@ -161,7 +161,7 @@ always_comb begin
             next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
         else
             next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
-        
+
 		`ifndef SYNTHESIS
 		if (!sys_bus.rvalid)
 			next_fetch_pc_comb = 'x;
@@ -198,9 +198,9 @@ always @(posedge clk) begin
             instruction_next_addr <= next_fetch_pc_comb;
             if (cache_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
-            
+
             if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin
-                state <= STATE_EXCEPTION; // Instr too long        
+                state <= STATE_EXCEPTION; // Instr too long
 			end else if (cache_fetch_crosses_lines) begin
 				state <= STATE_CHECK_2ND_LOOKUP;
 			end else begin
@@ -223,7 +223,7 @@ always @(posedge clk) begin
             instruction_next_addr <= next_fetch_pc_comb;
             if (bus_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
-		
+
             if (sys_bus.rdata[line_instr_offset +: 5] == 5'b11111) begin
                 state <= STATE_EXCEPTION; // Instr too long
 			end else if (!bus_fetch_crosses_lines || icache_lookup_valid) begin // We do a 2nd lookup check at the same time as the 1st read finishes to save a cycle
@@ -315,17 +315,17 @@ always @(posedge clk) begin
 			next_instruction = instruction;
             stall_next <= '1;
         end
-        
+
         // This is safe, we go through this state exactly once per instruction, but only when unstalled
         if (state == STATE_CHECK_1ST_LOOKUP && (!next_stalled || stall_next))
             instruction_addr <= fetch_pc;
         else if (state == STATE_STALLED && !next_stalled)
             instruction_addr <= 'x;
-		
+
 		invalid_len_exception = next_instruction[4:0] == 'b11111;
         if (invalid_len_exception)
             next_instruction = 'x;
-        
+
 		instruction <= next_instruction;
 		ifetch_exception <= invalid_len_exception || state == STATE_EXCEPTION;
     end
