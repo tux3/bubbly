@@ -111,8 +111,8 @@ always_ff @(posedge clk) begin
         exec_instruction_next_addr <= 'x;
     end else begin
         if (!prev_stalled && !stall_prev) begin
-            exec_instruction_next_addr <= decode_instruction_next_addr;
-            if (decode_exception)
+            exec_instruction_next_addr <= exec_pipeline_flush ? 'x : decode_instruction_next_addr;
+            if (decode_exception && !exec_pipeline_flush)
                 stopped_after_exception <= '1;
         end
 
