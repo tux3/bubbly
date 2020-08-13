@@ -7,7 +7,7 @@ timeprecision 10ns;
 module func_int_bypass_tb;
 
     bit clk = 0;
-    bit rst = 0; 
+    bit rst = 0;
 
     const logic [15*32-1:0] code_buf = {<<32{
         'b111111111111_00000_000_00001_0010011, // ADDI r1, r0, -1
@@ -32,27 +32,27 @@ module func_int_bypass_tb;
         .*,
         .buffer(code_buf)
     );
-    
+
     wire [`XLEN-1:0] reg_pc;
     wire [4:0] reg_read_sel;
     wire [`XLEN-1:0] reg_read_data;
-    
+
     basic_soc soc(
         .clk,
         .rst,
-        
+
         .cs,
         .sclk,
         .si,
         .so,
         .wp,
         .hold,
-        
+
         .reg_pc,
         .reg_read_sel,
         .reg_read_data
     );
-    
+
     initial begin
         #0 rst = 1;
         #2 rst = 0;
@@ -60,10 +60,10 @@ module func_int_bypass_tb;
 
     initial forever
         #0.5 clk = !clk;
-    
+
     initial begin
         #2; @(posedge clk);
-    
+
         #500;
 
         assert($signed(soc.core.regs.xreg[01]) == 32'shFFFFFFFF);

@@ -14,10 +14,10 @@ module exec_int(
     input [6:0] funct7,
     input [31:20] i_imm,
     input [31:12] u_imm,
-    
+
     input input_valid,
     input input_is_int,
-    
+
     output reg exec_int_output_valid,
     output reg exec_int_exception,
     output reg [`XLEN-1:0] exec_int_result
@@ -28,7 +28,7 @@ always_ff @(posedge clk) begin
         exec_int_output_valid <= '0;
     else
         exec_int_output_valid <= input_valid && input_is_int;
-end   
+end
 
 always_ff @(posedge clk) begin
     exec_int_exception <= '0;
@@ -68,6 +68,35 @@ always_ff @(posedge clk) begin
             end
             3'b111: begin // ANDI
                 exec_int_result <= $signed(rs1_data) & $signed(i_imm);
+            end
+        endcase
+    end else if (opcode == decode_types::OP_OP) begin
+        // NOTE: $signed() is okay because:
+        //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
+        unique case (funct3)
+            3'b000: begin // ADD/SUB
+                exec_int_result <= $signed(rs1_data) + (i_imm[30] ? -$signed(rs2_data) : $signed(rs2_data));
+            end
+            3'b001: begin // SLL
+                exec_int_result <= rs1_data << rs2_data[$clog2(`XLEN)-1:0];
+            end
+            3'b010: begin // SLT
+                exec_int_result <= $signed(rs1_data) < $signed(rs2_data);
+            end
+            3'b011: begin // SLTU
+                exec_int_result <= rs1_data < rs2_data;
+            end
+            3'b100: begin // XOR
+                exec_int_result <= $signed(rs1_data) ^ $signed(rs2_data);
+            end
+            3'b101: begin // SRL/SRA
+                exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> rs2_data[$clog2(`XLEN)-1:0];
+            end
+            3'b110: begin // OR
+                exec_int_result <= $signed(rs1_data) | $signed(rs2_data);
+            end
+            3'b111: begin // AND
+                exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
             end
         endcase
     end else begin
