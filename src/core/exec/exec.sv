@@ -40,8 +40,8 @@ module exec(
 );
 
 // The decoder's bypass inputs are registered, so they can't bypass directly from an exec cycle to the next
-wire [`XLEN-1:0] rs1_data = exec_reg_write_sel == rs1 ? exec_result : decode_rs1_data;
-wire [`XLEN-1:0] rs2_data = exec_reg_write_sel == rs2 ? exec_result : decode_rs2_data;
+wire [`XLEN-1:0] rs1_data = (exec_is_reg_write && exec_reg_write_sel == rs1) ? exec_result : decode_rs1_data;
+wire [`XLEN-1:0] rs2_data = (exec_is_reg_write && exec_reg_write_sel == rs2) ? exec_result : decode_rs2_data;
 
 reg busy;
 reg stopped_after_exception;
@@ -118,7 +118,7 @@ always_ff @(posedge clk) begin
         if (input_valid) begin
             busy <= '1;
             exec_is_reg_write <= decode_is_reg_write;
-            exec_reg_write_sel <= rd;
+            exec_reg_write_sel <= decode_is_reg_write ? rd : 'x;
         end else if (!stall_next) begin
             busy <= '0;
             exec_reg_write_sel <= '0;
