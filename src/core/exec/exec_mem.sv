@@ -150,7 +150,9 @@ always_ff @(posedge clk) begin
         exec_mem_exception_reg <= is_read_misaligned;
         exec_mem_result_reg <= 'x;
     end else if (opcode == decode_types::OP_MISC_MEM) begin
-        exec_mem_result_reg <= 'x; // NOTE: We don't reorder anything, FENCE is a no-op
+        // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
+        exec_mem_exception_reg <= funct3 != 'b000;
+        exec_mem_result_reg <= 'x;
     end else begin
         exec_mem_exception_reg <= '1;
         exec_mem_result_reg <= 'x;
