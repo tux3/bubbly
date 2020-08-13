@@ -1,7 +1,8 @@
 `include "../../axi/axi4lite.svh"
 
 module axi4lite_flash #(
-    parameter USE_SB_IO = 1
+    parameter USE_SB_IO = 1,
+    parameter FLASH_SIZE_BITS = 24
 ) (
     axi4lite.slave bus,
 
@@ -28,10 +29,15 @@ module axi4lite_flash #(
     logic [63:0] read_data;
     logic [3:0] read_counter;
 
-    flash_reader flash_reader(
+    wire [FLASH_SIZE_BITS-1:0] flash_addr = bus.araddr;
+
+    flash_reader #(
+        .USE_SB_IO(USE_SB_IO),
+        .FLASH_SIZE_BITS(FLASH_SIZE_BITS)
+    ) flash_reader (
         .clk(bus.aclk),
         .rst(rst),
-        .addr(bus.araddr),
+        .addr(flash_addr),
         .start_read,
         .keep_reading,
 

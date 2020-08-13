@@ -9,12 +9,13 @@
 // Scheduling a read when no read is pending starts a new read immediately instead.
 
 module flash_reader #(
-    parameter USE_SB_IO = 1
+    parameter USE_SB_IO = 1,
+    parameter FLASH_SIZE_BITS = 24
 ) (
     // Logic iface
     input clk,
     input rst,
-    input [23:0] addr,
+    input [FLASH_SIZE_BITS-1:0] addr,
     input start_read,
     input keep_reading,
     output data_ready,
@@ -33,7 +34,7 @@ module flash_reader #(
     localparam NEW_ADDR = 2'b10;
 
     logic [1:0] state;
-    logic [23:0] active_addr;
+    logic [FLASH_SIZE_BITS-1:0] active_addr;
     logic read_scheduled;
 
     wire setup_done;
