@@ -12,4 +12,8 @@
 
 `define RESET_PC '0
 
+`define MVENDORID 32'h0
+`define MARCHID 64'h0
+`define MIMPID 64'h0
+
 `endif // _CORE_PARAMS_INCLUDE

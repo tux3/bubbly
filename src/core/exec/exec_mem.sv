@@ -46,7 +46,7 @@ always_ff @(posedge clk) begin
 end
 
 enum {
-	SIZE_BYTE = 'b00,
+    SIZE_BYTE = 'b00,
     SIZE_HALF = 'b01,
     SIZE_WORD = 'b10,
     SIZE_DWORD = 'b11

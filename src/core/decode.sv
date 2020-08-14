@@ -176,9 +176,8 @@ always @(posedge clk) begin
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
 
     decode_is_compressed_instr <= instruction[1:0] != 'b11;
-    decode_is_jump <= instruction[6:5] == 'b11;
+    decode_is_jump <= instruction[6:4] == 'b110;
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
-                        && instruction[6:2] != decode_types::OP_SYSTEM
                         && instruction[6:2] != decode_types::OP_BRANCH;
 
     if (bypass_net_exec_reg == rs1_comb)

@@ -3,11 +3,11 @@
 module int_regfile(
     input clk,
     input rst,
-    
+
     input bit write1_enable,
     input [4:0] write1_sel,
     input [`XLEN-1:0] write1_data,
-    
+
     input [4:0] read1_sel,
     output logic [`XLEN-1:0] read1_data,
     input [4:0] read2_sel,
@@ -29,7 +29,7 @@ always @(posedge clk) begin
     if (rst) begin
         // No Yosys support for the fun barely-synthetizable SV syntax :(
         //xreg <= '{default:'0};
-        
+
         for (i=1; i<=$size(xreg); i=i+1) begin
             xreg[i] <= '0;
         end

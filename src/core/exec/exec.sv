@@ -70,6 +70,14 @@ exec_int exec_int(
     .*
 );
 
+wire input_is_system = opcode == decode_types::OP_SYSTEM;
+wire exec_system_output_valid;
+wire exec_system_exception;
+wire [`XLEN-1:0] exec_system_result;
+exec_system exec_system(
+    .*
+);
+
 wire input_is_mem = opcode[4] == 0 && opcode[2] == 0;
 wire exec_mem_output_valid;
 wire exec_mem_exception;
@@ -102,6 +110,19 @@ load_store lsu(
     .data_bus(data_bus)
 );
 
+wire exec_csr_instr_valid;
+wire [11:0] exec_csr_addr;
+wire [2:0] exec_csr_funct3;
+wire [4:0] exec_csr_rd;
+wire [4:0] exec_csr_rs1_uimm;
+wire [`XLEN-1:0] exec_csr_rs1_data;
+wire exec_csr_exception;
+wire [`XLEN-1:0] exec_csr_result;
+csrs csrs(
+    .inst_retired(!stall_next),
+    .*
+);
+
 assign stall_prev = busy && stall_next;
 
 always_ff @(posedge clk) begin
@@ -132,12 +153,13 @@ end
 // This is really a simple unique case(1'b1), except it's not *actually* unique during fucking delta cycle....
 // So we have to do this syntactic horror
 enum {
-	NO_OUTPUT_VALID =       'b000,
-    BRANCH_OUTPUT_VALID =   'b100,
-    INT_OUTPUT_VALID =      'b010,
-    MEM_OUTPUT_VALID =      'b001
+    NO_OUTPUT_VALID =       'b0000,
+    BRANCH_OUTPUT_VALID =   'b1000,
+    INT_OUTPUT_VALID =      'b0100,
+    SYSTEM_OUTPUT_VALID =   'b0010,
+    MEM_OUTPUT_VALID =      'b0001
 } valid_output_types;
-always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_mem_output_valid})
+always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
     NO_OUTPUT_VALID: begin
         exec_exception = stopped_after_exception;
         stall_next = !exec_exception;
@@ -152,6 +174,11 @@ always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_
         stall_next = '0;
         exec_exception = exec_int_exception;
         exec_result = exec_int_result;
+    end
+    SYSTEM_OUTPUT_VALID: begin
+        stall_next = '0;
+        exec_exception = exec_system_exception;
+        exec_result = exec_system_result;
     end
     MEM_OUTPUT_VALID: begin
         stall_next = '0;
