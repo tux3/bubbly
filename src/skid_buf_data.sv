@@ -1,6 +1,7 @@
 // Holds one of the data buffers for skid_buf_ctl
 module skid_buf_data #(
-    parameter WIDTH = 1
+    parameter WIDTH = 1,
+    parameter MAYBE_UNKNOWN = 0
 ) (
     input clk,
     input rst,
@@ -46,8 +47,10 @@ end
 
 `ifndef SYNTHESIS
 always @(posedge clk) begin
-    assert property (buf_full |-> !$isunknown(out_buf) && !$isunknown(skid_buf));
-    assert property (!buf_full |-> $isunknown(skid_buf));
+    if (!MAYBE_UNKNOWN) begin
+        assert property (buf_full |-> !$isunknown(out_buf) && !$isunknown(skid_buf));
+        assert property (!buf_full |-> $isunknown(skid_buf));
+    end
 end
 `endif
 

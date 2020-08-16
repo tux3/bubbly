@@ -6,6 +6,7 @@ module writeback(
     input prev_stalled,
 
     input exec_exception,
+    input [`ALEN-1:0] exec_trap_target,
     input exec_is_taken_branch,
     input exec_is_reg_write,
     input [4:0] exec_reg_write_sel,
@@ -22,12 +23,18 @@ module writeback(
 );
 
 always_comb begin
-    writeback_instr_retired = !prev_stalled && !exec_exception;
-    writeback_next_pc = exec_is_taken_branch ? exec_branch_target : exec_instruction_next_addr;
+    writeback_instr_retired = !prev_stalled;
 
-    writeback_reg_write_enable = exec_is_reg_write && !prev_stalled && exec_reg_write_sel != '0;
+    writeback_reg_write_enable = exec_is_reg_write && !prev_stalled && !exec_exception && exec_reg_write_sel != '0;
     writeback_reg_write_sel = exec_reg_write_sel;
     writeback_reg_write_data = exec_result;
+
+    if (exec_exception)
+        writeback_next_pc = exec_trap_target;
+    else if (exec_is_taken_branch)
+        writeback_next_pc = exec_branch_target;
+    else
+        writeback_next_pc = exec_instruction_next_addr;
 end
 
 endmodule

@@ -8,6 +8,7 @@ module exec(
     output reg stall_next,
 
     input decode_exception,
+    input [3:0] decode_trap_cause,
     input decode_is_compressed_instr,
     input decode_is_jump,
     input decode_is_reg_write,
@@ -28,6 +29,7 @@ module exec(
     input [20:1] j_imm,
 
     output logic exec_exception,
+    output logic [`ALEN-1:0] exec_trap_target,
     output logic exec_is_taken_branch,
     output logic exec_is_reg_write,
     output logic [4:0] exec_reg_write_sel,
@@ -46,25 +48,28 @@ wire [`XLEN-1:0] rs1_data = (exec_is_reg_write && exec_reg_write_sel == rs1) ? e
 wire [`XLEN-1:0] rs2_data = (exec_is_reg_write && exec_reg_write_sel == rs2) ? exec_result : decode_rs2_data;
 
 reg busy;
-reg stopped_after_exception;
 wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
 wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
 assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
+
+assign exec_pipeline_flush = exec_mispredict_detected || exec_exception;
 
 wire input_is_branch = decode_is_jump;
 wire exec_branch_next_output_valid_comb;
 wire exec_branch_output_valid;
 wire exec_branch_exception;
+wire [3:0] exec_branch_trap_cause;
 wire exec_branch_taken;
 wire [`XLEN-1:0] exec_branch_result;
+wire exec_mispredict_detected;
 exec_branch exec_branch(
-    .exec_mispredict_detected(exec_pipeline_flush),
     .*
 );
 
 wire input_is_int = opcode[4] == 0 && opcode[2] == 1;
 wire exec_int_output_valid;
 wire exec_int_exception;
+wire [3:0] exec_int_trap_cause;
 wire [`XLEN-1:0] exec_int_result;
 exec_int exec_int(
     .*
@@ -73,6 +78,7 @@ exec_int exec_int(
 wire input_is_system = opcode == decode_types::OP_SYSTEM;
 wire exec_system_output_valid;
 wire exec_system_exception;
+wire [3:0] exec_system_trap_cause;
 wire [`XLEN-1:0] exec_system_result;
 exec_system exec_system(
     .*
@@ -81,6 +87,7 @@ exec_system exec_system(
 wire input_is_mem = opcode[4] == 0 && opcode[2] == 0;
 wire exec_mem_output_valid;
 wire exec_mem_exception;
+wire [3:0] exec_mem_trap_cause;
 wire [`XLEN-1:0] exec_mem_result;
 exec_mem exec_mem(
     .*
@@ -117,9 +124,18 @@ wire [4:0] exec_csr_rd;
 wire [4:0] exec_csr_rs1_uimm;
 wire [`XLEN-1:0] exec_csr_rs1_data;
 wire exec_csr_exception;
+wire [3:0] exec_csr_trap_cause;
 wire [`XLEN-1:0] exec_csr_result;
+wire [`XLEN-1:0] mtvec;
 csrs csrs(
     .inst_retired(!stall_next),
+    .*
+);
+
+trap trap(
+    .exec_trap_valid(exec_exception),
+    .exec_trap_cause(exec_trap_cause),
+    .exec_trap_target,
     .*
 );
 
@@ -127,26 +143,36 @@ assign stall_prev = busy && stall_next;
 
 always_ff @(posedge clk) begin
     if (rst) begin
-        stopped_after_exception <= '0;
         busy <= '0;
-        exec_is_reg_write <= 'x;
+        exec_is_reg_write <= '0;
         exec_reg_write_sel <= '0;
         exec_instruction_next_addr <= 'x;
     end else begin
         if (!prev_stalled && !stall_prev) begin
             exec_instruction_next_addr <= exec_pipeline_flush ? 'x : decode_instruction_next_addr;
-            if (decode_exception && !exec_pipeline_flush)
-                stopped_after_exception <= '1;
         end
 
         if (input_valid) begin
             busy <= '1;
-            exec_is_reg_write <= decode_is_reg_write;
+            exec_is_reg_write <= decode_is_reg_write && rd != '0;
             exec_reg_write_sel <= decode_is_reg_write ? rd : 'x;
         end else if (!stall_next) begin
             busy <= '0;
-            exec_reg_write_sel <= '0;
+            exec_is_reg_write <= '0;
+            exec_reg_write_sel <= 'x;
         end
+    end
+end
+
+logic decode_valid_exception_buf;
+logic [3:0] decode_trap_cause_buf;
+always @(posedge clk) begin
+    if (rst) begin
+        decode_valid_exception_buf <= '0;
+        decode_trap_cause_buf <= 'x;
+    end else if (input_valid_unless_mispredict) begin
+        decode_valid_exception_buf <= decode_exception && !exec_pipeline_flush;
+        decode_trap_cause_buf <= decode_trap_cause;
     end
 end
 
@@ -159,36 +185,44 @@ enum {
     SYSTEM_OUTPUT_VALID =   'b0010,
     MEM_OUTPUT_VALID =      'b0001
 } valid_output_types;
+
+logic [3:0] exec_trap_cause;
 always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
     NO_OUTPUT_VALID: begin
-        exec_exception = stopped_after_exception;
+        exec_exception = decode_valid_exception_buf;
+        exec_trap_cause = decode_trap_cause_buf;
         stall_next = !exec_exception;
-        exec_result = '0;
+        exec_result = 'x;
     end
     BRANCH_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_branch_exception;
+        exec_trap_cause = exec_branch_trap_cause;
         exec_result = exec_branch_result;
     end
     INT_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_int_exception;
+        exec_trap_cause = exec_int_trap_cause;
         exec_result = exec_int_result;
     end
     SYSTEM_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_system_exception;
+        exec_trap_cause = exec_system_trap_cause;
         exec_result = exec_system_result;
     end
     MEM_OUTPUT_VALID: begin
         stall_next = '0;
         exec_exception = exec_mem_exception;
+        exec_trap_cause = exec_mem_trap_cause;
         exec_result = exec_mem_result;
     end
     default: begin
         // This can happen during delta cycles... and hopefully only delta cycles.
         stall_next = 'x;
         exec_exception = 'x;
+        exec_trap_cause = 'x;
         exec_result = 'x;
     end
 endcase

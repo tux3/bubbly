@@ -20,6 +20,7 @@ module exec_int(
 
     output reg exec_int_output_valid,
     output reg exec_int_exception,
+    output reg [3:0] exec_int_trap_cause,
     output reg [`XLEN-1:0] exec_int_result
 );
 
@@ -32,6 +33,7 @@ end
 
 always_ff @(posedge clk) begin
     exec_int_exception <= '0;
+    exec_int_trap_cause <= 'x;
 
     if (opcode == decode_types::OP_LUI) begin
         exec_int_result <= {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
@@ -48,6 +50,7 @@ always_ff @(posedge clk) begin
             end
             3'b001: begin // SLLI
                 exec_int_exception <= i_imm[31:26] != '0;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= rs1_data << i_imm[25:20];
             end
             3'b010: begin // SLTI
@@ -61,6 +64,7 @@ always_ff @(posedge clk) begin
             end
             3'b101: begin // SRLI/SRAI
                 exec_int_exception <= i_imm[31] != 1'b0 || i_imm[29:26] != 4'b0000;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> i_imm[25:20];
             end
             3'b110: begin // ORI
@@ -80,14 +84,17 @@ always_ff @(posedge clk) begin
             end
             3'b001: begin // SLLIW
                 exec_int_exception <= i_imm[31:25] != '0;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= $signed({ rs1_data[31:0] << i_imm[24:20] });
             end
             3'b101: begin // SRLIW/SRAIW
                 exec_int_exception <= i_imm[31] != 1'b0 || i_imm[29:25] != 5'b00000;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> i_imm[24:20];
             end
             default: begin
                 exec_int_exception <= '1;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= 'x;
             end
         endcase
@@ -136,11 +143,13 @@ always_ff @(posedge clk) begin
             end
             default: begin
                 exec_int_exception <= '1;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 exec_int_result <= 'x;
             end
         endcase
     end else begin
         exec_int_exception <= '1;
+        exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         exec_int_result <= 'x;
     end
 end

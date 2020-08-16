@@ -23,6 +23,7 @@ module exec_branch(
 
     output reg exec_branch_output_valid,
     output reg exec_branch_exception,
+    output reg [3:0] exec_branch_trap_cause,
     output reg exec_branch_taken,
     output reg [`XLEN-1:0] exec_branch_result,
     output reg [`ALEN-1:0] exec_branch_target,
@@ -101,7 +102,17 @@ end
 
 always_ff @(posedge clk) begin
     if (input_valid && input_is_branch) begin
-        exec_branch_exception <= illegal_instruction_exception || exec_branch_target_comb[0];
+        if (illegal_instruction_exception) begin
+            exec_branch_exception <= '1;
+            exec_branch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end else if (exec_branch_target_comb[0]) begin
+            exec_branch_exception <= '1;
+            exec_branch_trap_cause <= trap_causes::EXC_INSTR_ADDR_MISALIGNED;
+        end else begin
+            exec_branch_exception <= '0;
+            exec_branch_trap_cause <= 'x;
+        end
+
         exec_branch_target <= exec_branch_target_comb;
         // Note that this is not the branch target, it's the value JAL/JALR write in rd
         exec_branch_result <= decode_instruction_next_addr;

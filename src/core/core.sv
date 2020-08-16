@@ -25,7 +25,7 @@ wire [`XLEN-1:0] pc;
 pc_control pc_control(
     .clk,
     .rst,
-	.instr_retired(writeback_instr_retired),
+    .instr_retired(writeback_instr_retired),
     .next_pc(writeback_next_pc),
     .pc
 );
@@ -50,6 +50,7 @@ wire [`ILEN-1:0] instruction;
 wire [`ALEN-1:0] instruction_addr;
 wire [`ALEN-1:0] instruction_next_addr;
 wire ifetch_exception;
+wire [3:0] ifetch_trap_cause;
 ifetch ifetch(
     .clk,
     .rst,
@@ -59,7 +60,8 @@ ifetch ifetch(
     .instruction_addr,
     .instruction_next_addr,
     .ifetch_exception,
-	.next_stalled(decode_stall_prev),
+    .ifetch_trap_cause,
+    .next_stalled(decode_stall_prev),
     .stall_next(ifetch_stall_next),
     .sys_bus(ifetch_port)
 );
@@ -71,6 +73,7 @@ wire [`XLEN-1:0] decode_reg_read1_data;
 wire [4:0] decode_reg_read2_sel;
 wire [`XLEN-1:0] decode_reg_read2_data;
 wire decode_exception;
+wire [3:0] decode_trap_cause;
 wire decode_is_compressed_instr;
 wire decode_is_jump;
 wire decode_is_reg_write;
@@ -97,6 +100,7 @@ decode decode(
     .instruction_addr,
     .instruction_next_addr,
     .ifetch_exception,
+    .ifetch_trap_cause,
     .prev_stalled(ifetch_stall_next),
     .next_stalled(exec_stall_prev),
     .stall_prev(decode_stall_prev),
@@ -110,6 +114,8 @@ decode decode(
 
 wire exec_stall_prev;
 wire exec_stall_next;
+wire exec_is_trap;
+wire [`ALEN-1:0] exec_trap_target;
 wire exec_exception;
 wire exec_is_taken_branch;
 wire exec_is_reg_write;

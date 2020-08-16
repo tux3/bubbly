@@ -30,6 +30,7 @@ module exec_mem(
 
     output wire exec_mem_output_valid,
     output wire exec_mem_exception,
+    output wire [3:0] exec_mem_trap_cause,
     output wire [`XLEN-1:0] exec_mem_result
 );
 
@@ -68,9 +69,9 @@ generate
 endgenerate
 
 // NOTE: We reject any misaligned access, even if it does not cross the cache line (to simplify detection...)
-wire is_read_misaligned = (access_size_comb == SIZE_HALF  && cache_line_offset_comb[0:0])
-                       || (access_size_comb == SIZE_WORD  && cache_line_offset_comb[1:0])
-                       || (access_size_comb == SIZE_DWORD && cache_line_offset_comb[2:0]);
+wire is_access_misaligned = (access_size_comb == SIZE_HALF  && cache_line_offset_comb[0:0])
+                         || (access_size_comb == SIZE_WORD  && cache_line_offset_comb[1:0])
+                         || (access_size_comb == SIZE_DWORD && cache_line_offset_comb[2:0]);
 
 // Instructions that go directly to the LSU
 wire is_load_store = opcode == decode_types::OP_LOAD
@@ -93,7 +94,7 @@ always_comb begin
     endcase
 end
 
-assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store) || is_read_misaligned;
+assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store) || is_access_misaligned;
 assign lsu_addr = cache_line_addr_comb;
 assign lsu_do_load = !store_bit;
 assign lsu_do_store = store_bit;
@@ -132,29 +133,35 @@ always_ff @(posedge clk) begin
     if (rst)
         exec_mem_output_valid_single_cycle <= '0;
     else if (input_valid && input_is_mem && is_load_store)
-        exec_mem_output_valid_single_cycle <= is_read_misaligned;
+        exec_mem_output_valid_single_cycle <= is_access_misaligned;
     else
         exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
 end
 
 assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
+assign exec_mem_trap_cause = lsu_stall_next ? exec_mem_trap_cause_reg : trap_causes::EXC_LOAD_ACCESS_FAULT;
 assign exec_mem_result = lsu_stall_next ? exec_mem_result_reg : loaded_data;
 reg exec_mem_exception_reg;
+reg [3:0] exec_mem_trap_cause_reg;
 reg [`XLEN-1:0] exec_mem_result_reg;
 always_ff @(posedge clk) begin
     exec_mem_exception_reg <= '0;
+    exec_mem_trap_cause_reg <= 'x;
 
     if (is_load_store) begin
         // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
         //       The other kinds of load/store results come from the load/store unit combinatorially
-        exec_mem_exception_reg <= is_read_misaligned;
+        exec_mem_exception_reg <= is_access_misaligned;
+        exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
         exec_mem_result_reg <= 'x;
     end else if (opcode == decode_types::OP_MISC_MEM) begin
         // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
         exec_mem_exception_reg <= funct3 != 'b000;
+        exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
         exec_mem_result_reg <= 'x;
     end else begin
         exec_mem_exception_reg <= '1;
+        exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
         exec_mem_result_reg <= 'x;
     end
 end

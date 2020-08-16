@@ -23,10 +23,12 @@ module exec_system(
     output [4:0] exec_csr_rs1_uimm,
     output [`XLEN-1:0] exec_csr_rs1_data,
     input exec_csr_exception,
+    input [3:0] exec_csr_trap_cause,
     input [`XLEN-1:0] exec_csr_result,
 
     output reg exec_system_output_valid,
     output reg exec_system_exception,
+    output reg [3:0] exec_system_trap_cause,
     output reg [`XLEN-1:0] exec_system_result
 );
 
@@ -54,30 +56,38 @@ assign exec_csr_rs1_data = rs1_data;
 wire [1:0] xret_level = funct7[4:3];
 always_ff @(posedge clk) begin
     exec_system_exception <= '0;
+    exec_system_trap_cause <= 'x;
     exec_system_result <= 'x;
 
     if (funct3 == 3'b100) begin // Hypervisor Load/Store instructions
         exec_system_exception <= '1;
+        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
     end else if (funct3 != '0) begin // Zicsr
         exec_system_exception <= exec_csr_exception;
+        exec_system_trap_cause <= exec_csr_trap_cause;
         exec_system_result <= exec_csr_result;
     end else if (rd == '0) begin
         if (funct7 == 'b0001001) begin // SFENCE.VMA
             // Until we have paging, this is a no-op
         end else if (rs1 != '0) begin
             exec_system_exception <= '1; // Unsupported instructions
+            exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         end else unique casez ({funct7, rs2})
             0: begin // TODO: ECALL
                 exec_system_exception <= '1;
+                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
             end
             1: begin // TODO: EBREAK
                 exec_system_exception <= '1;
+                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
             end
             {7'b00??000, 5'b00010}: begin // {U,S,M}RET
                 if (xret_level == PRIV_LEVEL_MACHINE) begin
                     exec_system_exception <= '1; // TODO: Implement MRET
+                    exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 end else begin
                     exec_system_exception <= '1;
+                    exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 end
             end
             {7'b0001000, 5'b00101}: begin // WFI
@@ -85,10 +95,12 @@ always_ff @(posedge clk) begin
             end
             default: begin
                 exec_system_exception <= '1;
+                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
             end
         endcase
     end else begin
         exec_system_exception <= '1;
+        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
     end
 end
 

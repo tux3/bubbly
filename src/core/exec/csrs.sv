@@ -13,23 +13,27 @@ module csrs(
     input [4:0] exec_csr_rs1_uimm,
     input [`XLEN-1:0] exec_csr_rs1_data,
     output logic exec_csr_exception,
-    output logic [`XLEN-1:0] exec_csr_result
+    output logic [3:0] exec_csr_trap_cause,
+    output logic [`XLEN-1:0] exec_csr_result,
+
+    output [`XLEN-1:0] mtvec
 );
 
 enum {
-    CSR_SIZE_64 = 'h64,
+    CSR_SIZE_XLEN = `XLEN,
     CSR_SIZE_32 = 'h32
 } csr_size_e;
 
-//    CSR name       addr   size         init
+//    CSR name       addr   size            init        AND write mask
 `define CSR_X_REG_LIST \
-    `X(mscratch,     'h340, CSR_SIZE_64, '0) \
-    `X(mcycle,       'hB00, CSR_SIZE_64, '0) \
-    `X(minstret,     'hB02, CSR_SIZE_64, '0) \
-    `X(mvendorid,    'hF11, CSR_SIZE_32, `MVENDORID) \
-    `X(marchid,      'hF12, CSR_SIZE_64, `MARCHID) \
-    `X(mimpid,       'hF13, CSR_SIZE_64, `MIMPID) \
-    `X(mhartid,      'hF14, CSR_SIZE_64, '0) // Hardcoded because we're single-hart!
+    `X(mtvec,       'h305,  CSR_SIZE_XLEN,  '0,         ~64'b10) \
+    `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,         '1) \
+    `X(mcycle,      'hB00,  CSR_SIZE_XLEN,  '0,         '1) \
+    `X(minstret,    'hB02,  CSR_SIZE_XLEN,  '0,         '1) \
+    `X(mvendorid,   'hF11,  CSR_SIZE_32,    `MVENDORID, '1) \
+    `X(marchid,     'hF12,  CSR_SIZE_XLEN,  `MARCHID,   '1) \
+    `X(mimpid,      'hF13,  CSR_SIZE_XLEN,  `MIMPID,    '1) \
+    `X(mhartid,     'hF14,  CSR_SIZE_XLEN,  '0,         '1) // Hardcoded because we're single-hart!
 
 //    CSR name       addr   maps-to
 `define CSR_X_VIRTUAL_LIST \
@@ -46,10 +50,12 @@ enum {
     CSR_FUNCT3_CSRRCI = 'b111
 } csr_funct3_e;
 
-`define X(name, addr, size, init) \
+`define X(name, addr, size, init, andmask) \
     reg [size-1:0] csr_``name;
 `CSR_X_REG_LIST
 `undef X
+
+assign mtvec = csr_mtvec;
 
 wire is_readonly_csr = exec_csr_addr[11:10] == 'b11;
 // CSRRS/C with a zero rs1/uimm are specified to not perform a write at all (so OK on a readonly CSR, for example)
@@ -60,12 +66,13 @@ wire is_read_instr = (exec_csr_funct3 != CSR_FUNCT3_CSRRW || exec_csr_funct3 != 
 logic csr_bad_addr;
 wire write_exception = is_write_instr && is_readonly_csr;
 assign exec_csr_exception = csr_bad_addr || write_exception;
+assign exec_csr_trap_cause = trap_causes::EXC_ILLEGAL_INSTR;
 
 // Reads
 always_comb begin
     csr_bad_addr = 0;
     unique case (exec_csr_addr)
-        `define X(name, addr, size, init) \
+        `define X(name, addr, size, init, andmask) \
             addr: exec_csr_result = is_read_instr ? csr_``name : 'x;
         `CSR_X_REG_LIST
         `undef X
@@ -99,7 +106,7 @@ end
 
 always @(posedge clk) begin
     if (rst) begin
-        `define X(name, addr, size, init) \
+        `define X(name, addr, size, init, andmask) \
             csr_``name <= init;
         `CSR_X_REG_LIST
         `undef X
@@ -109,8 +116,8 @@ always @(posedge clk) begin
             csr_minstret <= csr_minstret + 1;
 
         if (exec_csr_instr_valid && is_write_instr && !is_readonly_csr) begin
-            `define X(name, addr, size, init) \
-                addr: csr_``name <= write_data;
+            `define X(name, addr, size, init, andmask) \
+                addr: csr_``name <= write_data & andmask;
 
             unique case (exec_csr_addr)
                 `CSR_X_REG_LIST

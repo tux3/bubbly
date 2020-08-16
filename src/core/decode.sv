@@ -5,6 +5,7 @@ module decode(
     input clk, rst,
     input flush,
     input ifetch_exception,
+    input [3:0] ifetch_trap_cause,
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
@@ -24,6 +25,7 @@ module decode(
     input wire [`XLEN-1:0] decode_reg_read2_data,
 
     output logic decode_exception,
+    output logic [3:0] decode_trap_cause,
     output logic decode_is_compressed_instr,
     output logic decode_is_jump,
     output logic decode_is_reg_write,
@@ -62,6 +64,12 @@ skid_buf_data #(.WIDTH($bits(ifetch_exception))) sb_ifetch_exception(
     .in(ifetch_exception),
     .out(sb_ifetch_exception_out)
 );
+wire [$bits(ifetch_trap_cause)-1:0] sb_ifetch_trap_cause_out;
+skid_buf_data #(.WIDTH($bits(ifetch_trap_cause)), .MAYBE_UNKNOWN(1)) sb_ifetch_trap_cause(
+    .*,
+    .in(ifetch_trap_cause),
+    .out(sb_ifetch_trap_cause_out)
+);
 wire [$bits(instruction)-1:0] sb_instruction_out;
 skid_buf_data #(.WIDTH($bits(instruction))) sb_instruction(
     .*,
@@ -86,6 +94,7 @@ decode_impl decode_impl(
     .rst,
     .flush,
     .ifetch_exception(sb_ifetch_exception_out),
+    .ifetch_trap_cause(sb_ifetch_trap_cause_out),
     .instruction(sb_instruction_out),
     .instruction_addr(sb_instruction_addr_out),
     .instruction_next_addr(sb_instruction_next_addr_out),
@@ -117,6 +126,7 @@ module decode_impl(
     input rst,
     input flush,
     input ifetch_exception,
+    input [3:0] ifetch_trap_cause,
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
@@ -132,6 +142,7 @@ module decode_impl(
     input wire [`XLEN-1:0] decode_reg_read2_data,
 
     output reg decode_exception,
+    output reg [3:0] decode_trap_cause,
     output reg decode_is_compressed_instr,
     output reg decode_is_jump,
     output reg decode_is_reg_write,
@@ -180,14 +191,18 @@ always @(posedge clk) begin
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
                         && instruction[6:2] != decode_types::OP_BRANCH;
 
-    if (bypass_net_exec_reg == rs1_comb)
+    if (rs1_comb == '0)
+        decode_rs1_data <= '0;
+    else if (bypass_net_exec_reg == rs1_comb)
         decode_rs1_data <= bypass_net_exec_data;
     else if (bypass_net_writeback_reg == rs1_comb)
         decode_rs1_data <= bypass_net_writeback_data;
     else
         decode_rs1_data <= decode_reg_read1_data;
 
-    if (bypass_net_exec_reg == rs2_comb)
+    if (rs2_comb == '0)
+        decode_rs2_data <= '0;
+    else if (bypass_net_exec_reg == rs2_comb)
         decode_rs2_data <= bypass_net_exec_data;
     else if (bypass_net_writeback_reg == rs2_comb)
         decode_rs2_data <= bypass_net_writeback_data;
@@ -198,18 +213,23 @@ end
 always @(posedge clk) begin
     if (rst || flush) begin
         decode_exception <= 'x;
+        decode_trap_cause <= 'x;
         decode_instruction_addr <= 'x;
         decode_instruction_next_addr <= 'x;
     end else begin
         decode_instruction_addr <= instruction_addr;
         decode_instruction_next_addr <= instruction_next_addr;
 
-        if (ifetch_exception)
+        if (ifetch_exception) begin
             decode_exception <= '1;
-        else if (instruction[1:0] != 'b11) // TODO: Support for compressed instr decoding
+            decode_trap_cause <= ifetch_trap_cause;
+        end else if (instruction[1:0] != 'b11) begin // TODO: Support for compressed instr decoding
             decode_exception <= '1;
-        else
+            decode_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end else begin
             decode_exception <= '0;
+            decode_trap_cause <= 'x;
+        end
     end
 end
 

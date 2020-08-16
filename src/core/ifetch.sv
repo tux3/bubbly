@@ -8,6 +8,7 @@ module ifetch(
 	input next_stalled,
     output reg stall_next,
     output reg ifetch_exception,
+    output reg [3:0] ifetch_trap_cause,
     output reg [`ILEN-1:0] instruction, // Valid only if !ifetch_exception
     output reg [`ALEN-1:0] instruction_addr,
     output reg [`ALEN-1:0] instruction_next_addr,
@@ -181,10 +182,12 @@ always @(posedge clk) begin
         instruction_next_addr <= 'x;
 	end else unique case (state)
 	STATE_START_1ST_LOOKUP_FROM_PC: begin
-        if (pc[0]) // Alignment exception
-            state <= STATE_EXCEPTION;
-        else
-		    state <= STATE_CHECK_1ST_LOOKUP;
+        `ifndef SYNTHESIS
+        if (pc[0]) // Alignment exception (should never happen!)
+            $error("Alignment exceptions MUST trap on the branch instruction, not at fetch time! The PC must always be aligned.");
+        `endif
+
+		state <= STATE_CHECK_1ST_LOOKUP;
 		fetch_pc <= pc;
 		next_cache_line_addr <= pc[$bits(pc)-1:basic_cache_params::align_bits] + 1;
 	end
@@ -199,8 +202,9 @@ always @(posedge clk) begin
             if (cache_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
 
-            if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin
-                state <= STATE_EXCEPTION; // Instr too long
+            if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin // Instr too long
+                state <= STATE_EXCEPTION;
+                ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
 			end else if (cache_fetch_crosses_lines) begin
 				state <= STATE_CHECK_2ND_LOOKUP;
 			end else begin
@@ -224,8 +228,9 @@ always @(posedge clk) begin
             if (bus_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
 
-            if (sys_bus.rdata[line_instr_offset +: 5] == 5'b11111) begin
-                state <= STATE_EXCEPTION; // Instr too long
+            if (sys_bus.rdata[line_instr_offset +: 5] == 5'b11111) begin // Instr too long
+                state <= STATE_EXCEPTION;
+                ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
 			end else if (!bus_fetch_crosses_lines || icache_lookup_valid) begin // We do a 2nd lookup check at the same time as the 1st read finishes to save a cycle
 				state <= STATE_CHECK_1ST_LOOKUP;
 			end else begin
@@ -323,8 +328,10 @@ always @(posedge clk) begin
             instruction_addr <= 'x;
 
 		invalid_len_exception = next_instruction[4:0] == 'b11111;
-        if (invalid_len_exception)
+        if (invalid_len_exception) begin
             next_instruction = 'x;
+            ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end
 
 		instruction <= next_instruction;
 		ifetch_exception <= invalid_len_exception || state == STATE_EXCEPTION;
