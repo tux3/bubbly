@@ -120,6 +120,7 @@ wire [`ALEN-1:0] exec_trap_target;
 wire exec_exception;
 wire exec_is_taken_branch;
 wire exec_is_reg_write;
+wire exec_is_xret;
 wire [4:0] exec_reg_write_sel;
 wire [`XLEN-1:0] exec_result;
 wire [`ALEN-1:0] exec_branch_target;

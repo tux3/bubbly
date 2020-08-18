@@ -1,11 +1,11 @@
 `include "../params.svh"
 
 package priv_levels;
-enum {
-    USER = 'b00,
-    RESERVED1 = 'b01,
-    SUPERVISOR = 'b10,
-    MACHINE = 'b11
+typedef enum bit [1:0] {
+    USER = 2'b00,
+    RESERVED1 = 2'b01,
+    SUPERVISOR = 2'b10,
+    MACHINE = 2'b11
 } priv_level_e;
 endpackage
 
@@ -30,7 +30,14 @@ module csrs(
     input [`ALEN-1:0] trap_mepc,
     input [`XLEN-1:0] trap_mtval,
 
-    output [`XLEN-1:0] mtvec
+    input xret_do_update,
+    input [`XLEN-1:0] xret_new_mstatus,
+    input [1:0] xret_new_privilege_mode,
+
+    output reg [1:0] privilege_mode,
+    output [`XLEN-1:0] mstatus,
+    output [`XLEN-1:0] mtvec,
+    output [`XLEN-1:0] mepc
 );
 
 enum {
@@ -73,10 +80,9 @@ enum {
 `CSR_X_REG_LIST
 `undef X
 
-// Currently, we only have M-mode
-wire [1:0] privilege_mode = priv_levels::MACHINE;
-
+assign mstatus = csr_mstatus;
 assign mtvec = csr_mtvec;
+assign mepc = csr_mepc;
 
 wire is_readonly_csr = exec_csr_addr[11:10] == 'b11;
 // CSRRS/C with a zero rs1/uimm are specified to not perform a write at all (so OK on a readonly CSR, for example)
@@ -127,6 +133,8 @@ end
 
 always @(posedge clk) begin
     if (rst) begin
+        privilege_mode <= priv_levels::MACHINE;
+
         `define X(name, addr, size, init, andmask, ormask) \
             csr_``name <= init;
         `CSR_X_REG_LIST
@@ -146,6 +154,11 @@ always @(posedge clk) begin
             endcase
 
             `undef X
+        end
+
+        if (xret_do_update) begin
+            csr_mstatus <= xret_new_mstatus;
+            privilege_mode <= xret_new_privilege_mode;
         end
 
         if (trap_do_update) begin

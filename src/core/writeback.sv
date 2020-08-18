@@ -9,6 +9,7 @@ module writeback(
     input [`ALEN-1:0] exec_trap_target,
     input exec_is_taken_branch,
     input exec_is_reg_write,
+    input exec_is_xret,
     input [4:0] exec_reg_write_sel,
     input [`XLEN-1:0] exec_result,
     input [`ALEN-1:0] exec_branch_target,
@@ -31,6 +32,8 @@ always_comb begin
 
     if (exec_exception)
         writeback_next_pc = exec_trap_target;
+    else if (exec_is_xret)
+        writeback_next_pc = exec_result;
     else if (exec_is_taken_branch)
         writeback_next_pc = exec_branch_target;
     else

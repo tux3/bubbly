@@ -33,6 +33,7 @@ module exec(
     output logic [`ALEN-1:0] exec_trap_target,
     output logic exec_is_taken_branch,
     output logic exec_is_reg_write,
+    output logic exec_is_xret,
     output logic [4:0] exec_reg_write_sel,
     output logic [`XLEN-1:0] exec_result,
     output logic [`ALEN-1:0] exec_branch_target,
@@ -52,8 +53,9 @@ reg busy;
 wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
 wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
 assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
+assign exec_is_xret = exec_system_is_xret;
 
-assign exec_pipeline_flush = exec_mispredict_detected || exec_exception;
+assign exec_pipeline_flush = exec_mispredict_detected || exec_exception || exec_is_xret;
 
 wire input_is_branch = decode_is_jump;
 wire exec_branch_next_output_valid_comb;
@@ -80,7 +82,11 @@ wire input_is_system = opcode == decode_types::OP_SYSTEM;
 wire exec_system_output_valid;
 wire exec_system_exception;
 wire [3:0] exec_system_trap_cause;
+wire exec_system_is_xret;
 wire [`XLEN-1:0] exec_system_result;
+wire exec_system_update_mstatus_comb;
+wire [`XLEN-1:0] exec_system_new_mstatus_comb;
+wire [1:0] exec_system_new_privilege_mode_comb;
 exec_system exec_system(
     .*
 );
@@ -128,6 +134,9 @@ wire [`XLEN-1:0] exec_csr_rs1_data;
 wire exec_csr_exception;
 wire [3:0] exec_csr_trap_cause;
 wire [`XLEN-1:0] exec_csr_result;
+wire [1:0] privilege_mode;
+wire [`XLEN-1:0] mstatus;
+wire [`XLEN-1:0] mepc;
 wire [`XLEN-1:0] mtvec;
 csrs csrs(
     .inst_retired(!stall_next && !exec_exception),
@@ -135,6 +144,9 @@ csrs csrs(
     .trap_mcause(exec_trap_cause),
     .trap_mepc(decode_trap_mepc_buf),
     .trap_mtval,
+    .xret_do_update(exec_system_update_mstatus_comb),
+    .xret_new_mstatus(exec_system_new_mstatus_comb),
+    .xret_new_privilege_mode(exec_system_new_privilege_mode_comb),
     .*
 );
 
