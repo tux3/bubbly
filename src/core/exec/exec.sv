@@ -129,6 +129,8 @@ wire [`XLEN-1:0] exec_csr_result;
 wire [`XLEN-1:0] mtvec;
 csrs csrs(
     .inst_retired(!stall_next),
+    .trap_do_update(exec_exception),
+    .trap_mcause(exec_trap_cause),
     .*
 );
 
