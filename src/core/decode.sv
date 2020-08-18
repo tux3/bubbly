@@ -29,6 +29,7 @@ module decode(
     output logic decode_is_compressed_instr,
     output logic decode_is_jump,
     output logic decode_is_reg_write,
+    output logic [`ILEN-1:0] decode_instruction,
     output logic [`ALEN-1:0] decode_instruction_addr,
     output logic [`ALEN-1:0] decode_instruction_next_addr,
     output logic [4:0] opcode,
@@ -146,6 +147,7 @@ module decode_impl(
     output reg decode_is_compressed_instr,
     output reg decode_is_jump,
     output reg decode_is_reg_write,
+    output reg [`ILEN-1:0] decode_instruction,
     output reg [`ALEN-1:0] decode_instruction_addr,
     output reg [`ALEN-1:0] decode_instruction_next_addr,
     output reg [4:0] opcode,
@@ -173,6 +175,8 @@ always_comb begin
 end
 
 always @(posedge clk) begin
+    decode_instruction <= instruction;
+
     opcode <= instruction[6:2];
     rd <= rd_comb;
     funct3 <= instruction[14:12];

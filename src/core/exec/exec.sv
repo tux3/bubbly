@@ -12,6 +12,7 @@ module exec(
     input decode_is_compressed_instr,
     input decode_is_jump,
     input decode_is_reg_write,
+    input [`ILEN-1:0] decode_instruction,
     input [`ALEN-1:0] decode_instruction_addr,
     input [`ALEN-1:0] decode_instruction_next_addr,
     input [4:0] opcode,
@@ -88,6 +89,7 @@ wire input_is_mem = opcode[4] == 0 && opcode[2] == 0;
 wire exec_mem_output_valid;
 wire exec_mem_exception;
 wire [3:0] exec_mem_trap_cause;
+wire [`ALEN-1:0] exec_mem_fault_addr;
 wire [`XLEN-1:0] exec_mem_result;
 exec_mem exec_mem(
     .*
@@ -132,13 +134,19 @@ csrs csrs(
     .trap_do_update(exec_exception),
     .trap_mcause(exec_trap_cause),
     .trap_mepc(decode_trap_mepc_buf),
+    .trap_mtval,
     .*
 );
 
+wire [`XLEN-1:0] trap_mtval;
 trap trap(
     .exec_trap_valid(exec_exception),
     .exec_trap_cause(exec_trap_cause),
+    .exec_trap_instr_addr(decode_trap_mepc_buf),
+    .exec_trap_instr(decode_instr_buf),
+    .exec_branch_target,
     .exec_trap_target,
+    .trap_mtval,
     .*
 );
 
@@ -170,15 +178,18 @@ end
 logic decode_valid_exception_buf;
 logic [3:0] decode_trap_cause_buf;
 logic [`ALEN-1:0] decode_trap_mepc_buf;
+logic [`ILEN-1:0] decode_instr_buf;
 always @(posedge clk) begin
     if (rst) begin
         decode_valid_exception_buf <= '0;
         decode_trap_cause_buf <= 'x;
         decode_trap_mepc_buf <= 'x;
+        decode_instr_buf <= 'x;
     end else if (input_valid_unless_mispredict) begin
         decode_valid_exception_buf <= decode_exception && !exec_pipeline_flush;
         decode_trap_cause_buf <= decode_trap_cause;
         decode_trap_mepc_buf <= decode_instruction_addr;
+        decode_instr_buf <= decode_instruction;
     end
 end
 

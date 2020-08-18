@@ -19,6 +19,7 @@ module csrs(
     input trap_do_update,
     input [3:0] trap_mcause,
     input [`ALEN-1:0] trap_mepc,
+    input [`XLEN-1:0] trap_mtval,
 
     output [`XLEN-1:0] mtvec
 );
@@ -34,6 +35,7 @@ enum {
     `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,         '1) \
     `X(mepc,        'h341,  CSR_SIZE_XLEN,  '0,         ~64'b1) \
     `X(mcause,      'h342,  CSR_SIZE_XLEN,  '0,         '1) \
+    `X(mtval,       'h343,  CSR_SIZE_XLEN,  '0,         '1) \
     `X(mcycle,      'hB00,  CSR_SIZE_XLEN,  '0,         '1) \
     `X(minstret,    'hB02,  CSR_SIZE_XLEN,  '0,         '1) \
     `X(mvendorid,   'hF11,  CSR_SIZE_32,    `MVENDORID, '1) \
@@ -136,6 +138,7 @@ always @(posedge clk) begin
         if (trap_do_update) begin
             csr_mcause <= trap_mcause;
             csr_mepc <= trap_mepc;
+            csr_mtval <= trap_mtval;
         end
     end
 end

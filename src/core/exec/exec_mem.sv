@@ -31,6 +31,7 @@ module exec_mem(
     output wire exec_mem_output_valid,
     output wire exec_mem_exception,
     output wire [3:0] exec_mem_trap_cause,
+    output logic [`ALEN-1:0] exec_mem_fault_addr,
     output wire [`XLEN-1:0] exec_mem_result
 );
 
@@ -147,6 +148,7 @@ reg [`XLEN-1:0] exec_mem_result_reg;
 always_ff @(posedge clk) begin
     exec_mem_exception_reg <= '0;
     exec_mem_trap_cause_reg <= 'x;
+    exec_mem_fault_addr <= memory_addr_comb;
 
     if (is_load_store) begin
         // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
