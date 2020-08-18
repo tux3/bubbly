@@ -1,8 +1,8 @@
 `include "params.svh"
 
-module pc_control(
+module pc(
     input clk, rst,
-    input instr_retired,
+    input update_pc,
     input [`ALEN-1:0] next_pc,
     output reg [`XLEN-1:0] pc
 );
@@ -10,7 +10,7 @@ module pc_control(
 always_ff @(posedge clk) begin
     if (rst)
         pc <= `RESET_PC;
-    else if (instr_retired)
+    else if (update_pc)
         pc <= next_pc;
 end
 

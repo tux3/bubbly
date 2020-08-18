@@ -18,12 +18,12 @@ module writeback(
     output logic [4:0] writeback_reg_write_sel,
     output logic [`XLEN-1:0] writeback_reg_write_data,
 
-    output logic writeback_instr_retired,
+    output logic writeback_update_pc,
     output logic [`ALEN-1:0] writeback_next_pc
 );
 
 always_comb begin
-    writeback_instr_retired = !prev_stalled;
+    writeback_update_pc = !prev_stalled;
 
     writeback_reg_write_enable = exec_is_reg_write && !prev_stalled && !exec_exception && exec_reg_write_sel != '0;
     writeback_reg_write_sel = exec_reg_write_sel;

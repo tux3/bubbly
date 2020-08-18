@@ -22,10 +22,10 @@ assign reg_pc = pc;
 // - stall_next: Output data is NOT valid. Must not depend on next_stalled (like AXI)
 
 wire [`XLEN-1:0] pc;
-pc_control pc_control(
+pc pc_control(
     .clk,
     .rst,
-    .instr_retired(writeback_instr_retired),
+    .update_pc(writeback_update_pc),
     .next_pc(writeback_next_pc),
     .pc
 );
@@ -138,7 +138,7 @@ exec exec(
 wire writeback_reg_write_enable;
 wire [4:0] writeback_reg_write_sel;
 wire [`XLEN-1:0] writeback_reg_write_data;
-wire writeback_instr_retired;
+wire writeback_update_pc;
 wire [`ALEN-1:0] writeback_next_pc;
 writeback writeback(
     .clk,

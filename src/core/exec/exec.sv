@@ -130,7 +130,7 @@ wire [3:0] exec_csr_trap_cause;
 wire [`XLEN-1:0] exec_csr_result;
 wire [`XLEN-1:0] mtvec;
 csrs csrs(
-    .inst_retired(!stall_next),
+    .inst_retired(!stall_next && !exec_exception),
     .trap_do_update(exec_exception),
     .trap_mcause(exec_trap_cause),
     .trap_mepc(decode_trap_mepc_buf),
