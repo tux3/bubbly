@@ -39,13 +39,6 @@ always_ff @(posedge clk) begin
         exec_system_output_valid <= input_valid && input_is_system;
 end
 
-enum {
-    PRIV_LEVEL_USER = 'b00,
-    PRIV_LEVEL_RESERVED1 = 'b01,
-    PRIV_LEVEL_SUPERVISOR = 'b10,
-    PRIV_LEVEL_MACHINE = 'b11
-} priv_level_e;
-
 assign exec_csr_instr_valid = input_valid && input_is_system && funct3 != 3'b100 && funct3 != '0;
 assign exec_csr_addr = i_imm;
 assign exec_csr_funct3 = funct3;
@@ -82,7 +75,7 @@ always_ff @(posedge clk) begin
                 exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
             end
             {7'b00??000, 5'b00010}: begin // {U,S,M}RET
-                if (xret_level == PRIV_LEVEL_MACHINE) begin
+                if (xret_level == priv_levels::MACHINE) begin
                     exec_system_exception <= '1; // TODO: Implement MRET
                     exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 end else begin

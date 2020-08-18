@@ -1,5 +1,14 @@
 `include "../params.svh"
 
+package priv_levels;
+enum {
+    USER = 'b00,
+    RESERVED1 = 'b01,
+    SUPERVISOR = 'b10,
+    MACHINE = 'b11
+} priv_level_e;
+endpackage
+
 module csrs(
     input clk,
     input rst,
@@ -29,19 +38,20 @@ enum {
     CSR_SIZE_32 = 'h32
 } csr_size_e;
 
-//    CSR name       addr   size            init        AND write mask
+//    CSR name       addr   size            init        AND write mask  OR write mask
 `define CSR_X_REG_LIST \
-    `X(mtvec,       'h305,  CSR_SIZE_XLEN,  '0,         ~64'b10) \
-    `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,         '1) \
-    `X(mepc,        'h341,  CSR_SIZE_XLEN,  '0,         ~64'b1) \
-    `X(mcause,      'h342,  CSR_SIZE_XLEN,  '0,         '1) \
-    `X(mtval,       'h343,  CSR_SIZE_XLEN,  '0,         '1) \
-    `X(mcycle,      'hB00,  CSR_SIZE_XLEN,  '0,         '1) \
-    `X(minstret,    'hB02,  CSR_SIZE_XLEN,  '0,         '1) \
-    `X(mvendorid,   'hF11,  CSR_SIZE_32,    `MVENDORID, '1) \
-    `X(marchid,     'hF12,  CSR_SIZE_XLEN,  `MARCHID,   '1) \
-    `X(mimpid,      'hF13,  CSR_SIZE_XLEN,  `MIMPID,    '1) \
-    `X(mhartid,     'hF14,  CSR_SIZE_XLEN,  '0,         '1) // Hardcoded because we're single-hart!
+    `X(mstatus,     'h300,  CSR_SIZE_XLEN,  'h1800,     'h88,           'h1800) \
+    `X(mtvec,       'h305,  CSR_SIZE_XLEN,  '0,         ~64'b10,        '0) \
+    `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,         '1,             '0) \
+    `X(mepc,        'h341,  CSR_SIZE_XLEN,  '0,         ~64'b1,         '0) \
+    `X(mcause,      'h342,  CSR_SIZE_XLEN,  '0,         '1,             '0) \
+    `X(mtval,       'h343,  CSR_SIZE_XLEN,  '0,         '1,             '0) \
+    `X(mcycle,      'hB00,  CSR_SIZE_XLEN,  '0,         '1,             '0) \
+    `X(minstret,    'hB02,  CSR_SIZE_XLEN,  '0,         '1,             '0) \
+    `X(mvendorid,   'hF11,  CSR_SIZE_32,    `MVENDORID, '1,             '0) \
+    `X(marchid,     'hF12,  CSR_SIZE_XLEN,  `MARCHID,   '1,             '0) \
+    `X(mimpid,      'hF13,  CSR_SIZE_XLEN,  `MIMPID,    '1,             '0) \
+    `X(mhartid,     'hF14,  CSR_SIZE_XLEN,  '0,         '1,             '0) // Hardcoded because we're single-hart!
 
 //    CSR name       addr   maps-to
 `define CSR_X_VIRTUAL_LIST \
@@ -58,10 +68,13 @@ enum {
     CSR_FUNCT3_CSRRCI = 'b111
 } csr_funct3_e;
 
-`define X(name, addr, size, init, andmask) \
+`define X(name, addr, size, init, andmask, ormask) \
     reg [size-1:0] csr_``name;
 `CSR_X_REG_LIST
 `undef X
+
+// Currently, we only have M-mode
+wire [1:0] privilege_mode = priv_levels::MACHINE;
 
 assign mtvec = csr_mtvec;
 
@@ -80,7 +93,7 @@ assign exec_csr_trap_cause = trap_causes::EXC_ILLEGAL_INSTR;
 always_comb begin
     csr_bad_addr = 0;
     unique case (exec_csr_addr)
-        `define X(name, addr, size, init, andmask) \
+        `define X(name, addr, size, init, andmask, ormask) \
             addr: exec_csr_result = is_read_instr ? csr_``name : 'x;
         `CSR_X_REG_LIST
         `undef X
@@ -114,7 +127,7 @@ end
 
 always @(posedge clk) begin
     if (rst) begin
-        `define X(name, addr, size, init, andmask) \
+        `define X(name, addr, size, init, andmask, ormask) \
             csr_``name <= init;
         `CSR_X_REG_LIST
         `undef X
@@ -124,8 +137,8 @@ always @(posedge clk) begin
             csr_minstret <= csr_minstret + 1;
 
         if (exec_csr_instr_valid && is_write_instr && !is_readonly_csr) begin
-            `define X(name, addr, size, init, andmask) \
-                addr: csr_``name <= write_data & andmask;
+            `define X(name, addr, size, init, andmask, ormask) \
+                addr: csr_``name <= write_data & andmask | ormask;
 
             unique case (exec_csr_addr)
                 `CSR_X_REG_LIST
@@ -139,6 +152,16 @@ always @(posedge clk) begin
             csr_mcause <= trap_mcause;
             csr_mepc <= trap_mepc;
             csr_mtval <= trap_mtval;
+
+            csr_mstatus <= {
+                csr_mstatus[`XLEN-1:13],
+                privilege_mode,     // MPP
+                csr_mstatus[10:8],
+                csr_mstatus[3],     // MPIE
+                csr_mstatus[6:4],
+                1'b0,               // MIE
+                csr_mstatus[2:0]
+            };
         end
     end
 end
