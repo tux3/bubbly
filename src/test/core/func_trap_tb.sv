@@ -9,7 +9,7 @@ module func_trap_tb;
     bit clk = 0;
     bit rst = 0;
 
-    const logic [12*32-1:0] code_buf = {<<32{
+    const logic [13*32-1:0] code_buf = {<<32{
         'b001100000101_01110_101_00000_1110011, // CSRRWI r0, ('hC << 2 | 'b10), mtvec
         'b111111111111_00001_100_00010_1111111, // Invalid instruction at ifetch (overlong)
         'b0000000_00000_00000_000_00000_1100011, // Fail infinite loop
@@ -20,6 +20,7 @@ module func_trap_tb;
         'b0000000_00000_00000_000_00000_1100011, // Fail infinite loop
         'b000000000001_00000_000_11110_0010011, // ADDI r30, r0, 1 (success flag 2)
 
+        'b001101000001_00000_101_11100_1110011, // CSRRWI r28, 0, mepc
         'b001101000010_00000_101_11101_1110011, // CSRRWI r29, 0, mcause
         'b0000000_00000_00000_000_00000_1100011, // Success infinite loop
         'b00000000000000000000_00000_0000000,  // Padding (prevent out of bounds read asserts by the ifetch running ahead)
@@ -65,10 +66,11 @@ module func_trap_tb;
 
         #350;
 
+        assert($signed(soc.core.regs.xreg[28]) == 'h14);
         assert($signed(soc.core.regs.xreg[29]) == trap_causes::EXC_ILLEGAL_INSTR);
         assert($signed(soc.core.regs.xreg[30]) == 1);
         assert($signed(soc.core.regs.xreg[31]) == 1);
-        for (int i=1; i<29; i+=1)
+        for (int i=1; i<28; i+=1)
             assert(soc.core.regs.xreg[i] == '0);
         $finish();
     end

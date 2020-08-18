@@ -131,6 +131,7 @@ csrs csrs(
     .inst_retired(!stall_next),
     .trap_do_update(exec_exception),
     .trap_mcause(exec_trap_cause),
+    .trap_mepc(decode_trap_mepc_buf),
     .*
 );
 
@@ -168,13 +169,16 @@ end
 
 logic decode_valid_exception_buf;
 logic [3:0] decode_trap_cause_buf;
+logic [`ALEN-1:0] decode_trap_mepc_buf;
 always @(posedge clk) begin
     if (rst) begin
         decode_valid_exception_buf <= '0;
         decode_trap_cause_buf <= 'x;
+        decode_trap_mepc_buf <= 'x;
     end else if (input_valid_unless_mispredict) begin
         decode_valid_exception_buf <= decode_exception && !exec_pipeline_flush;
         decode_trap_cause_buf <= decode_trap_cause;
+        decode_trap_mepc_buf <= decode_instruction_addr;
     end
 end
 
