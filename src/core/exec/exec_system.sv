@@ -76,13 +76,24 @@ always_ff @(posedge clk) begin
             exec_system_exception <= '1; // Unsupported instructions
             exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         end else unique casez ({funct7, rs2})
-            0: begin // TODO: ECALL
+            0: begin // ECALL
                 exec_system_exception <= '1;
-                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                if (privilege_mode == priv_levels::MACHINE)
+                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_MMODE;
+                else if (privilege_mode == priv_levels::SUPERVISOR)
+                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_SMODE;
+                else if (privilege_mode == priv_levels::USER)
+                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_UMODE;
+                else begin
+                    exec_system_trap_cause <= 'x;
+                    `ifndef SYNTHESIS
+                    $error("[%t] Trying to execute ECALL, but current privilege mode is unknown: %h", $time, privilege_mode);
+                    `endif
+                end
             end
-            1: begin // TODO: EBREAK
+            1: begin // EBREAK
                 exec_system_exception <= '1;
-                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                exec_system_trap_cause <= trap_causes::EXC_BREAKPOINT;
             end
             {7'b00??000, 5'b00010}: begin // {U,S,M}RET
                 exec_system_is_xret <= '1;
