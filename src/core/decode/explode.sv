@@ -26,7 +26,6 @@ module decode_explode(
 
     output logic decode_exception,
     output logic [3:0] decode_trap_cause,
-    output logic decode_is_compressed_instr,
     output logic decode_is_jump,
     output logic decode_is_reg_write,
     output logic [`ILEN-1:0] decode_original_instruction,
@@ -135,7 +134,6 @@ module decode_explode_impl(
 
     output reg decode_exception,
     output reg [3:0] decode_trap_cause,
-    output reg decode_is_compressed_instr,
     output reg decode_is_jump,
     output reg decode_is_reg_write,
     output reg [`ILEN-1:0] decode_original_instruction,
@@ -181,7 +179,6 @@ always @(posedge clk) begin
     u_imm <= instruction[31:12];
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
 
-    decode_is_compressed_instr <= instruction[1:0] != 'b11;
     decode_is_jump <= instruction[6:4] == 'b110;
     decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
                         && instruction[6:2] != decode_types::OP_BRANCH;

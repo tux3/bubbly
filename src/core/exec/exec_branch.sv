@@ -3,7 +3,6 @@
 module exec_branch(
     input clk,
     input rst,
-    input decode_is_compressed_instr,
     input [`ALEN-1:0] decode_instruction_addr,
     input [`ALEN-1:0] decode_instruction_next_addr,
     input [4:0] opcode,

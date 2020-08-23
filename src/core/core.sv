@@ -74,7 +74,6 @@ wire [4:0] decode_reg_read2_sel;
 wire [`XLEN-1:0] decode_reg_read2_data;
 wire decode_exception;
 wire [3:0] decode_trap_cause;
-wire decode_is_compressed_instr;
 wire decode_is_jump;
 wire decode_is_reg_write;
 wire [`ILEN-1:0] decode_original_instruction;

@@ -9,7 +9,6 @@ module exec(
 
     input decode_exception,
     input [3:0] decode_trap_cause,
-    input decode_is_compressed_instr,
     input decode_is_jump,
     input decode_is_reg_write,
     input [`ILEN-1:0] decode_original_instruction,

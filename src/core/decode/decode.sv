@@ -2,19 +2,19 @@
 
 package decode_types;
 typedef enum bit [6:2] {
-    OP_LOAD =       'b00_000,
-    OP_MISC_MEM =   'b00_011,
-    OP_OP_IMM =     'b00_100,
-    OP_AUIPC =      'b00_101,
-    OP_OP_IMM_32 =  'b00_110,
-    OP_OP =         'b01_100,
-    OP_LUI =        'b01_101,
-    OP_OP_32 =      'b01_110,
-    OP_STORE =      'b01_000,
-    OP_BRANCH =     'b11_000,
-    OP_JALR =       'b11_001,
-    OP_JAL =        'b11_011,
-    OP_SYSTEM =     'b11_100
+    OP_LOAD =       5'b00_000,
+    OP_MISC_MEM =   5'b00_011,
+    OP_OP_IMM =     5'b00_100,
+    OP_AUIPC =      5'b00_101,
+    OP_OP_IMM_32 =  5'b00_110,
+    OP_OP =         5'b01_100,
+    OP_LUI =        5'b01_101,
+    OP_OP_32 =      5'b01_110,
+    OP_STORE =      5'b01_000,
+    OP_BRANCH =     5'b11_000,
+    OP_JALR =       5'b11_001,
+    OP_JAL =        5'b11_011,
+    OP_SYSTEM =     5'b11_100
 } opcodes_type;
 endpackage
 
@@ -43,7 +43,6 @@ module decode(
 
     output logic decode_exception,
     output logic [3:0] decode_trap_cause,
-    output logic decode_is_compressed_instr,
     output logic decode_is_jump,
     output logic decode_is_reg_write,
     output logic [`ILEN-1:0] decode_original_instruction,
