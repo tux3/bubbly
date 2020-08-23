@@ -77,7 +77,7 @@ wire [3:0] decode_trap_cause;
 wire decode_is_compressed_instr;
 wire decode_is_jump;
 wire decode_is_reg_write;
-wire [`ILEN-1:0] decode_instruction;
+wire [`ILEN-1:0] decode_original_instruction;
 wire [`ALEN-1:0] decode_instruction_addr;
 wire [`ALEN-1:0] decode_instruction_next_addr;
 wire [4:0] opcode;

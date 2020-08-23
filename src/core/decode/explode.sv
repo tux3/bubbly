@@ -1,11 +1,11 @@
-`include "params.svh"
+`include "../params.svh"
 
-// Wrapper around decode_impl that adds a stall point w/ a skid buffer.
-module decode(
+module decode_explode(
     input clk, rst,
     input flush,
-    input ifetch_exception,
-    input [3:0] ifetch_trap_cause,
+    input prev_exception,
+    input [3:0] prev_trap_cause,
+    input [`ILEN-1:0] original_instruction,
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
@@ -29,7 +29,7 @@ module decode(
     output logic decode_is_compressed_instr,
     output logic decode_is_jump,
     output logic decode_is_reg_write,
-    output logic [`ILEN-1:0] decode_instruction,
+    output logic [`ILEN-1:0] decode_original_instruction,
     output logic [`ALEN-1:0] decode_instruction_addr,
     output logic [`ALEN-1:0] decode_instruction_next_addr,
     output logic [4:0] opcode,
@@ -59,17 +59,23 @@ skid_buf_ctl sb_ctl(
     .stall_next
 );
 
-wire [$bits(ifetch_exception)-1:0] sb_ifetch_exception_out;
-skid_buf_data #(.WIDTH($bits(ifetch_exception))) sb_ifetch_exception(
+wire [$bits(prev_exception)-1:0] sb_prev_exception_out;
+skid_buf_data #(.WIDTH($bits(prev_exception))) sb_prev_exception(
     .*,
-    .in(ifetch_exception),
-    .out(sb_ifetch_exception_out)
+    .in(prev_exception),
+    .out(sb_prev_exception_out)
 );
-wire [$bits(ifetch_trap_cause)-1:0] sb_ifetch_trap_cause_out;
-skid_buf_data #(.WIDTH($bits(ifetch_trap_cause)), .MAYBE_UNKNOWN(1)) sb_ifetch_trap_cause(
+wire [$bits(prev_trap_cause)-1:0] sb_prev_trap_cause_out;
+skid_buf_data #(.WIDTH($bits(prev_trap_cause)), .MAYBE_UNKNOWN(1)) sb_prev_trap_cause(
     .*,
-    .in(ifetch_trap_cause),
-    .out(sb_ifetch_trap_cause_out)
+    .in(prev_trap_cause),
+    .out(sb_prev_trap_cause_out)
+);
+wire [$bits(original_instruction)-1:0] sb_original_instruction_out;
+skid_buf_data #(.WIDTH($bits(original_instruction)), .MAYBE_UNKNOWN(1)) sb_original_instruction(
+    .*,
+    .in(original_instruction),
+    .out(sb_original_instruction_out)
 );
 wire [$bits(instruction)-1:0] sb_instruction_out;
 skid_buf_data #(.WIDTH($bits(instruction))) sb_instruction(
@@ -90,44 +96,29 @@ skid_buf_data #(.WIDTH($bits(instruction_next_addr))) sb_instruction_next_addr(
     .out(sb_instruction_next_addr_out)
 );
 
-decode_impl decode_impl(
+decode_explode_impl decode_explode_impl(
     .clk,
     .rst,
     .flush,
-    .ifetch_exception(sb_ifetch_exception_out),
-    .ifetch_trap_cause(sb_ifetch_trap_cause_out),
+    .prev_exception(sb_prev_exception_out),
+    .prev_trap_cause(sb_prev_trap_cause_out),
+    .original_instruction(sb_original_instruction_out),
     .instruction(sb_instruction_out),
     .instruction_addr(sb_instruction_addr_out),
     .instruction_next_addr(sb_instruction_next_addr_out),
     .*
 );
+
 endmodule
 
-package decode_types;
-typedef enum bit [6:2] {
-    OP_LOAD =       'b00_000,
-    OP_MISC_MEM =   'b00_011,
-    OP_OP_IMM =     'b00_100,
-    OP_AUIPC =      'b00_101,
-    OP_OP_IMM_32 =  'b00_110,
-    OP_OP =         'b01_100,
-    OP_LUI =        'b01_101,
-    OP_OP_32 =      'b01_110,
-    OP_STORE =      'b01_000,
-    OP_BRANCH =     'b11_000,
-    OP_JALR =       'b11_001,
-    OP_JAL =        'b11_011,
-    OP_SYSTEM =     'b11_100
-} opcodes_type;
-endpackage
-
 // Pipeline oblivious, protected from stalls by the parent's skid buffer
-module decode_impl(
+module decode_explode_impl(
     input clk,
     input rst,
     input flush,
-    input ifetch_exception,
-    input [3:0] ifetch_trap_cause,
+    input prev_exception,
+    input [3:0] prev_trap_cause,
+    input [`ILEN-1:0] original_instruction,
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     input [`ALEN-1:0] instruction_next_addr,
@@ -147,7 +138,7 @@ module decode_impl(
     output reg decode_is_compressed_instr,
     output reg decode_is_jump,
     output reg decode_is_reg_write,
-    output reg [`ILEN-1:0] decode_instruction,
+    output reg [`ILEN-1:0] decode_original_instruction,
     output reg [`ALEN-1:0] decode_instruction_addr,
     output reg [`ALEN-1:0] decode_instruction_next_addr,
     output reg [4:0] opcode,
@@ -175,7 +166,7 @@ always_comb begin
 end
 
 always @(posedge clk) begin
-    decode_instruction <= instruction;
+    decode_original_instruction <= original_instruction;
 
     opcode <= instruction[6:2];
     rd <= rd_comb;
@@ -224,12 +215,9 @@ always @(posedge clk) begin
         decode_instruction_addr <= instruction_addr;
         decode_instruction_next_addr <= instruction_next_addr;
 
-        if (ifetch_exception) begin
+        if (prev_exception) begin
             decode_exception <= '1;
-            decode_trap_cause <= ifetch_trap_cause;
-        end else if (instruction[1:0] != 'b11) begin // TODO: Support for compressed instr decoding
-            decode_exception <= '1;
-            decode_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+            decode_trap_cause <= prev_trap_cause;
         end else begin
             decode_exception <= '0;
             decode_trap_cause <= 'x;
