@@ -143,12 +143,12 @@ begin
     // I. Check setup
 
 	// Wake-up (missing all the required delay!)
-	@(negedge cs);
+    @(negedge cs);
     assert_read_byte('hAB); // Wake up from deep sleep opcode
     assert_cs_goes_up();
 
     // Check this is one of our Adesto chip with quand-send mode
-	@(negedge cs);
+    @(negedge cs);
     assert_read_byte('h9F); // Read Manucturere and Device ID
     assert_reply_byte('h1F); // Adesto
     assert_reply_byte('h85); // AT25SF081

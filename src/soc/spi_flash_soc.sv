@@ -1,8 +1,6 @@
 `include "../core/params.svh"
 
-module spi_soc#(
-    parameter RESET_PC = `RESET_PC
-) (
+module spi_flash_soc(
     input clk,
     input rst,
     input SPI_CLK,
@@ -24,12 +22,12 @@ module spi_soc#(
     output reg LED
 );
 
-assign PROBE_0 = '0;
-assign PROBE_1 = '0;
-assign PROBE_2 = '0;
-assign PROBE_3 = '0;
-assign PROBE_4 = '0;
-assign PROBE_5 = '0;
+assign PROBE_0 = FLASH_CLK;
+assign PROBE_1 = FLASH_CS;
+assign PROBE_2 = FLASH_MOSI;
+assign PROBE_3 = FLASH_MISO;
+assign PROBE_4 = FLASH_WP;
+assign PROBE_5 = FLASH_HOLD;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
@@ -56,23 +54,46 @@ spi_slave spi(
 wire [`XLEN-1:0] reg_pc;
 wire [`XLEN-1:0] core_reg_read_data;
 
-basic_soc #(.RESET_PC(RESET_PC)) basic_soc(
+basic_soc basic_soc(
     .clk(gated_core_clk),
     .rst,
 
-    .cs(FLASH_CS),
-    .sclk(FLASH_CLK),
-    .si(FLASH_MOSI),
-    .so(FLASH_MISO),
-    .wp(FLASH_WP),
-    .hold(FLASH_HOLD),
+    // The flash is driven by the spi debug here, CPU won't be running
+    .cs(),
+    .sclk(),
+    .si(),
+    .so(),
+    .wp(),
+    .hold(),
 
     .reg_pc,
     .reg_read_sel(recv_data[4:0]),
     .reg_read_data(core_reg_read_data)
 );
 
+reg [23:0] flash_addr;
+reg flash_do_read;
+wire flash_setup_done;
+wire flash_data_ready;
+wire [7:0] flash_data;
 
+qspi_flash #(.USE_SB_IO(0)) flash(
+    .clk(clk),
+    .rst(rst),
+    .addr(flash_addr),
+    .do_read(flash_do_read),
+    .setup_done(flash_setup_done),
+    .data_ready(flash_data_ready),
+    .data(flash_data),
+    .cs(FLASH_CS),
+    .sclk(FLASH_CLK),
+    .si(FLASH_MOSI),
+    .so(FLASH_MISO),
+    .wp(FLASH_WP),
+    .hold(FLASH_HOLD)
+);
+
+enum {FLASH_SETUP, FLASH_IDLE, FLASH_WAIT_ADDR, FLASH_READING} flash_state;
 reg [23:0] addr_to_read;
 reg [7:0] data_read;
 reg [1:0] dbg_read_addr_count;
@@ -99,6 +120,31 @@ logic [2:0] dbg_state;
 
 logic [63:0] send_buf;
 logic [3:0] send_buf_count;
+
+// Read from Flash when requested by SPI command
+always @(posedge clk, posedge rst)
+begin
+	if (rst) begin
+		flash_state <= FLASH_SETUP;
+		flash_do_read <= 0;
+		flash_addr <= 0;
+		data_read <= 0;
+	end else if (flash_setup_done) begin
+		if (flash_state == FLASH_SETUP)
+			flash_state <= FLASH_IDLE;
+		if (flash_data_ready) begin
+			data_read <= flash_data;
+			flash_do_read <= 0;
+			flash_state <= FLASH_IDLE;
+		end else if (flash_state == FLASH_IDLE && dbg_state == DBG_FLASH_READ_ADDR) begin
+			flash_state <= FLASH_WAIT_ADDR;
+		end else if (flash_state == FLASH_WAIT_ADDR && dbg_state == DBG_FLASH_REPLYING) begin
+			flash_addr <= addr_to_read;
+			flash_do_read <= 1;
+			flash_state <= FLASH_READING;
+		end
+	end
+end
 
 always @(negedge clk) begin
     if (rst) begin
@@ -140,16 +186,18 @@ begin: set_led
                 send_buf_count <= 'x;
                 led_buf <= ~led_buf;
             end else if (recv_data == DBG_CMD_ENABLE_CLOCK) begin
-                core_clk_enable <= '1;
-                send_data <= '0;
+                // Cannot enable CPU without FLASH
+                //core_clk_enable <= '1;
+                send_data <= 'hFF;
                 send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_DISABLE_CLOCK) begin
                 core_clk_enable <= '0;
                 send_data <= '0;
                 send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_STEP_CLOCK) begin
-                core_clk_pulse <= !core_clk_pulse;
-                send_data <= '0;
+                // Cannot enable CPU without FLASH
+                //core_clk_pulse <= !core_clk_pulse;
+                send_data <= 'hFF;
                 send_buf_count <= 'x;
             end else if (recv_data == DBG_CMD_GET_PC) begin
                 send_buf <= reg_pc;
@@ -161,11 +209,9 @@ begin: set_led
                 send_buf_count <= 'x;
                 dbg_state <= DBG_READ_REG;
             end else if (recv_data == DBG_CMD_READ_FLASH) begin
-                // Flash is in use by the CPU
-				//dbg_state <= DBG_FLASH_READ_ADDR;
-				//dbg_read_addr_count = 'b11;
-				send_data <= 'hFF;
-                send_buf_count <= 'x;
+				dbg_state <= DBG_FLASH_READ_ADDR;
+				dbg_read_addr_count = 'b11;
+				send_data <= dbg_read_addr_count;
             end else if (recv_data == DBG_CMD_ECHO_CC) begin
                 send_data <= 'hCC;
                 send_buf_count <= 'x;
@@ -186,6 +232,26 @@ begin: set_led
             if (send_buf_count == 1)
                 dbg_state <= DBG_IDLE;
             send_buf_count <= send_buf_count-1;
+        end else if (dbg_state == DBG_FLASH_READ_ADDR) begin
+			if (dbg_read_addr_count == 'b01) begin
+				dbg_state <= DBG_FLASH_REPLYING;
+			end
+			addr_to_read <= {addr_to_read[15:0], recv_data[7:0]};
+			dbg_read_addr_count = dbg_read_addr_count - 1;
+			send_data <= dbg_read_addr_count;
+		end else if (dbg_state == DBG_FLASH_REPLYING) begin
+			if (flash_state == FLASH_IDLE) begin
+				if (dbg_reply_signaled == 0) begin
+					send_data <= 'hFD;
+					dbg_reply_signaled <= 1;
+				end else begin
+					send_data <= data_read;
+					dbg_reply_signaled <= 0;
+					dbg_state <= DBG_IDLE;
+				end
+			end else begin
+				send_data <= 'hFE;
+			end
         end else begin
             send_data <= 'hFF;
         end

@@ -1,7 +1,9 @@
 `include "../core/params.svh"
 `include "../axi/axi4lite.svh"
 
-module basic_soc(
+module basic_soc#(
+    parameter RESET_PC = `RESET_PC
+) (
     input clk,
     input rst,
 
@@ -81,7 +83,7 @@ axilxbar #(
 
 axi4lite ifetch_axi();
 axi4lite data_axi();
-core core(
+core #(.RESET_PC(RESET_PC)) core(
     .clk,
     .rst,
 

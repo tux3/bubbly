@@ -120,13 +120,13 @@ initial
 begin
     // I. Check setup
 
-	// Wake-up (missing all the required delay!)
-	@(negedge cs);
+    // Wake-up (missing all the required delay!)
+    @(negedge cs);
     assert_read_byte('hAB); // Wake up from deep sleep opcode
     assert_cs_goes_up();
 
     // Check this is NOT one of our Adesto chips with quad-send mode
-	@(negedge cs);
+    @(negedge cs);
     assert_read_byte('h9F); // Read Manucturere and Device ID
     assert_reply_byte('h01); // Cypress
     assert_reply_byte('h00); // Placeholder device

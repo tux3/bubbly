@@ -136,7 +136,7 @@ begin
                 read_data_mode <= '1;
             end else if (setup_counter == 'h06)
                 tx_counter <= 'h18;
-			else if (setup_counter == 'h05)
+            else if (setup_counter == 'h05)
                 tx_counter <= 'h08;
             else if (setup_counter == 'h04)
                 tx_counter <= 'h18;
@@ -167,7 +167,7 @@ begin
                 sliding_send_buf <= {8'h0B, addr, {8{'x}}}; // Fast read command, addr and dummy byte
         else if (setup_counter == 'h6)
             sliding_send_buf <= {8'h9F, {32{'x}}}; // Read identification
-		else if (setup_counter == 'h5)
+        else if (setup_counter == 'h5)
             sliding_send_buf <= {8'h06, {32{'x}}}; // Write-enable opcode
         else if (setup_counter == 'h4)
             sliding_send_buf <= {8'h01, 8'b1000_0000, 8'b0000_0010, {16{'x}}}; // Write status register to disable irrelevant protections and set QE bit

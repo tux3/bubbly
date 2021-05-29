@@ -1,6 +1,8 @@
 `include "params.svh"
 
-module core(
+module core#(
+    parameter RESET_PC = `RESET_PC
+) (
     input clk, rst,
 
     axi4lite.master ifetch_port,
@@ -138,7 +140,7 @@ writeback writeback(
     .*
 );
 
-pc pc_control(
+pc #(.RESET_PC(RESET_PC)) pc_control(
     .clk,
     .rst,
     .update_pc(writeback_update_pc),

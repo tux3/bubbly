@@ -1,3 +1,8 @@
+`include "../../core/params.svh"
+
+// Location of the boot code in flash
+`define FLASH_TEXT_ADDR 4 * 1024 * 1024
+
 module top(
     input CLK100MHZ,
     input RSTN,
@@ -34,7 +39,7 @@ pll pll(
     .rst
 );
 
-spi_soc spi_soc(
+spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
     .clk,
     .rst,
     
