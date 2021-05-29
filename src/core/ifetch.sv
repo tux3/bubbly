@@ -16,29 +16,18 @@ module ifetch(
     axi4lite.master sys_bus
 );
 
-assign sys_bus.aclk = clk;
-assign sys_bus.aresetn = !rst;
-
-assign sys_bus.arvalid = (state == STATE_START_1ST_READ || state == STATE_START_2ND_READ) && !flush;
-assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:basic_cache_params::align_bits] << basic_cache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
-assign sys_bus.arprot = 'b000;
-
-assign sys_bus.rready = state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ || state == STATE_DISCARD_FLUSHED_READ;
-
-assign sys_bus.awaddr = 'x;
-assign sys_bus.awprot = 'x;
-assign sys_bus.awvalid = 0;
-
-assign sys_bus.wdata = 'x;
-assign sys_bus.wstrb = 'x;
-assign sys_bus.wvalid = 0;
-assign sys_bus.bready = 0;
-
 generate
 	if (basic_cache_params::data_size != 64)
 		$error("icache's data_size must be 64bit (required by ifetch)");
 endgenerate
 
+
+logic icache_write_enable;
+logic [basic_cache_params::aligned_addr_size-1:0] icache_waddr;
+logic [basic_cache_params::data_size-1:0] icache_wdata;
+logic [basic_cache_params::aligned_addr_size-1:0] icache_raddr;
+wire [basic_cache_params::data_size-1:0] icache_rdata;
+wire icache_lookup_valid;
 basic_cache icache(
 	.clk,
 	.write_enable(icache_write_enable),
@@ -48,13 +37,6 @@ basic_cache icache(
 	.rdata(icache_rdata),
 	.lookup_valid(icache_lookup_valid)
 );
-
-logic icache_write_enable;
-logic [basic_cache_params::aligned_addr_size-1:0] icache_waddr;
-logic [basic_cache_params::data_size-1:0] icache_wdata;
-logic [basic_cache_params::aligned_addr_size-1:0] icache_raddr;
-wire [basic_cache_params::data_size-1:0] icache_rdata;
-wire icache_lookup_valid;
 
 enum bit[3:0] {
 	STATE_START_1ST_LOOKUP_FROM_PC,
@@ -204,7 +186,7 @@ always @(posedge clk) begin
 
             if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin // Instr too long
                 state <= STATE_EXCEPTION;
-                ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                // ifetch_trap_cause is the default EXC_ILLEGAL_INSTR
 			end else if (cache_fetch_crosses_lines) begin
 				state <= STATE_CHECK_2ND_LOOKUP;
 			end else begin
@@ -230,7 +212,7 @@ always @(posedge clk) begin
 
             if (sys_bus.rdata[line_instr_offset +: 5] == 5'b11111) begin // Instr too long
                 state <= STATE_EXCEPTION;
-                ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                // ifetch_trap_cause is the default EXC_ILLEGAL_INSTR
 			end else if (!bus_fetch_crosses_lines || icache_lookup_valid) begin // We do a 2nd lookup check at the same time as the 1st read finishes to save a cycle
 				state <= STATE_CHECK_1ST_LOOKUP;
 			end else begin
@@ -331,12 +313,33 @@ always @(posedge clk) begin
         if (invalid_len_exception) begin
             next_instruction = 'x;
             ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end else begin
+            // Default trap cause is EXC_ILLEGAL_INSTR
+            ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         end
 
 		instruction <= next_instruction;
 		ifetch_exception <= invalid_len_exception || state == STATE_EXCEPTION;
     end
 end
+
+assign sys_bus.aclk = clk;
+assign sys_bus.aresetn = !rst;
+
+assign sys_bus.arvalid = (state == STATE_START_1ST_READ || state == STATE_START_2ND_READ) && !flush;
+assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:basic_cache_params::align_bits] << basic_cache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
+assign sys_bus.arprot = 'b000;
+
+assign sys_bus.rready = state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ || state == STATE_DISCARD_FLUSHED_READ;
+
+assign sys_bus.awaddr = 'x;
+assign sys_bus.awprot = 'x;
+assign sys_bus.awvalid = 0;
+
+assign sys_bus.wdata = 'x;
+assign sys_bus.wstrb = 'x;
+assign sys_bus.wvalid = 0;
+assign sys_bus.bready = 0;
 
 `ifndef SYNTHESIS
 always @(posedge clk) begin

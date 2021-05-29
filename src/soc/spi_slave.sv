@@ -15,7 +15,12 @@ module spi_slave(
     output logic recv_ready
 );
 
-wire rst_or_ss = rst || ss_idle_sync2;
+// ext_clk domain registers
+reg recv_ready_sync1;
+reg recv_ready_sync2;
+reg recv_already_read;
+reg ss_idle_sync1;
+reg ss_idle_sync2;
 
 // sclk domain registers
 reg [2:0] txed_bits_count;
@@ -24,12 +29,8 @@ reg [7:0] send_buf;
 wire tx_done_internal = txed_bits_count == 'b000;
 wire send_ready_internal = ss_idle_sync2 || tx_done_internal; // If master doesn't release ss, we still have time to output send_ready on the same cycle as recv_ready and wait for a new send_data to stabilize
 
-// ext_clk domain registers
-reg recv_ready_sync1;
-reg recv_ready_sync2;
-reg recv_already_read;
-reg ss_idle_sync1;
-reg ss_idle_sync2;
+
+wire rst_or_ss = rst || ss_idle_sync2;
 
 assign miso = !ss && send_buf[3'b111 - txed_bits_count];
 
@@ -67,9 +68,11 @@ begin
 end
 
 // Keep transfered bits count (reset if ss abruptly goes up)
-always @(negedge sclk, posedge rst_or_ss)
+always @(negedge sclk, posedge rst)
 begin
-    if (rst_or_ss) begin
+    if (rst) begin
+        txed_bits_count <= 0;
+    end else if (ss_idle_sync2) begin
         txed_bits_count <= 0;
     end else if (!ss) begin
         txed_bits_count <= txed_bits_count + 1;

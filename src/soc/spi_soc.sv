@@ -1,8 +1,8 @@
 `include "../core/params.svh"
 
-module top(
-    input CLK_16MHZ,
-    input RESETN,
+module spi_soc(
+    input clk,
+    input rst,
     input SPI_CLK,
     input SPI_MOSI,
     output SPI_MISO,
@@ -13,35 +13,25 @@ module top(
     inout FLASH_MISO,
     inout FLASH_WP,
     inout FLASH_HOLD,
+    output PROBE_0,
     output PROBE_1,
     output PROBE_2,
     output PROBE_3,
     output PROBE_4,
     output PROBE_5,
-    output PROBE_6,
     output reg LED
 );
 
-assign PROBE_1 = RESETN;
+assign PROBE_0 = '0;
+assign PROBE_1 = '0;
 assign PROBE_2 = '0;
 assign PROBE_3 = '0;
 assign PROBE_4 = '0;
 assign PROBE_5 = '0;
-assign PROBE_6 = '0;
-
-logic clk;
-logic rst;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
 logic gated_core_clk = clk & core_clk_enable_reg;
-
-pll pll(
-    .clk_in(CLK_16MHZ),
-    .resetb_in(RESETN),
-    .clk_out(clk),
-    .reset_out(rst)
-);
 
 reg [7:0] send_data;
 wire send_ready;

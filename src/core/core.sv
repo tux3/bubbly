@@ -7,12 +7,12 @@ module core(
     axi4lite.master data_port,
 
     // State outputs
-    output [`XLEN-1:0] reg_pc,
-
     input [4:0] reg_read_sel,
-    output [`XLEN-1:0] reg_read_data
+    output [`XLEN-1:0] reg_read_data,
+    output [`XLEN-1:0] reg_pc
 );
 
+wire [`XLEN-1:0] pc;
 assign reg_pc = pc;
 
 // Pipeline handshake
@@ -21,31 +21,15 @@ assign reg_pc = pc;
 // - stall_prev: We are NOT ready to accept input data. When !stall_prev && !prev_stalled, we have a handshake and the input is accepted
 // - stall_next: Output data is NOT valid. Must not depend on next_stalled (like AXI)
 
-wire [`XLEN-1:0] pc;
-pc pc_control(
-    .clk,
-    .rst,
-    .update_pc(writeback_update_pc),
-    .next_pc(writeback_next_pc),
-    .pc
-);
+wire [4:0] exec_reg_write_sel;
+wire [`XLEN-1:0] exec_result;
+wire exec_pipeline_flush;
 
-int_regfile regs(
-    .clk,
-    .rst,
-
-    .write1_enable(writeback_reg_write_enable),
-    .write1_sel(writeback_reg_write_sel),
-    .write1_data(writeback_reg_write_data),
-    .read1_sel(decode_reg_read1_sel),
-    .read1_data(decode_reg_read1_data),
-    .read2_sel(decode_reg_read2_sel),
-    .read2_data(decode_reg_read2_data),
-    .read3_sel(reg_read_sel),
-    .read3_data(reg_read_data)
-);
+wire [4:0] writeback_reg_write_sel;
+wire [`XLEN-1:0] writeback_reg_write_data;
 
 wire ifetch_stall_next;
+wire ifetch_next_stalled;
 wire [`ILEN-1:0] instruction;
 wire [`ALEN-1:0] instruction_addr;
 wire [`ALEN-1:0] instruction_next_addr;
@@ -61,13 +45,13 @@ ifetch ifetch(
     .instruction_next_addr,
     .ifetch_exception,
     .ifetch_trap_cause,
-    .next_stalled(decode_stall_prev),
+    .next_stalled(ifetch_next_stalled),
     .stall_next(ifetch_stall_next),
     .sys_bus(ifetch_port)
 );
 
-wire decode_stall_prev;
 wire decode_stall_next;
+wire decode_next_stalled;
 wire [4:0] decode_reg_read1_sel;
 wire [`XLEN-1:0] decode_reg_read1_data;
 wire [4:0] decode_reg_read2_sel;
@@ -102,8 +86,8 @@ decode decode(
     .ifetch_exception,
     .ifetch_trap_cause,
     .prev_stalled(ifetch_stall_next),
-    .next_stalled(exec_stall_prev),
-    .stall_prev(decode_stall_prev),
+    .next_stalled(decode_next_stalled),
+    .stall_prev(ifetch_next_stalled),
     .stall_next(decode_stall_next),
     .bypass_net_exec_reg(exec_reg_write_sel),
     .bypass_net_exec_data(exec_result),
@@ -112,7 +96,6 @@ decode decode(
     .*
 );
 
-wire exec_stall_prev;
 wire exec_stall_next;
 wire exec_is_trap;
 wire [`ALEN-1:0] exec_trap_target;
@@ -120,24 +103,19 @@ wire exec_exception;
 wire exec_is_taken_branch;
 wire exec_is_reg_write;
 wire exec_is_xret;
-wire [4:0] exec_reg_write_sel;
-wire [`XLEN-1:0] exec_result;
 wire [`ALEN-1:0] exec_branch_target;
 wire [`ALEN-1:0] exec_instruction_next_addr;
-wire exec_pipeline_flush;
 exec exec(
     .clk,
     .rst,
     .prev_stalled(decode_stall_next),
-    .stall_prev(exec_stall_prev),
+    .stall_prev(decode_next_stalled),
     .stall_next(exec_stall_next),
     .data_bus(data_port),
     .*
 );
 
 wire writeback_reg_write_enable;
-wire [4:0] writeback_reg_write_sel;
-wire [`XLEN-1:0] writeback_reg_write_data;
 wire writeback_update_pc;
 wire [`ALEN-1:0] writeback_next_pc;
 writeback writeback(
@@ -145,6 +123,29 @@ writeback writeback(
     .rst,
     .prev_stalled(exec_stall_next),
     .*
+);
+
+pc pc_control(
+    .clk,
+    .rst,
+    .update_pc(writeback_update_pc),
+    .next_pc(writeback_next_pc),
+    .pc
+);
+
+int_regfile regs(
+    .clk,
+    .rst,
+
+    .write1_enable(writeback_reg_write_enable),
+    .write1_sel(writeback_reg_write_sel),
+    .write1_data(writeback_reg_write_data),
+    .read1_sel(decode_reg_read1_sel),
+    .read1_data(decode_reg_read1_data),
+    .read2_sel(decode_reg_read2_sel),
+    .read2_data(decode_reg_read2_data),
+    .read3_sel(reg_read_sel),
+    .read3_data(reg_read_data)
 );
 
 endmodule

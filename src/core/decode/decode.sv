@@ -64,11 +64,9 @@ module decode(
     output logic [20:1] j_imm
 );
 
-assign stall_prev = decomp_stall_prev;
-assign stall_next = explode_stall_next;
-
 wire decomp_stall_prev;
 wire decomp_stall_next;
+wire decomp_next_stalled;
 wire decomp_exception;
 wire [3:0] decomp_trap_cause;
 wire [`ILEN-1:0] decomp_original_instruction;
@@ -80,13 +78,12 @@ decode_decompress decompress(
     .rst,
     .flush,
     .prev_stalled(prev_stalled),
-    .next_stalled(explode_stall_prev),
+    .next_stalled(decomp_next_stalled),
     .stall_prev(decomp_stall_prev),
     .stall_next(decomp_stall_next),
     .*
 );
 
-wire explode_stall_prev;
 wire explode_stall_next;
 decode_explode explode(
     .clk,
@@ -94,7 +91,7 @@ decode_explode explode(
     .flush,
     .prev_stalled(decomp_stall_next),
     .next_stalled(next_stalled),
-    .stall_prev(explode_stall_prev),
+    .stall_prev(decomp_next_stalled),
     .stall_next(explode_stall_next),
     .prev_exception(decomp_exception),
     .prev_trap_cause(decomp_trap_cause),
@@ -104,4 +101,8 @@ decode_explode explode(
     .instruction_next_addr(decomp_instruction_next_addr),
     .*
 );
+
+assign stall_prev = decomp_stall_prev;
+assign stall_next = explode_stall_next;
+
 endmodule

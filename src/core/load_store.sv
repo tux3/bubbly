@@ -22,22 +22,6 @@ module load_store(
     axi4lite.master data_bus
 );
 
-assign data_bus.aclk = clk;
-assign data_bus.aresetn = !rst;
-
-assign data_bus.arvalid = state == STATE_LOAD_CHECK_CACHE && !dcache_lookup_valid;
-assign data_bus.araddr = {addr_buf, 3'b000};
-assign data_bus.arprot = 'b000;
-
-assign data_bus.rready = state == STATE_LOAD_PENDING;
-
-assign data_bus.awaddr = {addr_buf, 3'b000};
-assign data_bus.awprot = 'b000;
-
-assign data_bus.wdata = store_data_buf;
-assign data_bus.wstrb = store_mask_buf;
-assign data_bus.bready = 1;
-
 reg [basic_cache_params::aligned_addr_size-1:0] addr_buf;
 reg [`XLEN-1:0] store_data_buf;
 reg [(`XLEN/8)-1:0] store_mask_buf;
@@ -76,6 +60,19 @@ basic_cache dcache(
 	.lookup_valid(dcache_lookup_valid)
 );
 
+enum bit[3:0] {
+	STATE_IDLE,
+    STATE_LOAD_CHECK_CACHE,
+	STATE_LOAD_PENDING,
+    STATE_STORE_CHECK_CACHE,
+    STATE_STORE_PENDING
+} state;
+
+logic awpending;
+logic wpending;
+wire awhandshaked = (data_bus.awvalid && data_bus.awready) || awpending;
+wire whandshaked = (data_bus.wvalid && data_bus.wready) || wpending;
+
 integer mask_idx;
 always_comb begin
     mask_idx = 'x;
@@ -91,14 +88,6 @@ always_comb begin
         dcache_wdata = 'x;
     end
 end
-
-enum bit[3:0] {
-	STATE_IDLE,
-    STATE_LOAD_CHECK_CACHE,
-	STATE_LOAD_PENDING,
-    STATE_STORE_CHECK_CACHE,
-    STATE_STORE_PENDING
-} state;
 
 always_comb begin
 	if (rst) begin
@@ -190,11 +179,6 @@ always @(posedge clk) begin
 	endcase
 end
 
-logic awpending;
-logic wpending;
-wire awhandshaked = (data_bus.awvalid && data_bus.awready) || awpending;
-wire whandshaked = (data_bus.wvalid && data_bus.wready) || wpending;
-
 always @(posedge clk) begin
 	if (rst) begin
         data_bus.awvalid <= '0;
@@ -224,6 +208,22 @@ always @(posedge clk) begin
             wpending <= '1;
     end
 end
+
+assign data_bus.aclk = clk;
+assign data_bus.aresetn = !rst;
+
+assign data_bus.arvalid = state == STATE_LOAD_CHECK_CACHE && !dcache_lookup_valid;
+assign data_bus.araddr = {addr_buf, 3'b000};
+assign data_bus.arprot = 'b000;
+
+assign data_bus.rready = state == STATE_LOAD_PENDING;
+
+assign data_bus.awaddr = {addr_buf, 3'b000};
+assign data_bus.awprot = 'b000;
+
+assign data_bus.wdata = store_data_buf;
+assign data_bus.wstrb = store_mask_buf;
+assign data_bus.bready = 1;
 
 `ifndef SYNTHESIS
 always @(posedge clk) begin

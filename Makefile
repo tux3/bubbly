@@ -13,7 +13,7 @@ AVHDL_LOG=${PWD}/${BINDIR}/avhdl_test_output.log
 AVHDL_SIM_OPTS=-O5 -L ice -l ${AVHDL_LOG} +access +w_nets +accb +accr +access +r +access +r+w
 
 SV_AUTO_ORDER_FAILED=//__SV_AUTO_ORDER_FAIL__// # Can't find a clean way to exit if a $shell command fails, so use a marker error value
-SRCFILES_UNORDERED=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv), ${SRCDIR}/global.svh $(shell find ${SRCDIR} -name *.v -or -name *.sv -or -name *.svh))
+SRCFILES_UNORDERED=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv) $(shell find ${SRCDIR}/board/arty/ -name *.sv), $(shell find ${SRCDIR} -name *.v -or -name *.sv -or -name *.svh))
 test: TESTBENCHES=$(shell find ${PWD}/${SRCDIR}/test/ -name *_tb.v -or -name *_tb.sv)
 test: TESTSRC=$(shell sv_auto_order --absolute $(filter-out $(shell find ${PWD}/${SRCDIR}/test/ -name *_tb.v -or -name *_tb.sv), $(shell find ${PWD}/${SRCDIR}/test/ -name *.v -or -name *.sv)))
 test: SRCFILES=$(shell sv_auto_order --absolute ${SRCFILES_UNORDERED})
@@ -37,7 +37,7 @@ ${BINDIR}/${PRJ}.bin: ${BINDIR}/${PRJ}.asc
 	icepack ${BINDIR}/${PRJ}.asc ${BINDIR}/${PRJ}.bin
 
 ${BINDIR}/${PRJ}.asc: ${BINDIR}/${PRJ}.json
-	nextpnr-${FPGA_FAMILY} --${FPGA_MODEL} --package ${FPGA_PACKAGE} --json ${BINDIR}/${PRJ}.json --pcf ${SRCDIR}/constraints/pins.pcf --freq ${TARGET_FREQ_MHZ} --asc ${BINDIR}/${PRJ}.asc -r
+	nextpnr-${FPGA_FAMILY} --${FPGA_MODEL} --package ${FPGA_PACKAGE} --json ${BINDIR}/${PRJ}.json --pcf ${SRCDIR}/board/ice40/pins.pcf --freq ${TARGET_FREQ_MHZ} --asc ${BINDIR}/${PRJ}.asc -r
 
 ${BINDIR}/${PRJ}.json: ${SRCFILES_UNORDERED} Makefile
 	@test "${SRCFILES}"

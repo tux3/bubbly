@@ -35,6 +35,11 @@ module exec_mem(
     output wire [`XLEN-1:0] exec_mem_result
 );
 
+// Instructions that go directly to the LSU
+wire is_load_store = opcode == decode_types::OP_LOAD
+                  || opcode == decode_types::OP_STORE;
+wire store_bit = opcode[3];
+
 wire [11:0] mem_imm = {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
 wire [`ALEN-1:0] memory_addr_comb = $signed(rs1_data) + $signed(mem_imm);
 wire [basic_cache_params::aligned_addr_size-1:0] cache_line_addr_comb = memory_addr_comb[`ALEN-1 -: basic_cache_params::aligned_addr_size];
@@ -74,11 +79,6 @@ wire is_access_misaligned = (access_size_comb == SIZE_HALF  && cache_line_offset
                          || (access_size_comb == SIZE_WORD  && cache_line_offset_comb[1:0])
                          || (access_size_comb == SIZE_DWORD && cache_line_offset_comb[2:0]);
 
-// Instructions that go directly to the LSU
-wire is_load_store = opcode == decode_types::OP_LOAD
-                  || opcode == decode_types::OP_STORE;
-wire store_bit = opcode[3];
-
 // NOTE: We do all this swizzling combinatorially for the loaded data output! This goes right into writeback stage input delay...
 wire [7:0] loaded_byte = lsu_load_data[cache_line_offset[2:0] * 8 +: 8];
 wire [15:0] loaded_half = lsu_load_data[cache_line_offset[2:1] * 16 +: 16];
@@ -95,6 +95,10 @@ always_comb begin
     endcase
 end
 
+integer mask_idx;
+logic [`XLEN-1:0] store_data;
+logic [(`XLEN/8)-1:0] store_mask;
+
 assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store) || is_access_misaligned;
 assign lsu_addr = cache_line_addr_comb;
 assign lsu_do_load = !store_bit;
@@ -102,9 +106,6 @@ assign lsu_do_store = store_bit;
 assign lsu_store_data = store_data;
 assign lsu_store_mask = store_mask;
 
-integer mask_idx;
-logic [`XLEN-1:0] store_data;
-logic [(`XLEN/8)-1:0] store_mask;
 always_comb begin
     mask_idx = 'x;
     unique case (access_size_comb)
@@ -128,8 +129,8 @@ always_comb begin
     endcase
 end
 
-assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || !lsu_stall_next;
 reg exec_mem_output_valid_single_cycle;
+assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || !lsu_stall_next;
 always_ff @(posedge clk) begin
     if (rst)
         exec_mem_output_valid_single_cycle <= '0;
@@ -139,12 +140,12 @@ always_ff @(posedge clk) begin
         exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
 end
 
-assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
-assign exec_mem_trap_cause = lsu_stall_next ? exec_mem_trap_cause_reg : trap_causes::EXC_LOAD_ACCESS_FAULT;
-assign exec_mem_result = lsu_stall_next ? exec_mem_result_reg : loaded_data;
 reg exec_mem_exception_reg;
 reg [3:0] exec_mem_trap_cause_reg;
 reg [`XLEN-1:0] exec_mem_result_reg;
+assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
+assign exec_mem_trap_cause = lsu_stall_next ? exec_mem_trap_cause_reg : trap_causes::EXC_LOAD_ACCESS_FAULT;
+assign exec_mem_result = lsu_stall_next ? exec_mem_result_reg : loaded_data;
 always_ff @(posedge clk) begin
     exec_mem_exception_reg <= '0;
     exec_mem_trap_cause_reg <= 'x;

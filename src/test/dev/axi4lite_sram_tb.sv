@@ -134,7 +134,7 @@ module axi4lite_sram_tb;
 
     task automatic fill_and_readback_sram();
         for (int addr = 0; addr <= size_bytes-8; addr += 8) begin
-            simple_write_and_read_back(.addr, .data(shadow_buf[addr*8 +: data_width]), .strb({strb_width{1'b1}}));
+            simple_write_and_read_back(.addr(addr), .data(shadow_buf[addr*8 +: data_width]), .strb({strb_width{1'b1}}));
         end
     endtask
 
@@ -224,13 +224,13 @@ module axi4lite_sram_tb;
             assert(std::randomize(addr_random));
             addr = {addr_random, {data_width_addr_bits{1'b0}}};
 
-            simple_write_and_read_back(.addr, .data(data_random), .strb(strb_random));
+            simple_write_and_read_back(.addr(addr), .data(data_random), .strb(strb_random));
         end
     endtask
 
     // This function does NOT touch bready, callers must take care of it
     task automatic async_write_no_bready(input [addr_bits-1:0] addr, input [data_width-1:0] data);
-        start_async_write_no_bready(.addr, .data);
+        start_async_write_no_bready(.addr(addr), .data(data));
 
         forever @(posedge clk) begin
             if (bus.bvalid && bus.bready) begin
@@ -273,7 +273,7 @@ module axi4lite_sram_tb;
     task automatic async_read_no_rready(input [addr_bits-1:0] addr);
         bit [data_width-1:0] expected_data;
 
-        start_async_read_no_rready(.addr);
+        start_async_read_no_rready(.addr(addr));
 
         expected_data = shadow_buf[addr*8 +: 64];
 

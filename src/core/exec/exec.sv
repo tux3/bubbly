@@ -51,10 +51,6 @@ wire [`XLEN-1:0] rs2_data = (exec_is_reg_write && exec_reg_write_sel == rs2) ? e
 reg busy;
 wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
 wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
-assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
-assign exec_is_xret = exec_system_is_xret;
-
-assign exec_pipeline_flush = exec_mispredict_detected || exec_exception || exec_is_xret;
 
 wire input_is_branch = decode_is_jump;
 wire exec_branch_next_output_valid_comb;
@@ -124,6 +120,10 @@ load_store lsu(
     .data_bus(data_bus)
 );
 
+logic [3:0] exec_trap_cause;
+logic [`ALEN-1:0] decode_trap_mepc_buf;
+logic [`ILEN-1:0] decode_original_instr_buf;
+
 wire exec_csr_instr_valid;
 wire [11:0] exec_csr_addr;
 wire [2:0] exec_csr_funct3;
@@ -188,8 +188,6 @@ end
 
 logic decode_valid_exception_buf;
 logic [3:0] decode_trap_cause_buf;
-logic [`ALEN-1:0] decode_trap_mepc_buf;
-logic [`ILEN-1:0] decode_original_instr_buf;
 always @(posedge clk) begin
     if (rst) begin
         decode_valid_exception_buf <= '0;
@@ -214,7 +212,6 @@ enum {
     MEM_OUTPUT_VALID =      'b0001
 } valid_output_types;
 
-logic [3:0] exec_trap_cause;
 always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
     NO_OUTPUT_VALID: begin
         exec_exception = decode_valid_exception_buf;
@@ -254,5 +251,10 @@ always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_
         exec_result = 'x;
     end
 endcase
+
+assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
+assign exec_is_xret = exec_system_is_xret;
+
+assign exec_pipeline_flush = exec_mispredict_detected || exec_exception || exec_is_xret;
 
 endmodule

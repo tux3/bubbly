@@ -34,25 +34,6 @@ endgenerate
 
 wire [data_width-1:0] bram_rdata [total_bram_count-1:0];
 
-genvar i;
-generate for (i=0; i<total_bram_count; i=i+1) begin
-    bram #(
-        .read_after_write(1),
-        .blocks(per_bram_blocks),
-        .block_addr_width(bram_block_addr_width),
-        .block_data_width(bram_block_data_width)
-    ) bram_slice (
-        .wclk(bus.aclk),
-        .rclk(bus.aclk),
-    	.write_mask(wstrb & {per_bram_blocks{write_enable && bram_write_index == i}}),
-        .waddr(bram_write_addr),
-        .raddr(bram_read_addr),
-        .wdata(wdata),
-        .rdata(bram_rdata[i])
-    );
-end
-endgenerate
-
 wire clk = bus.aclk;
 wire rst = !bus.aresetn;
 
@@ -217,6 +198,25 @@ always_ff @(posedge clk) begin
         bus.bresp <= 'x;
     end
 end
+
+genvar i;
+generate for (i=0; i<total_bram_count; i=i+1) begin
+    bram #(
+        .read_after_write(1),
+        .blocks(per_bram_blocks),
+        .block_addr_width(bram_block_addr_width),
+        .block_data_width(bram_block_data_width)
+    ) bram_slice (
+        .wclk(bus.aclk),
+        .rclk(bus.aclk),
+    	.write_mask(wstrb & {per_bram_blocks{write_enable && bram_write_index == i}}),
+        .waddr(bram_write_addr),
+        .raddr(bram_read_addr),
+        .wdata(wdata),
+        .rdata(bram_rdata[i])
+    );
+end
+endgenerate
 
 `ifndef SYNTHESIS
 initial assert (data_width == $bits(bus.rdata));
