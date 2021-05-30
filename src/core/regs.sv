@@ -16,7 +16,7 @@ module int_regfile(
     output logic [`XLEN-1:0] read3_data
 );
 
-bit [`XLEN-1:0] xreg [1:31];
+reg [`XLEN-1:0] xreg [1:31];
 
 always_comb begin
     read1_data = read1_sel == '0 ? '0 : xreg[read1_sel];
@@ -27,12 +27,7 @@ end
 integer i;
 always @(posedge clk) begin
     if (rst) begin
-        // No Yosys support for the fun barely-synthetizable SV syntax :(
-        //xreg <= '{default:'0};
-
-        for (i=1; i<=$size(xreg); i=i+1) begin
-            xreg[i] <= '0;
-        end
+        // NOTE: Regs can't be cleared in one cycle here, must be handled by the core after reset
     end else begin
         if (write1_enable)
             xreg[write1_sel] <= write1_data;

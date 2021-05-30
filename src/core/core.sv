@@ -21,6 +21,19 @@ assign reg_pc = pc;
 // - stall_prev: We are NOT ready to accept input data. When !stall_prev && !prev_stalled, we have a handshake and the input is accepted
 // - stall_next: Output data is NOT valid. Must not depend on next_stalled (like AXI)
 
+logic [4:0] reg_to_clear;
+logic do_clear_regs;
+always @(posedge clk) begin
+    if (rst) begin
+        reg_to_clear <= 31;
+        do_clear_regs <= 1;
+    end else if (do_clear_regs) begin
+        reg_to_clear <= reg_to_clear - 1;
+        if (reg_to_clear == 1)
+            do_clear_regs <= 0;
+    end
+end
+
 wire [4:0] exec_reg_write_sel;
 wire [`XLEN-1:0] exec_result;
 wire exec_pipeline_flush;
@@ -38,7 +51,7 @@ wire [3:0] ifetch_trap_cause;
 ifetch ifetch(
     .clk,
     .rst,
-    .flush(exec_pipeline_flush),
+    .flush(exec_pipeline_flush || do_clear_regs),
     .pc(pc),
     .instruction,
     .instruction_addr,
@@ -137,9 +150,9 @@ int_regfile regs(
     .clk,
     .rst,
 
-    .write1_enable(writeback_reg_write_enable),
-    .write1_sel(writeback_reg_write_sel),
-    .write1_data(writeback_reg_write_data),
+    .write1_enable(do_clear_regs ? '1 : writeback_reg_write_enable),
+    .write1_sel(do_clear_regs ? reg_to_clear : writeback_reg_write_sel),
+    .write1_data(do_clear_regs ? '0 : writeback_reg_write_data),
     .read1_sel(decode_reg_read1_sel),
     .read1_data(decode_reg_read1_data),
     .read2_sel(decode_reg_read2_sel),
