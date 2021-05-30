@@ -64,6 +64,20 @@ begin
 end
 endtask
 
+task assert_reply_byte;
+input [7:0] expected;
+begin
+    integer i;
+    reg [7:0] read_buf;
+    for (i = 0; i < 8; ++i) begin
+        @(posedge sclk) begin
+            read_buf = {read_buf[6:0], so};
+        end
+    end
+    assert(read_buf == expected) else $error("[%t] Expected to get reply byte %b, but got %b", $time, expected, read_buf);
+end
+endtask
+
 task assert_read_quad_byte;
 input [7:0] expected;
 begin
@@ -102,7 +116,7 @@ endtask
 task assert_cs_goes_up;
 begin
     @(negedge sclk)
-        #1 assert(cs == 'b1);
+        #1 assert(cs == 'b1) else $fatal(1, "[%t] Expected cs to go up", $time);
 end
 endtask
 
@@ -131,6 +145,13 @@ begin
 	// Wake-up (missing all the required delay!)
 	@(negedge cs);
     assert_read_byte('hAB); // Wake up from deep sleep opcode
+    assert_cs_goes_up();
+
+    // Check this is one of our Adesto chip with quand-send mode
+	@(negedge cs);
+    assert_read_byte('h9F); // Read Manucturere and Device ID
+    assert_reply_byte('h1F); // Adesto
+    assert_reply_byte('h85); // AT25SF081
     assert_cs_goes_up();
 
     // Write-enable
