@@ -1,10 +1,9 @@
-timeunit 1ps;
-timeprecision 1ps;
-
 module serial_spi_flash_pattern_mock(
     input cs, sclk,
     inout si, so, wp, hold
 );
+timeunit 1ps;
+timeprecision 1ps;
 
 typedef enum { CMD_WAKEUP = 'hAB, CMD_FAST_READ = 'h0B, CMD_READ_ID = 'h9F } commands;
 enum { DISABLED, ADDR_1, ADDR_2, ADDR_3, DUMMY, SEND } send_mode;

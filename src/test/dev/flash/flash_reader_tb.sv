@@ -1,7 +1,6 @@
-timeunit 100ns;
-timeprecision 10ns;
-
 module flash_reader_tb;
+    timeunit 100ns;
+    timeprecision 10ns;
 
     bit clk = 0;
     bit rst = 0;

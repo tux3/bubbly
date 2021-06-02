@@ -1,10 +1,9 @@
-timeunit 100ns;
-timeprecision 10ns;
-
 `include "../../core/params.svh"
 `include "../../axi/axi4lite.svh"
 
 module ifetch_tb;
+    timeunit 100ns;
+    timeprecision 10ns;
 
     bit clk = 0;
     bit rst = 0;

@@ -108,10 +108,6 @@ always_comb begin
 		icache_wdata = sys_bus.rdata;
     	icache_write_enable = 'b1;
     end else begin
-		`ifndef SYNTHESIS
-		if (sys_bus.rvalid)
-        	$error("[%t] Trying to write a cache line in unexpected state %s!", $time, state.name());
-        `endif
         icache_waddr = 'x;
         icache_wdata = 'x;
         icache_write_enable = 'b0;
@@ -347,6 +343,10 @@ always @(posedge clk) begin
     assert property (state == STATE_EXCEPTION && !rst && !flush |=> instruction === 'x);
     assert property (state == STATE_EXCEPTION && !rst && !flush |=> ifetch_exception);
     assert property (!$isunknown(fetch_pc) |-> next_cache_line_addr == fetch_pc[$bits(fetch_pc)-1:basic_cache_params::align_bits] + 1);
+    // Trying to write a cache line in unexpected state
+    assert property ((state != STATE_DISCARD_FLUSHED_READ
+                    && state != STATE_WAIT_1ST_READ
+                    && state != STATE_WAIT_2ND_READ) && !rst && !flush |=> !sys_bus.rvalid);
 end
 `endif
 

@@ -1,9 +1,8 @@
-timeunit 1ns;
-timeprecision 100ps;
-
 `include "../../axi/axi4lite.svh"
 
 module axi4lite_sram_tb;
+    timeunit 1ns;
+    timeprecision 100ps;
 
     bit clk = 1;
     bit rst = 0;
