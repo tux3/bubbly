@@ -55,8 +55,12 @@ spi_slave spi(
 
 wire [`XLEN-1:0] reg_pc;
 wire [`XLEN-1:0] core_reg_read_data;
+wire led_gpio;
 
-basic_soc #(.RESET_PC(RESET_PC)) basic_soc(
+basic_soc #(
+    .RESET_PC(RESET_PC),
+    .GPIO_OUTPUTS(1)
+) basic_soc (
     .clk(gated_core_clk),
     .rst,
 
@@ -69,7 +73,8 @@ basic_soc #(.RESET_PC(RESET_PC)) basic_soc(
 
     .reg_pc,
     .reg_read_sel(recv_data[4:0]),
-    .reg_read_data(core_reg_read_data)
+    .reg_read_data(core_reg_read_data),
+    .gpio_outputs(led_gpio)
 );
 
 
@@ -112,7 +117,7 @@ end
 
 reg led_buf;
 always @(posedge clk)
-    LED <= led_buf;
+    LED <= led_buf | led_gpio;
 
 // Handle received SPI commands
 always @(posedge clk)

@@ -49,7 +49,8 @@ module func_int_bypass_tb;
 
         .reg_pc,
         .reg_read_sel,
-        .reg_read_data
+        .reg_read_data,
+        .gpio_outputs()
     );
 
     initial begin

@@ -1,38 +1,32 @@
 `include "../../core/params.svh"
 `include "../../axi/axi4lite.svh"
 
-module func_store_tb;
+module axi4lite_gpio_tb;
     timeunit 100ns;
     timeprecision 10ns;
 
     bit clk = 0;
     bit rst = 0;
 
-    bit [64-1:0] sram_addr = {{64-`ALEN{1'b0}}, 4'b0001, {`ALEN-4{1'b0}}};
-    const logic [22*32-1:0] code_buf = {<<32{
-        'b000001000000_00000_000_00001_0010011, // ADDI r1, r0, sram_ptr_ptr
-        'b000000010000_00001_011_00011_0000011, // LD r3, r1, h10
-        'b000000001000_00001_011_00010_0000011, // LD r2, r1, 8
+    logic [6:0] outputs;
+
+    bit [64-1:0] gpio_addr = {{64-`ALEN{1'b0}}, 3'b010, {`ALEN-3{1'b0}}};
+    const logic [14*32-1:0] code_buf = {<<32{
+        'b000000110000_00000_000_00001_0010011, // ADDI r1, r0, gpio_ptr_ptr
         'b000000000000_00001_011_00001_0000011, // LD r1, r1, 0
+        'b111111111111_00000_000_00100_0010011, // ADDI r4, r0, -1
+        'b000000000010_00000_000_00011_0010011, // ADDI r3, r0, 2
+        'b000000000001_00000_000_00010_0010011, // ADDI r2, r0, 1
 
-        'b0000000_00010_00001_011_00000_0100011, // SD r1, r2, 0
-        'b0000000_00011_00001_011_01000_0100011, // SD r1, r3, 8
-        'b0000000_00010_00001_011_10000_0100011, // SD r1, r2, h10
-
-        'b0000000_00011_00001_010_10100_0100011, // SW r1, r3, h14
-        'b0000000_00011_00001_001_00010_0100011, // SH r1, r3, h2
-        'b0000000_00010_00001_000_00001_0100011, // SB r1, r2, h1
-
-        'b0000000_00011_00001_000_11000_0100011, // SB r1, r3, h18
-        'b0000000_00010_00001_000_11001_0100011, // SB r1, r2, h19
-        'b0000000_00011_00001_001_11010_0100011, // SH r1, r3, h1A
-        'b0000000_00010_00001_010_11100_0100011, // SW r1, r2, h1C
-        'b0000000_00011_00001_000_11111_0100011, // SB r1, r3, h1F
+        'b0000000_00100_00001_011_00000_0100011, // SD r1, r4, 0
+        'b0000000_00000_00001_010_00100_0100011, // SW r1, r0, 4
+        'b0000000_00011_00001_000_00000_0100011, // SB r1, r3, 0
+        'b0000000_00011_00001_000_00010_0100011, // SB r1, r3, 2
+        'b0000000_00011_00001_000_00011_0100011, // SB r1, r3, 3
+        'b0000000_00010_00001_000_00110_0100011, // SB r1, r2, 6
 
         'b11111111110111111111_00000_1101111,   // Inf. loop
-         sram_addr[31:0], sram_addr[63:32],     // sram ptr
-         'hAABBCCDD, 'hAAEEBBFF,                // misc data
-         'h11223344, 'h55667788                 // misc data
+         gpio_addr[31:0], gpio_addr[63:32]     // gpio ptr
     }};
 
     wire cs, sclk, si, so, wp, hold;
@@ -45,7 +39,8 @@ module func_store_tb;
     wire [4:0] reg_read_sel;
     wire [`XLEN-1:0] reg_read_data;
 
-    basic_soc soc(
+    // Note: Only 7 since we want to test the "out of bounds" gpio is still addressable (just disconnected)
+    basic_soc #(.GPIO_OUTPUTS(7)) soc(
         .clk,
         .rst,
 
@@ -59,7 +54,7 @@ module func_store_tb;
         .reg_pc,
         .reg_read_sel,
         .reg_read_data,
-        .gpio_outputs()
+        .gpio_outputs(outputs)
     );
 
     initial begin
@@ -98,16 +93,10 @@ module func_store_tb;
     initial begin
         #2; @(posedge clk);
 
-        #1000;
+        #750;
 
-        assert(soc.core.regs.xreg[1] == sram_addr);
-        assert(soc.core.regs.xreg[2] == 'hAAEEBBFFAABBCCDD);
-        assert(soc.core.regs.xreg[3] == 'h5566778811223344);
-
-        axi4_read_expect_data(.addr(sram_addr), .data('hAAEEBBFF3344DDDD));
-        axi4_read_expect_data(.addr(sram_addr+'h8), .data('h5566778811223344));
-        axi4_read_expect_data(.addr(sram_addr+'h10), .data('h11223344AABBCCDD));
-        axi4_read_expect_data(.addr(sram_addr+'h18), .data('h44BBCCDD3344DD44));
+        assert(outputs == 'b100_0010);
+        axi4_read_expect_data(.addr(gpio_addr), .data('h00010000_00000100));
         $finish();
     end
 endmodule

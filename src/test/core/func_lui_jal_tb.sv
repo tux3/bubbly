@@ -4,9 +4,9 @@
 module func_lui_jal_tb;
     timeunit 100ns;
     timeprecision 10ns;
-    
+
     bit clk = 0;
-    bit rst = 0; 
+    bit rst = 0;
 
     const logic [5*32-1:0] code_buf = {<<32{
         'b10101011110011011110_00010_0110111, // LUI r2, 0xABCDE000
@@ -21,27 +21,28 @@ module func_lui_jal_tb;
         .*,
         .buffer(code_buf)
     );
-    
+
     wire [`XLEN-1:0] reg_pc;
     wire [4:0] reg_read_sel;
     wire [`XLEN-1:0] reg_read_data;
-    
+
     basic_soc soc(
         .clk,
         .rst,
-        
+
         .cs,
         .sclk,
         .si,
         .so,
         .wp,
         .hold,
-        
+
         .reg_pc,
         .reg_read_sel,
-        .reg_read_data
+        .reg_read_data,
+        .gpio_outputs()
     );
-    
+
     initial begin
         #0 rst = 1;
         #2 rst = 0;
@@ -49,10 +50,10 @@ module func_lui_jal_tb;
 
     initial forever
         #0.5 clk = !clk;
-    
+
     initial begin
         #2; @(posedge clk);
-    
+
         #500;
 
         assert($signed(soc.core.regs.xreg[1]) == 32'sh00000008);

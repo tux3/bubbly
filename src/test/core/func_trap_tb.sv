@@ -4,7 +4,7 @@
 module func_trap_tb;
     timeunit 100ns;
     timeprecision 10ns;
-    
+
     bit clk = 0;
     bit rst = 0;
 
@@ -57,7 +57,8 @@ module func_trap_tb;
 
         .reg_pc,
         .reg_read_sel,
-        .reg_read_data
+        .reg_read_data,
+        .gpio_outputs()
     );
 
     initial begin
