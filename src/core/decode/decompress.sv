@@ -78,6 +78,13 @@ decode_decompress_impl decode_decompress_impl(
     .*
 );
 
+`ifndef SYNTHESIS
+always @(posedge clk) begin
+    assert property (!stall_next && !decomp_exception |-> !$isunknown(decomp_original_instruction[15:0]));
+    assert property (!stall_next && !decomp_exception |-> !$isunknown(decomp_expanded_instruction));
+end
+`endif
+
 endmodule
 
 // Pipeline oblivious, protected from stalls by the parent's skid buffer
@@ -157,10 +164,7 @@ wire [4:0] rs2_prime = {2'b01, c_instr[4:2]};
 logic [`ILEN-1:0] expanded;
 logic is_c_reserved;
 
-always @(posedge clk) begin
-    decomp_original_instruction <= instruction;
-    decomp_expanded_instruction <= is_compressed ? expanded : instruction;
-
+always_comb begin
     unique case (c_op)
         COP_ADDI4SPN: expanded = {{2'b00, ciw_imm}, 5'b00010, 3'b000, rd_prime, decode_types::OP_OP_IMM, 2'b11};
         COP_LW: expanded = {{5'b00000, cls_woff}, rs1_prime, 3'b010, rd_prime, decode_types::OP_LOAD, 2'b11};
@@ -244,9 +248,14 @@ always @(posedge clk) begin
         decomp_trap_cause <= 'x;
         decomp_instruction_addr <= 'x;
         decomp_instruction_next_addr <= 'x;
+        decomp_original_instruction <= 'x;
+        decomp_expanded_instruction <= 'x;
     end else begin
         decomp_instruction_addr <= instruction_addr;
         decomp_instruction_next_addr <= instruction_next_addr;
+
+        decomp_original_instruction <= instruction;
+        decomp_expanded_instruction <= is_compressed ? expanded : instruction;
 
         if (ifetch_exception) begin
             decomp_exception <= '1;
