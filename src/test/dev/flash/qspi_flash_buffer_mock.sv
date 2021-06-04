@@ -15,7 +15,7 @@ logic [2:0] recv_count;
 logic [7:0] recv_buf;
 wire recv_got_byte = recv_count == 0;
 
-logic [23:0] addr;
+logic [8:0] addr; // FIXME: Should be 23
 wire should_send = !cs && quad_mode == SEND;
 
 logic send_id;
