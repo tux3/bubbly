@@ -2,3 +2,8 @@ build/
 notes/
 project/
 
+soft/*/*.bin
+soft/*/*.elf
+soft/*/*.o
+soft/*/*.mcs
+soft/*/*.prm
