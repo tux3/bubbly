@@ -43,13 +43,13 @@ spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
     .clk,
     .rst,
     
-    .LED(LED[0]),
+    .LED(LED[3:1]),
     
     .*
 );
 
-logic [25:0] counter;
-assign LED[3:1] = counter[$bits(counter)-1 -: 3];
+logic [23:0] counter;
+assign LED[0] = counter[$bits(counter)-1];
 
 always_ff @(posedge clk) begin
     if (rst)

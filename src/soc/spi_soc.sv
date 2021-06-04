@@ -1,7 +1,8 @@
 `include "../core/params.svh"
 
 module spi_soc#(
-    parameter RESET_PC = `RESET_PC
+    parameter RESET_PC = `RESET_PC,
+    parameter LED_OUTPUTS = 3
 ) (
     input clk,
     input rst,
@@ -21,7 +22,7 @@ module spi_soc#(
     output PROBE_3,
     output PROBE_4,
     output PROBE_5,
-    output reg LED
+    output reg [LED_OUTPUTS-1:0] LED
 );
 
 assign PROBE_0 = '0;
@@ -33,7 +34,7 @@ assign PROBE_5 = '0;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
-logic gated_core_clk = clk & core_clk_enable_reg;
+wire gated_core_clk = clk & core_clk_enable_reg;
 
 reg [7:0] send_data;
 wire send_ready;
@@ -55,11 +56,11 @@ spi_slave spi(
 
 wire [`XLEN-1:0] reg_pc;
 wire [`XLEN-1:0] core_reg_read_data;
-wire led_gpio;
+wire [$bits(LED)-1:0] led_gpio;
 
 basic_soc #(
     .RESET_PC(RESET_PC),
-    .GPIO_OUTPUTS(1)
+    .GPIO_OUTPUTS($bits(LED))
 ) basic_soc (
     .clk(gated_core_clk),
     .rst,
@@ -117,7 +118,7 @@ end
 
 reg led_buf;
 always @(posedge clk)
-    LED <= led_buf | led_gpio;
+    LED <= led_gpio | led_buf;
 
 // Handle received SPI commands
 always @(posedge clk)
@@ -129,7 +130,7 @@ begin: set_led
         send_buf_count <= '0;
         dbg_state <= DBG_IDLE;
         dbg_reply_signaled <= '0;
-        core_clk_enable <= '0;
+        core_clk_enable <= '1;
         core_clk_pulse <= '0;
     end else if (recv_ready) begin
         if (dbg_state == DBG_IDLE) begin
