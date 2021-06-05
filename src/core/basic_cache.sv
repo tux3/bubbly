@@ -46,8 +46,7 @@ bram #(
     .block_addr_width(basic_cache_params::bram_addr_width),
     .block_data_width(basic_cache_params::bram_block_data_width)
 ) bram_basic_cache (
-    .wclk(clk),
-    .rclk(clk),
+    .clk(clk),
 	.write_mask,
     .waddr(line_waddr),
     .raddr(line_raddr),

@@ -8,8 +8,7 @@ module bram_block #(
     input [addr_width-1:0] raddr,
     input [data_width-1:0] wdata,
     input write_enable,
-    input wclk,
-    input rclk,
+    input clk,
     output logic [data_width-1:0] rdata
 );
     logic [data_width-1:0] mem [(1<<addr_width)-1:0];
@@ -23,20 +22,29 @@ module bram_block #(
 
     generate
         if (read_after_write) begin
+            reg conflict;
+            reg [data_width-1:0] written_data;
             reg [addr_width-1:0] raddr_reg;
-            assign rdata = mem[raddr_reg];
+            assign rdata = conflict ? written_data : mem[raddr_reg];
 
-            always_ff @(posedge rclk)
+            always_ff @(posedge clk)
+                if (write_enable)
+                    written_data <= wdata;
+
+            always_ff @(posedge clk)
+                conflict <= write_enable && raddr == waddr;
+
+            always_ff @(posedge clk)
                 raddr_reg <= raddr;
 
-            always_ff @(posedge wclk)
+            always_ff @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end else begin
-            always_ff @(posedge rclk)
+            always_ff @(posedge clk)
                 rdata <= mem[raddr];
 
-            always_ff @(posedge wclk)
+            always_ff @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end
@@ -51,8 +59,7 @@ module bram #(
     parameter block_data_width = 16, // Bits each BRAM block can r/w per cycle
     localparam data_width = block_data_width*blocks // Total bits/cycle bandwidth
 ) (
-    input wclk,
-    input rclk,
+    input clk,
     input [block_addr_width-1:0] waddr,
     input [block_addr_width-1:0] raddr,
     input [data_width-1:0] wdata,
@@ -67,8 +74,7 @@ module bram #(
                 .addr_width(block_addr_width),
                 .data_width(block_data_width)
             ) bram_block (
-                .wclk,
-                .rclk,
+                .clk,
                 .waddr,
                 .raddr,
                 .wdata(wdata[i*block_data_width +: block_data_width]),

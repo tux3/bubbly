@@ -207,8 +207,7 @@ generate for (i=0; i<total_bram_count; i=i+1) begin
         .block_addr_width(bram_block_addr_width),
         .block_data_width(bram_block_data_width)
     ) bram_slice (
-        .wclk(bus.aclk),
-        .rclk(bus.aclk),
+        .clk(bus.aclk),
     	.write_mask(wstrb & {per_bram_blocks{write_enable && bram_write_index == i}}),
         .waddr(bram_write_addr),
         .raddr(bram_read_addr),
