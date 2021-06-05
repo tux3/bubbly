@@ -196,7 +196,7 @@ always_comb begin
                 endcase
             endcase
         end
-        COP_J: expanded = {{9{cj_off[11]}}, cj_off[11:1], 5'b00000, decode_types::OP_JAL, 2'b11};
+        COP_J: expanded = {cj_off[11], cj_off[10:1], cj_off[11], {8{cj_off[11]}}, 5'b00000, decode_types::OP_JAL, 2'b11};
         COP_BEQZ: expanded = {{3{cb_off[8]}}, cb_off[8:5], 5'b00000, rs1_prime, 3'b000, {cb_off[4:1], cb_off[8]} , decode_types::OP_BRANCH, 2'b11};
         COP_BNEZ: expanded = {{3{cb_off[8]}}, cb_off[8:5], 5'b00000, rs1_prime, 3'b001, {cb_off[4:1], cb_off[8]} , decode_types::OP_BRANCH, 2'b11};
         COP_SLLI: expanded = {6'b000000, ci_imm, rd_rs1, 3'b001, rd_rs1, decode_types::OP_OP_IMM, 2'b11};
