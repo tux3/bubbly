@@ -177,11 +177,11 @@ always_ff @(posedge clk) begin
         if (input_valid) begin
             busy <= '1;
             exec_is_reg_write <= decode_is_reg_write && rd != '0;
-            exec_reg_write_sel <= decode_is_reg_write ? rd : 'x;
+            exec_reg_write_sel <= decode_is_reg_write ? rd : '0;
         end else if (!stall_next) begin
             busy <= '0;
             exec_is_reg_write <= '0;
-            exec_reg_write_sel <= 'x;
+            exec_reg_write_sel <= '0;
         end
     end
 end
