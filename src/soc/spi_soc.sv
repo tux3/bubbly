@@ -108,7 +108,7 @@ logic [3:0] send_buf_count;
 
 always @(negedge clk) begin
     if (rst) begin
-        core_clk_enable_reg <= '0;
+        core_clk_enable_reg <= '1; // We have synchronous resets, so the clock must run during rst!
         core_clk_pulse_reg <= '0;
     end else begin
         core_clk_enable_reg <= core_clk_enable | (core_clk_pulse != core_clk_pulse_reg);
