@@ -56,7 +56,7 @@ always_comb begin
         exec_branch_target_comb = {branch_adder_result[`ALEN-1:1], 1'b0};
         illegal_instruction_exception = funct3 != '0;
     end else if (opcode == decode_types::OP_BRANCH) begin
-        branch_adder_op_1 = {{`ALEN-20{b_imm[12]}}, b_imm[11:1], 1'b0};
+        branch_adder_op_1 = {{`ALEN-12{b_imm[12]}}, b_imm[11:1], 1'b0};
         branch_adder_op_2 = decode_instruction_addr;
         exec_branch_target_comb = branch_adder_result;
         illegal_instruction_exception = funct3 == 3'b010 || funct3 == 3'b011;
