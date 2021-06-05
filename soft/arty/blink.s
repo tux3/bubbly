@@ -1,4 +1,4 @@
-.equ    GPIO_BASE, 0x10000000000
+.equ    GPIO_BASE, 0x20000000000
 .globl _start
 
 _start:
@@ -6,7 +6,7 @@ _start:
 	li s2, 1
 
 loop:
-	li s3, 10*1000*1000
+	li s3, 2*1000*1000
 	sb s2, 0(s1)
 	xor s2, s2, 1
 
