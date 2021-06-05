@@ -52,6 +52,7 @@ wire dcache_lookup_valid;
 
 basic_cache dcache(
 	.clk,
+	.rst,
 	.write_enable(dcache_write_enable),
 	.waddr(dcache_waddr),
 	.wdata(dcache_wdata),

@@ -30,6 +30,7 @@ wire [basic_cache_params::data_size-1:0] icache_rdata;
 wire icache_lookup_valid;
 basic_cache icache(
 	.clk,
+	.rst,
 	.write_enable(icache_write_enable),
 	.waddr(icache_waddr),
 	.wdata(icache_wdata),

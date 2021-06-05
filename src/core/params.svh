@@ -4,7 +4,7 @@
 `define _CORE_PARAMS_INCLUDE
 
 // Maximum usable address size. Constrained by the tag size in our cache entries
-`define ALEN 42
+`define ALEN 43
 // Register size
 `define XLEN 64
 // Maximum instruction size

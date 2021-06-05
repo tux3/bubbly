@@ -8,16 +8,16 @@ localparam bram_addr_width = 8;
 localparam bram_block_data_width = 16;
 localparam align_bits = $clog2(data_size/8);
 localparam aligned_addr_size = `ALEN - align_bits;
-localparam flags_size = 1; // Valid flag
 localparam entry_size = bram_blocks*bram_block_data_width;
-localparam tag_size = entry_size - data_size - flags_size;
+localparam tag_size = entry_size - data_size;
 endpackage
 
-// Our basic_cache stores 64bits of data (64bit aligned), with ALEN=42 it requires 31 bits of tags (and valid 1bit), for 96bit per entry
+// Our basic_cache stores 64bits of data (64bit aligned), with 32 bits of tags we match ALEN=43, at 96bit per entry
 // On the iCE40 a BRAM is 4kbits 16-bit addressable, so we fit 256*96bit entries in 6 BRAMs
-// Cache line entry format: | Tag | Valid | Data |
+// Cache line entry format: | Tag | Data |
 module basic_cache (
 	input clk,
+	input rst,
 	input write_enable,
 	input [basic_cache_params::aligned_addr_size-1:0] waddr,
 	input [basic_cache_params::data_size-1:0] wdata,
@@ -30,7 +30,7 @@ module basic_cache (
 generate
 	if (basic_cache_params::aligned_addr_size != basic_cache_params::bram_addr_width + basic_cache_params::tag_size)
 		$error("basic_cache's aligned_addr_size is inconsistent with other params");
-	if (basic_cache_params::entry_size != basic_cache_params::tag_size + basic_cache_params::flags_size + basic_cache_params::data_size)
+	if (basic_cache_params::entry_size != basic_cache_params::tag_size + basic_cache_params::data_size)
 		$error("basic_cache's entry_size is inconsistent with other params");
 endgenerate
 
@@ -55,17 +55,19 @@ bram #(
     .rdata(line_rdata)
 );
 
+logic [(1<<basic_cache_params::bram_addr_width)-1:0] valid_bits;
+logic [basic_cache_params::bram_addr_width-1:0] valid_raddr;
+wire entry_valid = valid_bits[valid_raddr];
+
 logic [basic_cache_params::tag_size-1:0] cur_raddr_tag;
 logic [basic_cache_params::tag_size-1:0] last_raddr_tag;
-wire [basic_cache_params::data_size-1:0] entry_instructions = line_rdata[0 +: basic_cache_params::data_size];
-wire [0:0] entry_valid = line_rdata[basic_cache_params::data_size];
-wire [basic_cache_params::tag_size-1:0] entry_tag = line_rdata[basic_cache_params::data_size+basic_cache_params::flags_size +: basic_cache_params::tag_size];
+wire [basic_cache_params::tag_size-1:0] entry_tag = line_rdata[basic_cache_params::data_size +: basic_cache_params::tag_size];
 
 always_comb begin: bram_io
 	logic [basic_cache_params::tag_size-1:0] cur_waddr_tag;
 	cur_waddr_tag = waddr[$size(waddr)-1 -: basic_cache_params::tag_size];
 	line_waddr = waddr[0 +: basic_cache_params::bram_addr_width];
-	line_wdata = {cur_waddr_tag, 1'b1, wdata};
+	line_wdata = {cur_waddr_tag, wdata};
 
 	cur_raddr_tag = raddr[$size(raddr)-1 -: basic_cache_params::tag_size];
 	line_raddr = raddr[0 +: basic_cache_params::bram_addr_width];
@@ -73,7 +75,24 @@ always_comb begin: bram_io
 	lookup_valid = entry_valid && last_raddr_tag == entry_tag;
 end
 
-always_ff @(posedge clk)
-	last_raddr_tag <= cur_raddr_tag;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        valid_bits <= '0;
+        valid_raddr <= '0;
+    end else begin
+        if (write_enable)
+            valid_bits[line_waddr] <= 1'b1;
+        valid_raddr <= line_raddr;
+    end
+end
+
+
+always_ff @(posedge clk) begin
+if (rst) begin
+        last_raddr_tag <= 'x;
+    end else if (write_enable) begin
+        last_raddr_tag <= cur_raddr_tag;
+    end
+end
 
 endmodule
