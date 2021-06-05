@@ -1,4 +1,5 @@
 `include "../axi/axi4lite.svh"
+`include "../core/params.svh"
 
 module axi4lite_gpio #(
     parameter NUM_OUTPUTS = 4,
