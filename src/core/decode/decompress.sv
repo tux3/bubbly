@@ -116,7 +116,7 @@ typedef enum bit [4:0] {
     COP_SW =            5'b110_00,
     COP_SD =            5'b111_00,
     COP_ADDI =          5'b000_01,
-    COP_ADDIW =         5'b001_01,
+    COP_ADDIW =         5'b001_01, // NOTE: This replaces C.JAL, which is RV32 only
     COP_LI =            5'b010_01,
     COP_LUI_ADDI16SP =  5'b011_01,
     COP_MISC_ALU =      5'b100_01,
