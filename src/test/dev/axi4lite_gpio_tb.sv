@@ -30,7 +30,7 @@ module axi4lite_gpio_tb;
     }};
 
     wire cs, sclk, si, so, wp, hold;
-    qspi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
+    serial_spi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
     );
@@ -93,7 +93,7 @@ module axi4lite_gpio_tb;
     initial begin
         #2; @(posedge clk);
 
-        #750;
+        #1000;
 
         assert(outputs == 'b100_0010);
         axi4_read_expect_data(.addr(gpio_addr), .data('h00010000_00000100));
