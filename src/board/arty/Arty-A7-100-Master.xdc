@@ -16,7 +16,7 @@ set_property CONFIG_MODE SPIx4 [current_design]
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports CLK100MHZ]
 create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_ports CLK100MHZ]
 create_generated_clock -name sys_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT0]
-create_clock -period 40.000 -name FLASH_CLK -waveform {0.000 20.000}
+create_clock -period [get_property PERIOD [get_clocks sys_clk]] -name FLASH_CLK
 
 create_clock -period 500.000 -name SPI_CLK -waveform {0.000 250.000} [get_ports SPI_CLK]
 
