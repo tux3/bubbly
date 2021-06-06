@@ -21,10 +21,9 @@ module top(
     inout FLASH_WP,
     inout FLASH_HOLD,
 
+    input [3:0] SWITCH,
     output [9:0] PROBE,
-
     output PROBE_GND_34,
-
     output reg [3:0] LED
     );
 
@@ -36,10 +35,18 @@ pll pll(
     .rst
 );
 
+reg [$bits(SWITCH)-1:0] switch_sync1;
+reg [$bits(SWITCH)-1:0] switch_reg;
+always_ff @(posedge clk) begin
+    switch_sync1 <= SWITCH;
+    switch_reg <= switch_sync1;
+end
+
 spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
     .clk,
     .rst,
 
+    .SWITCH(switch_reg[0]),
     .PROBE,
     .LED(LED[3:1]),
 

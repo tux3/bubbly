@@ -15,6 +15,7 @@ always_ff @(posedge clk) begin
     rst <= ~&{rstn_buf, locked & RSTN};
 end
 
+// Note: Set to DIVCLK_DIVIDE(5) CLKOUT0_DIVIDE(125) if trying to probe w/ slow logic analyzer...
 PLLE2_BASE #(
     .BANDWIDTH("OPTIMIZED"),   // Jitter programming (OPTIMIZED, HIGH, LOW)
     .CLKFBOUT_MULT(40),     // Multiply value for all CLKOUT (2.000-64.000).

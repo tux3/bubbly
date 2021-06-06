@@ -17,6 +17,7 @@ module spi_soc#(
     inout FLASH_MISO,
     inout FLASH_WP,
     inout FLASH_HOLD,
+    input [0:0] SWITCH,
     output [PROBE_OUTPUTS-1:0] PROBE,
     output reg [LED_OUTPUTS-1:0] LED
 );
@@ -43,7 +44,8 @@ assign PROBE = '0;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
-wire gated_core_clk = clk & core_clk_enable_reg;
+// We have synchronous resets, so the gated clock must run during rst!
+wire gated_core_clk = clk && (rst || (SWITCH & core_clk_enable_reg));
 
 reg [7:0] send_data;
 wire send_ready;
@@ -120,7 +122,7 @@ logic [3:0] send_buf_count;
 
 always @(negedge clk) begin
     if (rst) begin
-        core_clk_enable_reg <= '1; // We have synchronous resets, so the clock must run during rst!
+        core_clk_enable_reg <= '0;
         core_clk_pulse_reg <= '0;
     end else begin
         core_clk_enable_reg <= core_clk_enable | (core_clk_pulse != core_clk_pulse_reg);
