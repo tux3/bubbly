@@ -89,7 +89,7 @@ module ifetch_tb;
         @(negedge ifetch_stall_next);
         if (expect_exception) begin
             assert(ifetch_exception);
-            assert(instruction === 'x);
+            assert(ifetch_trap_cause == trap_causes::EXC_ILLEGAL_INSTR);
         end else begin
             assert(!ifetch_exception);
             assert(instruction_addr == addr);

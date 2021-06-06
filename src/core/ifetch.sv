@@ -258,6 +258,36 @@ always @(posedge clk) begin
 	endcase
 end
 
+// next_instruction is potentially invalid until we receive valid data
+logic [`ILEN-1:0] next_instruction;
+wire next_instruction_invalid_len = next_instruction[4:0] == 'b11111;
+always_comb begin
+    unique case (state)
+    // Note that we report alignment exceptions on the next cycle when entering STATE_EXCEPTION. It's not a huge priority to optimize.
+    STATE_EXCEPTION: next_instruction = 'x;
+    STATE_STALLED: next_instruction = instruction;
+    STATE_WAIT_1ST_READ: begin
+        if (!sys_bus.rvalid)
+            next_instruction = instruction;
+        else if (bus_fetch_crosses_lines)
+            next_instruction = {icache_rdata[0 +: 16], sys_bus.rdata[$size(sys_bus.rdata)-1 -: 16]};
+        else
+            next_instruction = sys_bus.rdata[line_instr_offset +: `ILEN];
+    end
+    STATE_CHECK_1ST_LOOKUP: begin
+        if (!icache_lookup_valid || (next_stalled && !stall_next))
+            next_instruction = instruction;
+        else if (cache_fetch_crosses_lines)
+            next_instruction = {16'bx, icache_rdata[$size(icache_rdata)-1 -: 16]}; // A 1st lookup can't complete simultaneously w/ a 2nd, so just xpad
+        else
+            next_instruction = icache_rdata[line_instr_offset +: `ILEN];
+    end
+    STATE_WAIT_2ND_READ: next_instruction = sys_bus.rvalid ? {sys_bus.rdata[0 +: 16], instruction[0 +: `ILEN - 16]} : instruction;
+    STATE_CHECK_2ND_LOOKUP: next_instruction = icache_lookup_valid ? {icache_rdata[0 +: 16], instruction[0 +: `ILEN - 16]} : instruction;
+    default: next_instruction = instruction;
+    endcase
+end
+
 // Outputs
 always @(posedge clk) begin
     if (rst || flush) begin
@@ -266,47 +296,34 @@ always @(posedge clk) begin
         instruction <= 'x;
         instruction_addr <= 'x;
     end else begin: update_outputs
-		logic [`ILEN-1:0] next_instruction;
-		logic invalid_len_exception;
-
 		`ifndef SYNTHESIS
 		unique // Yosys does not parse "unique if"
 		`endif
 		// Note that we report alignment exceptions on the next cycle when entering STATE_EXCEPTION. It's not a huge priority to optimize.
         if (state == STATE_EXCEPTION) begin
-            next_instruction = 'x;
             stall_next <= '0;
-		end else if (state == STATE_STALLED) begin
-			next_instruction = instruction;
+        end else if (state == STATE_STALLED) begin
             stall_next <= !next_stalled;
         // Only one line to read (note: we'll get trailing Xs reading compressed instrs at the end of a line due to +: `ILEN, but that's okay)
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && !bus_fetch_crosses_lines) begin
-            next_instruction = sys_bus.rdata[line_instr_offset +: `ILEN];
             stall_next <= '0;
         end else if (state == STATE_CHECK_1ST_LOOKUP && next_stalled && !stall_next) begin
             // We're going to STATE_STALLED, our outputs are valid and we don't want to overwrite them before the next handshake
-            next_instruction = instruction;
             stall_next <= '0;
         end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && !cache_fetch_crosses_lines) begin
-            next_instruction = icache_rdata[line_instr_offset +: `ILEN];
             stall_next <= '0;
         // Complete instruction with 2nd read
         end else if (state == STATE_WAIT_2ND_READ && sys_bus.rvalid) begin
-            next_instruction = {sys_bus.rdata[0 +: 16], instruction[0 +: `ILEN - 16]};
             stall_next <= '0;
         end else if (state == STATE_CHECK_2ND_LOOKUP && icache_lookup_valid) begin
-            next_instruction = {icache_rdata[0 +: 16], instruction[0 +: `ILEN - 16]};
             stall_next <= '0;
         // Partial 1st read, potentially immediately completed by 2nd lookup from cache
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && bus_fetch_crosses_lines) begin
-            next_instruction = {icache_rdata[0 +: 16], sys_bus.rdata[$size(sys_bus.rdata)-1 -: 16]};
             stall_next <= !icache_lookup_valid;
         end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && cache_fetch_crosses_lines) begin
-            next_instruction = {16'bx, icache_rdata[$size(icache_rdata)-1 -: 16]}; // A 1st lookup can't complete simultaneously w/ a 2nd, so just xpad
             stall_next <= '1;
         // Yay more waiting. This pipeline isn't called bubbly for nothing
         end else begin
-			next_instruction = instruction;
             stall_next <= '1;
         end
 
@@ -316,17 +333,13 @@ always @(posedge clk) begin
         else if (state == STATE_STALLED && !next_stalled)
             instruction_addr <= 'x;
 
-		invalid_len_exception = next_instruction[4:0] == 'b11111;
-        if (invalid_len_exception) begin
-            next_instruction = 'x;
+        if (next_instruction_invalid_len)
             ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-        end else begin
-            // Default trap cause is EXC_ILLEGAL_INSTR
-            ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-        end
+        else
+            ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR; // Default trap cause
 
 		instruction <= next_instruction;
-		ifetch_exception <= invalid_len_exception || state == STATE_EXCEPTION;
+		ifetch_exception <= next_instruction_invalid_len || state == STATE_EXCEPTION;
     end
 end
 
