@@ -1,0 +1,1 @@
+write_cfgmem  -format mcs -size 16 -interface SPIx4 -loadbit {up 0x00000000 "/code/projects/fpga/xilinx/bubbly/bubbly.runs/impl_1/top.bit" } -loaddata {up 0x00400000 "/code/projects/fpga/bubbly/soft/arty/blink.bin" } -force -file "/code/projects/fpga/bubbly/soft/arty/blink_cfgmem.mcs"
