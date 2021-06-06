@@ -14,7 +14,7 @@ AVHDL_SIM_OPTS=-O5 -L ice -l ${AVHDL_LOG} +access +w_nets +accb +accr +access +r
 
 SV_AUTO_ORDER_FAILED=//__SV_AUTO_ORDER_FAIL__// # Can't find a clean way to exit if a $shell command fails, so use a marker error value
 SRCFILES_UNORDERED=$(filter-out $(shell find ${SRCDIR}/test/ -name *.v -or -name *.sv) $(shell find ${SRCDIR}/board/arty/ -name *.sv), $(shell find ${SRCDIR} -name *.v -or -name *.sv -or -name *.svh))
-test: TESTBENCHES=$(shell find ${PWD}/${SRCDIR}/test/ -name *_tb.v -or -name *_tb.sv)
+test: TESTBENCHES=$(filter-out $(shell find ${PWD}/${SRCDIR}/test/post_synth/ -type f), $(shell find ${PWD}/${SRCDIR}/test/ -name *_tb.v -or -name *_tb.sv))
 test: TESTSRC=$(shell sv_auto_order --absolute $(filter-out $(shell find ${PWD}/${SRCDIR}/test/ -name *_tb.v -or -name *_tb.sv), $(shell find ${PWD}/${SRCDIR}/test/ -name *.v -or -name *.sv)))
 test: SRCFILES=$(shell sv_auto_order --absolute ${SRCFILES_UNORDERED})
 ${BINDIR}/${PRJ}.json: SRCFILES=$(shell sv_auto_order ${SRCFILES_UNORDERED})
