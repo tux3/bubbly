@@ -101,7 +101,7 @@ module axi4lite_flash #(
             bus.rvalid <= 'b0;
         end else if (bus.rready && bus.rvalid) begin
             bus.rvalid <= 'b0;
-        end else if (read_counter == 'h1) begin
+        end else if (read_counter == 'h1 && data_ready) begin
             bus.rvalid <= 'b1;
         end
     end
