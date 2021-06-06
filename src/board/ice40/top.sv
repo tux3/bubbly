@@ -32,9 +32,13 @@ pll pll(
     .reset_out(rst)
 );
 
+wire CORE_CLK_SWITCH = '1;
+
 spi_soc spi_soc(
     .clk,
     .rst,
+
+    .SWITCH(CORE_CLK_SWITCH),
 
     .*
 );

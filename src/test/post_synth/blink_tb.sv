@@ -9,6 +9,7 @@ module blink_tb;
     bit rst = 0;
 
     logic [3:0] LED;
+    bit [3:0] SWITCH = '1;
 
     bit [64-1:0] gpio_addr = {{64-`ALEN{1'b0}}, 3'b010, {`ALEN-3{1'b0}}};
     const logic [14*32-1:0] code_buf = {<<32{
@@ -57,6 +58,7 @@ module blink_tb;
         .FLASH_WP(wp),
         .FLASH_HOLD(hold),
 
+        .SWITCH,
         .LED
     );
 
