@@ -2,6 +2,7 @@
 
 module spi_soc#(
     parameter RESET_PC = `RESET_PC,
+    parameter PROBE_OUTPUTS = 10,
     parameter LED_OUTPUTS = 3
 ) (
     input clk,
@@ -16,21 +17,29 @@ module spi_soc#(
     inout FLASH_MISO,
     inout FLASH_WP,
     inout FLASH_HOLD,
-    output PROBE_0,
-    output PROBE_1,
-    output PROBE_2,
-    output PROBE_3,
-    output PROBE_4,
-    output PROBE_5,
+    output [PROBE_OUTPUTS-1:0] PROBE,
     output reg [LED_OUTPUTS-1:0] LED
 );
 
-assign PROBE_0 = '0;
-assign PROBE_1 = '0;
-assign PROBE_2 = '0;
-assign PROBE_3 = '0;
-assign PROBE_4 = '0;
-assign PROBE_5 = '0;
+//assign PROBE[0] = FLASH_CS;
+//assign PROBE[1] = FLASH_CLK;
+//assign PROBE[2] = FLASH_MOSI;
+//assign PROBE[3] = FLASH_MISO;
+//assign PROBE[4] = FLASH_WP;
+//assign PROBE[5] = FLASH_HOLD;
+
+//assign PROBE[0] = gated_core_clk;
+//assign PROBE[1] = basic_soc.core.ifetch_stall_next;
+//assign PROBE[2] = basic_soc.core.ifetch_exception;
+//assign PROBE[3] = basic_soc.core.decode_stall_next;
+//assign PROBE[4] = basic_soc.core.decode_next_stalled;
+//assign PROBE[5] = basic_soc.core.decode_exception;
+//assign PROBE[6] = basic_soc.core.exec_stall_next;
+//assign PROBE[7] = basic_soc.core.exec_exception;
+//assign PROBE[8] = basic_soc.core.exec_is_reg_write;
+//assign PROBE[9] = basic_soc.core.exec_is_trap;
+
+assign PROBE = '0;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
