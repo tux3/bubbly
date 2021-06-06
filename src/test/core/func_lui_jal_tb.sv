@@ -40,6 +40,7 @@ module func_lui_jal_tb;
         .reg_pc,
         .reg_read_sel,
         .reg_read_data,
+        .fetch_instr(),
         .gpio_outputs()
     );
 

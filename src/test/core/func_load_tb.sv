@@ -49,6 +49,7 @@ module func_load_tb;
         .reg_pc,
         .reg_read_sel,
         .reg_read_data,
+        .fetch_instr(),
         .gpio_outputs()
     );
 

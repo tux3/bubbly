@@ -75,6 +75,7 @@ module func_cond_branches_tb;
         .reg_pc,
         .reg_read_sel,
         .reg_read_data,
+        .fetch_instr(),
         .gpio_outputs()
     );
 
