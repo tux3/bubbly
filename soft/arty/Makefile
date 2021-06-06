@@ -9,6 +9,9 @@ blink.elf: blink.o
 blink.o: blink.s
 	clang --target=riscv64 -march=rv64ic blink.s -c -o blink.o
 
+dump: blink.elf
+	llvm-objdump -d blink.elf
+
 clean:
 	rm -f blink.bin blink.elf blink.o
 
