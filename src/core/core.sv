@@ -11,7 +11,8 @@ module core#(
     // State outputs
     input [4:0] reg_read_sel,
     output [`XLEN-1:0] reg_read_data,
-    output [`XLEN-1:0] reg_pc
+    output [`XLEN-1:0] reg_pc,
+    output [`ALEN+`ILEN-1:0] fetch_instr
 );
 
 wire [`XLEN-1:0] pc;
@@ -64,6 +65,8 @@ ifetch ifetch(
     .stall_next(ifetch_stall_next),
     .sys_bus(ifetch_port)
 );
+
+assign fetch_instr = {instruction_addr, instruction};
 
 wire decode_stall_next;
 wire decode_next_stalled;

@@ -17,6 +17,7 @@ module basic_soc#(
     inout hold,
 
     // Core debug
+    output [`ALEN+`ILEN-1:0] fetch_instr,
     output [`XLEN-1:0] reg_pc,
     input [4:0] reg_read_sel,
     output [`XLEN-1:0] reg_read_data,
@@ -92,6 +93,7 @@ core #(.RESET_PC(RESET_PC)) core(
     .ifetch_port(ifetch_axi),
     .data_port(data_axi),
 
+    .fetch_instr,
     .reg_pc,
     .reg_read_sel,
     .reg_read_data

@@ -63,6 +63,7 @@ spi_slave spi(
     .recv_ready(recv_ready)
 );
 
+wire [`ALEN+`ILEN-1:0] fetch_instr;
 wire [`XLEN-1:0] reg_pc;
 wire [`XLEN-1:0] core_reg_read_data;
 wire [$bits(LED)-1:0] led_gpio;
@@ -81,6 +82,7 @@ basic_soc #(
     .wp(FLASH_WP),
     .hold(FLASH_HOLD),
 
+    .fetch_instr,
     .reg_pc,
     .reg_read_sel(recv_data[4:0]),
     .reg_read_data(core_reg_read_data),
@@ -109,10 +111,11 @@ localparam DBG_CMD_STEP_CLOCK = 'h05;
 localparam DBG_CMD_GET_PC = 'h06;
 localparam DBG_CMD_GET_REG = 'h07;
 localparam DBG_CMD_READ_FLASH = 'h08;
+localparam DBG_CMD_GET_FETCHED_INSTR = 'h09;
 localparam DBG_CMD_ECHO_CC = 'hCC;
 logic [2:0] dbg_state;
 
-logic [63:0] send_buf;
+logic [127:0] send_buf;
 logic [3:0] send_buf_count;
 
 always @(negedge clk) begin
@@ -170,7 +173,7 @@ begin: set_led
                 send_buf <= reg_pc;
                 send_buf_count <= 8;
                 dbg_state <= DBG_REPLYING;
-                send_data <= send_buf_count;
+                send_data <= '0;
             end else if (recv_data == DBG_CMD_GET_REG) begin
                 send_data <= '0;
                 send_buf_count <= 'x;
@@ -184,6 +187,11 @@ begin: set_led
             end else if (recv_data == DBG_CMD_ECHO_CC) begin
                 send_data <= 'hCC;
                 send_buf_count <= 'x;
+            end else if (recv_data == DBG_CMD_GET_FETCHED_INSTR) begin
+                send_buf <= fetch_instr;
+                send_buf_count <= 14;
+                dbg_state <= DBG_REPLYING;
+                send_data <= '0;
             end else begin
                 send_data <= 'hFF;
                 send_buf_count <= 'x;
