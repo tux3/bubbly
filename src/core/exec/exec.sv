@@ -40,6 +40,8 @@ module exec(
 
     // We require every previous stage to reset/stall their output on flush
     output wire exec_pipeline_flush,
+    output wire exec_mispredict_detected,
+    output wire [`ALEN-1:0] exec_mispredict_next_pc,
 
     axi4lite.master data_bus
 );
@@ -59,7 +61,6 @@ wire exec_branch_exception;
 wire [3:0] exec_branch_trap_cause;
 wire exec_branch_taken;
 wire [`XLEN-1:0] exec_branch_result;
-wire exec_mispredict_detected;
 exec_branch exec_branch(
     .*
 );

@@ -27,7 +27,8 @@ module exec_branch(
     output reg [`XLEN-1:0] exec_branch_result,
     output reg [`ALEN-1:0] exec_branch_target,
 
-    output wire exec_mispredict_detected
+    output wire exec_mispredict_detected,
+    output wire [`ALEN-1:0] exec_mispredict_next_pc
 );
 
 always_ff @(posedge clk) begin
@@ -123,6 +124,7 @@ wire last_branch_just_taken = exec_branch_taken;
 reg [`ALEN-1:0] last_branch_target;
 
 assign exec_mispredict_detected = input_valid_unless_mispredict && last_branch_just_taken && last_branch_target != decode_instruction_addr;
+assign exec_mispredict_next_pc = last_branch_target;
 
 always_ff @(posedge clk) begin
     if (rst) begin

@@ -34,10 +34,14 @@ module ifetch_tb;
     wire ifetch_stall_next;
 	wire next_stalled = '0;
     wire flush = '0;
+    wire flush_is_mispredict = '0;
+    wire [`ALEN-1:0] flush_next_pc = 'x;
     ifetch ifetch(
         .clk,
         .rst,
         .flush,
+        .flush_is_mispredict,
+        .flush_next_pc,
 
         .pc(source_addr),
         .instruction,

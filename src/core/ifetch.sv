@@ -4,6 +4,8 @@
 module ifetch(
     input clk, rst,
     input flush,
+    input flush_is_mispredict,
+    input [`ALEN-1:0] flush_next_pc,
     input [`XLEN-1:0] pc,
 	input next_stalled,
     output reg stall_next,
@@ -80,21 +82,25 @@ end
 
 // Read cache lines
 always_comb begin
-	`ifndef SYNTHESIS
-	unique // Yosys does not parse "unique if" ...
-	`endif
-	if (state == STATE_START_1ST_LOOKUP_FROM_PC)
-		icache_raddr = pc[`ALEN-1 -: $size(icache_raddr)];
-	else if (state == STATE_CHECK_1ST_LOOKUP)
-		icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)]; // Valid whether we cross into next line or not
-	else if (state == STATE_START_1ST_READ || (state == STATE_WAIT_1ST_READ && !sys_bus.rvalid))
-		icache_raddr = next_cache_line_addr;
-	else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid)
-		icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)]; // Prime next CHECK_1ST_LOOKUP
-	else if (state == STATE_WAIT_2ND_READ || state == STATE_CHECK_2ND_LOOKUP || state == STATE_STALLED)
-		icache_raddr = fetch_pc[$size(fetch_pc)-1 -: $size(icache_raddr)]; // fetch_pc has been updated after the 1st read, is now the next line (due to crossing)
-	else
-		icache_raddr = 'x;
+    if (flush_is_mispredict) begin
+	   icache_raddr = flush_next_pc[`ALEN-1 -: $size(icache_raddr)];
+	end else begin
+        `ifndef SYNTHESIS
+        unique // Yosys does not parse "unique if" ...
+        `endif
+        if (state == STATE_START_1ST_LOOKUP_FROM_PC)
+            icache_raddr = pc[`ALEN-1 -: $size(icache_raddr)];
+        else if (state == STATE_CHECK_1ST_LOOKUP)
+            icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)]; // Valid whether we cross into next line or not
+        else if (state == STATE_START_1ST_READ || (state == STATE_WAIT_1ST_READ && !sys_bus.rvalid))
+            icache_raddr = next_cache_line_addr;
+        else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid)
+            icache_raddr = next_fetch_pc_comb[$size(next_fetch_pc_comb)-1 -: $size(icache_raddr)]; // Prime next CHECK_1ST_LOOKUP
+        else if (state == STATE_WAIT_2ND_READ || state == STATE_CHECK_2ND_LOOKUP || state == STATE_STALLED)
+            icache_raddr = fetch_pc[$size(fetch_pc)-1 -: $size(icache_raddr)]; // fetch_pc has been updated after the 1st read, is now the next line (due to crossing)
+        else
+            icache_raddr = 'x;
+    end
 end
 
 // Write cache lines
@@ -153,7 +159,11 @@ always_comb begin
 end
 
 always @(posedge clk) begin
-	if (rst || flush) begin
+    if (flush_is_mispredict) begin
+        state <= (bus_read_pending && !sys_bus.rvalid) ? STATE_DISCARD_FLUSHED_READ : STATE_CHECK_1ST_LOOKUP;
+        fetch_pc <= flush_next_pc;
+		next_cache_line_addr <= flush_next_pc[$bits(flush_next_pc)-1:basic_cache_params::align_bits] + 1;
+	end else if (rst || flush) begin
 		// Input PC is NOT guaranteed to be stable (or even valid) in rst, so of course we need a cycle just to start the read
 		state <= bus_read_pending ? STATE_DISCARD_FLUSHED_READ : STATE_START_1ST_LOOKUP_FROM_PC;
 		fetch_pc <= 'x;
@@ -327,7 +337,7 @@ assign sys_bus.arvalid = (state == STATE_START_1ST_READ || state == STATE_START_
 assign sys_bus.araddr = fetch_pc[$size(fetch_pc)-1:basic_cache_params::align_bits] << basic_cache_params::align_bits; // fetch_pc is updated before 2nd reads, so stays valid for both
 assign sys_bus.arprot = 'b000;
 
-assign sys_bus.rready = state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ || state == STATE_DISCARD_FLUSHED_READ;
+assign sys_bus.rready = flush || state == STATE_WAIT_1ST_READ || state == STATE_WAIT_2ND_READ || state == STATE_DISCARD_FLUSHED_READ;
 
 assign sys_bus.awaddr = 'x;
 assign sys_bus.awprot = 'x;
