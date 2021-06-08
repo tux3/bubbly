@@ -1,5 +1,5 @@
-`include "params.svh"
-`include "../axi/axi4lite.svh"
+`include "core/params.svh"
+`include "axi/axi4lite.svh"
 
 module ifetch(
     input clk, rst,
@@ -23,6 +23,19 @@ generate
 		$error("icache's data_size must be 64bit (required by ifetch)");
 endgenerate
 
+wire should_follow_branch;
+wire [`ALEN-1:0] branch_target;
+follow_branch follow_branch(
+    .clk,
+    .rst,
+    
+    .instr_valid(!stall_next_comb),
+    .instruction(next_instruction),
+    .instruction_addr(fetch_pc),
+    
+    .should_follow_branch,
+    .branch_target
+);
 
 logic icache_write_enable;
 logic [basic_cache_params::aligned_addr_size-1:0] icache_waddr;
@@ -54,6 +67,7 @@ enum bit[3:0] {
 	STATE_EXCEPTION
 } state;
 logic [`ALEN-1:0] fetch_pc;
+logic [`ALEN-1:0] instr_next_addr_comb;
 logic [`ALEN-1:0] next_fetch_pc_comb;
 logic [basic_cache_params::align_bits-1:0] next_line_offset_comb;
 logic [basic_cache_params::aligned_addr_size-1:0] next_cache_line_addr;
@@ -127,35 +141,42 @@ always_comb begin
 	`endif
 	if (state == STATE_START_1ST_LOOKUP_FROM_PC) begin
         next_line_offset_comb = 'x;
-		next_fetch_pc_comb = 'x; // Very long chain in other branches, just use pc directly in this state (opt can't see that)
+		instr_next_addr_comb = 'x; // Very long chain in other branches, just use pc directly in this state (opt can't see that)
 	end else if (state == STATE_CHECK_1ST_LOOKUP) begin
         // By switching on fetch_crosses_lines, we can get all the high bits from either fetch_pc or next_cache_line_addr
         // This avoids a very wide addition, and we can also exclude the last bit from the math since it's always 0 (2B alignment)
         next_line_offset_comb = {fetch_pc[1 +: basic_cache_params::align_bits-1] + (is_cache_compressed_instr ? 'h1 : 'h2), 1'b0};
         if (cache_next_instr_on_next_line)
-            next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
+            instr_next_addr_comb = {next_cache_line_addr, next_line_offset_comb};
         else
-            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
+            instr_next_addr_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
 
         `ifndef SYNTHESIS
 		if (!icache_lookup_valid)
-			next_fetch_pc_comb = 'x;
+			instr_next_addr_comb = 'x;
 		`endif
 	end else if (state == STATE_WAIT_1ST_READ) begin
         next_line_offset_comb = {fetch_pc[1 +: basic_cache_params::align_bits-1] + (is_bus_compressed_instr ? 'h1 : 'h2), 1'b0};
         if (bus_next_instr_on_next_line)
-            next_fetch_pc_comb = {next_cache_line_addr, next_line_offset_comb};
+            instr_next_addr_comb = {next_cache_line_addr, next_line_offset_comb};
         else
-            next_fetch_pc_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
+            instr_next_addr_comb = {fetch_pc[$size(fetch_pc)-1 : basic_cache_params::align_bits], next_line_offset_comb};
 
 		`ifndef SYNTHESIS
 		if (!sys_bus.rvalid)
-			next_fetch_pc_comb = 'x;
+			instr_next_addr_comb = 'x;
 		`endif
 	end else begin
         next_line_offset_comb = 'x;
-		next_fetch_pc_comb = 'x;
+		instr_next_addr_comb = 'x;
 	end
+end
+
+always_comb begin
+    if (state == STATE_CHECK_1ST_LOOKUP && should_follow_branch)
+        next_fetch_pc_comb <= branch_target;
+    else
+        next_fetch_pc_comb <= instr_next_addr_comb;
 end
 
 always @(posedge clk) begin
@@ -187,8 +208,10 @@ always @(posedge clk) begin
 		end else if (icache_lookup_valid) begin
 			// Whether we go to 2nd read or the next instruction, those are updated as soon as we get the 1st instruction (see WAIT_1ST_READ for details)
 			fetch_pc <= next_fetch_pc_comb;
-            instruction_next_addr <= next_fetch_pc_comb;
-            if (cache_next_instr_on_next_line)
+            instruction_next_addr <= instr_next_addr_comb;
+            if (should_follow_branch)
+                next_cache_line_addr <= branch_target[$bits(branch_target)-1:basic_cache_params::align_bits] + 1;
+            else if (cache_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
 
             if (icache_rdata[line_instr_offset +: 5] == 5'b11111) begin // Instr too long
@@ -213,7 +236,7 @@ always @(posedge clk) begin
 			// Because we update fetch_pc to the next line (since it crosses for 2nd reads), we can use fetch_pc as sys_bus.araddr unconditionally
 			// And it also happens that saving the 2nd read to cache can be done at the new fetch_pc (the next line)
 			fetch_pc <= next_fetch_pc_comb;
-            instruction_next_addr <= next_fetch_pc_comb;
+            instruction_next_addr <= instr_next_addr_comb;
             if (bus_next_instr_on_next_line)
                 next_cache_line_addr <= next_cache_line_addr + 1;
 
@@ -289,44 +312,51 @@ always_comb begin
 end
 
 // Outputs
-always @(posedge clk) begin
+logic stall_next_comb;
+always_comb begin
     if (rst || flush) begin
-        stall_next <= '1;
-        ifetch_exception <= 'x;
-        instruction <= 'x;
-        instruction_addr <= 'x;
-    end else begin: update_outputs
+        stall_next_comb = '1;
+    end else begin
 		`ifndef SYNTHESIS
 		unique // Yosys does not parse "unique if"
 		`endif
 		// Note that we report alignment exceptions on the next cycle when entering STATE_EXCEPTION. It's not a huge priority to optimize.
         if (state == STATE_EXCEPTION) begin
-            stall_next <= '0;
+            stall_next_comb = '0;
         end else if (state == STATE_STALLED) begin
-            stall_next <= !next_stalled;
+            stall_next_comb = !next_stalled;
         // Only one line to read (note: we'll get trailing Xs reading compressed instrs at the end of a line due to +: `ILEN, but that's okay)
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && !bus_fetch_crosses_lines) begin
-            stall_next <= '0;
+            stall_next_comb = '0;
         end else if (state == STATE_CHECK_1ST_LOOKUP && next_stalled && !stall_next) begin
             // We're going to STATE_STALLED, our outputs are valid and we don't want to overwrite them before the next handshake
-            stall_next <= '0;
+            stall_next_comb = '0;
         end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && !cache_fetch_crosses_lines) begin
-            stall_next <= '0;
+            stall_next_comb = '0;
         // Complete instruction with 2nd read
         end else if (state == STATE_WAIT_2ND_READ && sys_bus.rvalid) begin
-            stall_next <= '0;
+            stall_next_comb = '0;
         end else if (state == STATE_CHECK_2ND_LOOKUP && icache_lookup_valid) begin
-            stall_next <= '0;
+            stall_next_comb = '0;
         // Partial 1st read, potentially immediately completed by 2nd lookup from cache
         end else if (state == STATE_WAIT_1ST_READ && sys_bus.rvalid && bus_fetch_crosses_lines) begin
-            stall_next <= !icache_lookup_valid;
+            stall_next_comb = !icache_lookup_valid;
         end else if (state == STATE_CHECK_1ST_LOOKUP && !(next_stalled && !stall_next) && icache_lookup_valid && cache_fetch_crosses_lines) begin
-            stall_next <= '1;
-        // Yay more waiting. This pipeline isn't called bubbly for nothing
+            stall_next_comb = '1;
+        // Yay more waiting. Talk about bubbly pipelines.
         end else begin
-            stall_next <= '1;
+            stall_next_comb = '1;
         end
+    end
+end
 
+always @(posedge clk) begin
+    if (rst || flush) begin
+        stall_next <= stall_next_comb;
+        ifetch_exception <= 'x;
+        instruction <= 'x;
+        instruction_addr <= 'x;
+    end else begin
         // This is safe, we go through this state exactly once per instruction, but only when unstalled
         if (state == STATE_CHECK_1ST_LOOKUP && (!next_stalled || stall_next))
             instruction_addr <= fetch_pc;
@@ -338,6 +368,7 @@ always @(posedge clk) begin
         else
             ifetch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR; // Default trap cause
 
+        stall_next <= stall_next_comb;
 		instruction <= next_instruction;
 		ifetch_exception <= next_instruction_invalid_len || state == STATE_EXCEPTION;
     end

@@ -121,20 +121,27 @@ end
 
 // Detect mispredicts by comparing the last taken branch to the next instr's address
 wire last_branch_just_taken = exec_branch_taken;
-reg [`ALEN-1:0] last_branch_target;
+reg [`ALEN-1:0] last_branch_target_or_next;
+reg last_instr_was_branch;
 
-assign exec_mispredict_detected = input_valid_unless_mispredict && last_branch_just_taken && last_branch_target != decode_instruction_addr;
-assign exec_mispredict_next_pc = last_branch_target;
+assign exec_mispredict_detected = input_valid_unless_mispredict && last_instr_was_branch
+                                        && last_branch_target_or_next != decode_instruction_addr;
+assign exec_mispredict_next_pc = last_branch_target_or_next;
 
 always_ff @(posedge clk) begin
     if (rst) begin
+        last_instr_was_branch <= '0;
         exec_branch_taken <= '0;
-        last_branch_target <= 'x;
+        last_branch_target_or_next <= 'x;
     end else begin
         if (input_valid_unless_mispredict)
             exec_branch_taken <= input_valid && input_is_branch && branch_taken;
-        if (input_valid && input_is_branch && branch_taken)
-            last_branch_target <= exec_branch_target_comb;
+        if (input_valid)
+            last_instr_was_branch <= input_is_branch;
+        if (input_valid && input_is_branch)
+            last_branch_target_or_next <= branch_taken ? exec_branch_target_comb : decode_instruction_next_addr;
+        else if (input_valid)
+            last_branch_target_or_next <= 'x;
     end
 end
 
