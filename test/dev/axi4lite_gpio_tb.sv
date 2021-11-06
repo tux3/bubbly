@@ -1,5 +1,5 @@
-`include "../../core/params.svh"
-`include "../../axi/axi4lite.svh"
+`include "core/params.svh"
+`include "axi/axi4lite.svh"
 
 module axi4lite_gpio_tb;
     timeunit 100ns;

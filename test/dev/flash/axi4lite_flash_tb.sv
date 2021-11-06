@@ -1,4 +1,4 @@
-`include "../../../axi/axi4lite.svh"
+`include "axi/axi4lite.svh"
 
 module axi4lite_flash_tb;
     timeunit 100ns;
