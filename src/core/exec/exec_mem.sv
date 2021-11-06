@@ -36,8 +36,8 @@ module exec_mem(
 );
 
 // Instructions that go directly to the LSU
-wire is_load_store = opcode == decode_types::OP_LOAD
-                  || opcode == decode_types::OP_STORE;
+wire is_load_store = opcode == opcodes::LOAD
+                  || opcode == opcodes::STORE;
 wire store_bit = opcode[3];
 
 wire [11:0] mem_imm = {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
@@ -157,7 +157,7 @@ always_ff @(posedge clk) begin
         exec_mem_exception_reg <= is_access_misaligned;
         exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
         exec_mem_result_reg <= 'x;
-    end else if (opcode == decode_types::OP_MISC_MEM) begin
+    end else if (opcode == opcodes::MISC_MEM) begin
         // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
         exec_mem_exception_reg <= funct3 != 'b000;
         exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;

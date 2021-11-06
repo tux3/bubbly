@@ -35,11 +35,11 @@ always_ff @(posedge clk) begin
     exec_int_exception <= '0;
     exec_int_trap_cause <= 'x;
 
-    if (opcode == decode_types::OP_LUI) begin
+    if (opcode == opcodes::LUI) begin
         exec_int_result <= {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
-    end else if (opcode == decode_types::OP_AUIPC) begin
+    end else if (opcode == opcodes::AUIPC) begin
         exec_int_result <= decode_instruction_addr + {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
-    end else if (opcode == decode_types::OP_OP_IMM) begin
+    end else if (opcode == opcodes::OP_IMM) begin
         // NOTE: $signed() is okay because:
         //  - the result (unsigned) is the same size as rs1
         //  - rs1 (unsigned) is always bigger than the immediate
@@ -74,7 +74,7 @@ always_ff @(posedge clk) begin
                 exec_int_result <= $signed(rs1_data) & $signed(i_imm);
             end
         endcase
-    end else if (opcode == decode_types::OP_OP_IMM_32) begin
+    end else if (opcode == opcodes::OP_IMM_32) begin
         // NOTE: $signed() is okay because:
         //  - while the result is wider, we make the operation self-determined using unary concatenation
         //  - both operands are signed, and we want to sign-extend the smallest to the size of the (self-determined) operation
@@ -98,7 +98,7 @@ always_ff @(posedge clk) begin
                 exec_int_result <= 'x;
             end
         endcase
-    end else if (opcode == decode_types::OP_OP) begin
+    end else if (opcode == opcodes::OP) begin
         // NOTE: $signed() is okay because:
         //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
         unique case (funct3)
@@ -127,7 +127,7 @@ always_ff @(posedge clk) begin
                 exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
             end
         endcase
-    end else if (opcode == decode_types::OP_OP_32) begin
+    end else if (opcode == opcodes::OP_32) begin
         // NOTE: $signed() is okay because:
         //  - while the result is wider, we make the operation self-determined using unary concatenation
         //  - both operands are signed and the same size

@@ -47,16 +47,16 @@ wire [`ALEN-1:0] branch_adder_result = branch_adder_op_1 + branch_adder_op_2;
 always_comb begin
     illegal_instruction_exception = '0;
 
-    if (opcode == decode_types::OP_JAL) begin
+    if (opcode == opcodes::JAL) begin
         branch_adder_op_1 = {{`ALEN-20{j_imm[20]}}, j_imm[19:1], 1'b0};
         branch_adder_op_2 = decode_instruction_addr;
         exec_branch_target_comb = branch_adder_result;
-    end else if (opcode == decode_types::OP_JALR) begin
+    end else if (opcode == opcodes::JALR) begin
         branch_adder_op_1 = {{`ALEN-11{i_imm[31]}}, i_imm[30:20]};
         branch_adder_op_2 = rs1_data;
         exec_branch_target_comb = {branch_adder_result[`ALEN-1:1], 1'b0};
         illegal_instruction_exception = funct3 != '0;
-    end else if (opcode == decode_types::OP_BRANCH) begin
+    end else if (opcode == opcodes::BRANCH) begin
         branch_adder_op_1 = {{`ALEN-12{b_imm[12]}}, b_imm[11:1], 1'b0};
         branch_adder_op_2 = decode_instruction_addr;
         exec_branch_target_comb = branch_adder_result;
@@ -73,7 +73,7 @@ wire branch_equal_result = rs1_data == rs2_data;
 wire branch_compare_result = rs1_data < rs2_data;
 wire branch_compare_signed_result = $signed(rs1_data) < $signed(rs2_data);
 always_comb begin
-    if (opcode == decode_types::OP_BRANCH) begin
+    if (opcode == opcodes::BRANCH) begin
         unique case (funct3)
             3'b000: begin // BEQ
                 branch_taken = branch_equal_result;

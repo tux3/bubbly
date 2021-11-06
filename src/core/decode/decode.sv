@@ -1,21 +1,48 @@
 `include "../params.svh"
 
-package decode_types;
+package opcodes;
 typedef enum bit [6:2] {
-    OP_LOAD =       5'b00_000,
-    OP_MISC_MEM =   5'b00_011,
-    OP_OP_IMM =     5'b00_100,
-    OP_AUIPC =      5'b00_101,
-    OP_OP_IMM_32 =  5'b00_110,
-    OP_OP =         5'b01_100,
-    OP_LUI =        5'b01_101,
-    OP_OP_32 =      5'b01_110,
-    OP_STORE =      5'b01_000,
-    OP_BRANCH =     5'b11_000,
-    OP_JALR =       5'b11_001,
-    OP_JAL =        5'b11_011,
-    OP_SYSTEM =     5'b11_100
+    LOAD =       5'b00_000,
+    MISC_MEM =   5'b00_011,
+    OP_IMM =     5'b00_100,
+    AUIPC =      5'b00_101,
+    OP_IMM_32 =  5'b00_110,
+    OP =         5'b01_100,
+    LUI =        5'b01_101,
+    OP_32 =      5'b01_110,
+    STORE =      5'b01_000,
+    BRANCH =     5'b11_000,
+    JALR =       5'b11_001,
+    JAL =        5'b11_011,
+    SYSTEM =     5'b11_100
 } opcodes_type;
+
+typedef enum bit [4:0] {
+    C_ADDI4SPN =      5'b000_00,
+    C_FLD =           5'b001_00,
+    C_LW =            5'b010_00,
+    C_LD =            5'b011_00,
+    C_RESERVED =      5'b100_00,
+    C_FSD =           5'b101_00,
+    C_SW =            5'b110_00,
+    C_SD =            5'b111_00,
+    C_ADDI =          5'b000_01,
+    C_ADDIW =         5'b001_01, // NOTE: This replaces C.JAL, which is RV32 only
+    C_LI =            5'b010_01,
+    C_LUI_ADDI16SP =  5'b011_01,
+    C_MISC_ALU =      5'b100_01,
+    C_J =             5'b101_01,
+    C_BEQZ =          5'b110_01,
+    C_BNEZ =          5'b111_01,
+    C_SLLI =          5'b000_10,
+    C_FLDSP =         5'b001_10,
+    C_LWSP =          5'b010_10,
+    C_LDSP =          5'b011_10,
+    C_JALR_MV_ADD =   5'b100_10,
+    C_FSDSP =         5'b101_10,
+    C_SWSP =          5'b110_10,
+    C_SDSP =          5'b111_10
+} comp_opcodes_type;
 endpackage
 
 module decode(

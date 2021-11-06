@@ -74,7 +74,7 @@ exec_int exec_int(
     .*
 );
 
-wire input_is_system = opcode == decode_types::OP_SYSTEM;
+wire input_is_system = opcode == opcodes::SYSTEM;
 wire exec_system_output_valid;
 wire exec_system_exception;
 wire [3:0] exec_system_trap_cause;

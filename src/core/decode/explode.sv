@@ -180,8 +180,8 @@ always @(posedge clk) begin
     j_imm <= {instruction[31], instruction[19:12], instruction[20], instruction[30:25], instruction[24:21]};
 
     decode_is_jump <= instruction[6:4] == 'b110;
-    decode_is_reg_write <= instruction[6:2] != decode_types::OP_STORE
-                        && instruction[6:2] != decode_types::OP_BRANCH;
+    decode_is_reg_write <= instruction[6:2] != opcodes::STORE
+                        && instruction[6:2] != opcodes::BRANCH;
 
     if (rs1_comb == '0)
         decode_rs1_data <= '0;
