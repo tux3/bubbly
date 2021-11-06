@@ -1,4 +1,4 @@
-`include "../../core/params.svh"
+`include "core/params.svh"
 
 // Location of the boot code in flash (4MiB)
 `define FLASH_TEXT_ADDR 'h400000

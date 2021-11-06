@@ -1,4 +1,4 @@
-`include "../../axi/axi4lite.svh"
+`include "axi/axi4lite.svh"
 
 module axi4lite_sram_tb;
     timeunit 1ns;

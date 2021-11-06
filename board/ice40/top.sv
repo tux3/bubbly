@@ -1,4 +1,4 @@
-`include "../../core/params.svh"
+`include "core/params.svh"
 
 module top(
     input CLK_16MHZ,

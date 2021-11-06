@@ -1,5 +1,5 @@
-`include "../../core/params.svh"
-`include "../../axi/axi4lite.svh"
+`include "core/params.svh"
+`include "axi/axi4lite.svh"
 
 // This tests the 32bit (W) versions of RV64I instructions
 module func_int_w_tb;
