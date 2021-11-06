@@ -34,11 +34,15 @@ pll pll(
 
 wire CORE_CLK_SWITCH = '1;
 
-spi_soc spi_soc(
+spi_soc #(
+    .LED_OUTPUTS(1),
+    .PROBE_OUTPUTS(6)
+ ) spi_soc (
     .clk,
     .rst,
 
     .SWITCH(CORE_CLK_SWITCH),
+    .PROBE({PROBE_5, PROBE_4, PROBE_3, PROBE_2, PROBE_1, PROBE_0}),
 
     .*
 );
