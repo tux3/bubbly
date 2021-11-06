@@ -9,7 +9,7 @@ module axi4lite_gpio #(
     output [NUM_OUTPUTS-1:0] outputs
 );
     generate
-        if (NUM_OUTPUTS > NUM_OUTPUTS+ADDR_MASK)
+        if (NUM_OUTPUTS > $clog2(($bits(ADDR_MASK)+1)'(ADDR_MASK)+1))
             $error("Cannot address more outputs than fit into ADDR_MASK");
     endgenerate
     localparam OUTPUT_REG_SIZE = NUM_OUTPUTS < 8 ? 8 : NUM_OUTPUTS;
