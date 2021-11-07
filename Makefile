@@ -10,7 +10,7 @@ BOARDDIR=./board
 BINDIR=./build
 PRJ=$(notdir ${PWD})
 AVHDL_PRJ_DIR=./project/${PRJ}/aldec/${PRJ}
-AVHDL_OPTS=-work ${PRJ} -dbg -sve -msg 5 -sv2k12
+AVHDL_OPTS=-work ${PRJ} -dbg -sve -msg 5 -sv2k12 +incdir+${PWD}/${SRCDIR}
 AVHDL_LOG=${PWD}/${BINDIR}/avhdl_test_output.log
 AVHDL_SIM_OPTS=-O5 -L ice -l ${AVHDL_LOG} +access +w_nets +accb +accr +access +r +access +r+w
 
