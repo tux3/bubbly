@@ -105,7 +105,7 @@ module ifetch_tb;
         end
     endtask
 
-    localparam RAND_READ_COUNT = 8192;
+    localparam RAND_READ_COUNT = 1024;
     initial begin
         #2; @(posedge clk);
 
