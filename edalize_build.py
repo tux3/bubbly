@@ -29,10 +29,16 @@ def auto_order(files):
     return files
 
 files = auto_order(scan_files('src/**', 'systemVerilogSource'))
-files += scan_files('test/**', 'systemVerilogSource')
+test_files = scan_files('test/**', 'systemVerilogSource')
+files += test_files
 
 files += scan_files('board/arty/*.sv', 'systemVerilogSource')
 files += scan_files('board/arty/*.xdc', 'xdc')
+
+with open('test_sources.tcl', 'w+') as f:
+    test_file_names = ' '.join([file['name'] for file in test_files])
+    f.write('move_files -fileset sim_1 [get_files  {' + test_file_names + '}]')
+files += [{'name': 'test_sources.tcl', 'file_type': 'tclSource'}]
 
 tool = 'vivado'
 tool_options = {
@@ -49,6 +55,7 @@ edam = {
   'tool_options' : tool_options,
   'toplevel'     : 'top'
 }
+
 
 backend = get_edatool(tool)(edam=edam, work_root=build_dir)
 backend.configure()
