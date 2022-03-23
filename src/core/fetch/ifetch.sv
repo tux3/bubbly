@@ -23,20 +23,6 @@ generate
 		$error("icache's data_size must be 64bit (required by ifetch)");
 endgenerate
 
-wire should_follow_branch;
-wire [`ALEN-1:0] branch_target;
-follow_branch follow_branch(
-    .clk,
-    .rst,
-    
-    .instr_valid(!stall_next_comb),
-    .instruction(next_instruction),
-    .instruction_addr(fetch_pc),
-    
-    .should_follow_branch,
-    .branch_target
-);
-
 logic icache_write_enable;
 logic [basic_cache_params::aligned_addr_size-1:0] icache_waddr;
 logic [basic_cache_params::data_size-1:0] icache_wdata;
@@ -83,6 +69,25 @@ wire cache_fetch_crosses_lines = !is_cache_compressed_instr && line_instr_offset
 wire bus_fetch_crosses_lines = !is_bus_compressed_instr && line_instr_offset[$size(line_instr_offset)-1 : 3] == byte_offset_to_last_parcel; // 2 bytes are cut off
 wire cache_next_instr_on_next_line = (!is_cache_compressed_instr && line_instr_byte_offset == byte_offset_to_last_parcel-'h2) || line_instr_byte_offset == byte_offset_to_last_parcel;
 wire bus_next_instr_on_next_line = (!is_bus_compressed_instr && line_instr_byte_offset == byte_offset_to_last_parcel-'h2) || line_instr_byte_offset == byte_offset_to_last_parcel;
+
+// next_instruction is potentially invalid until we receive valid data
+logic [`ILEN-1:0] next_instruction;
+wire next_instruction_invalid_len = next_instruction[4:0] == 'b11111;
+logic stall_next_comb;
+
+wire should_follow_branch;
+wire [`ALEN-1:0] branch_target;
+follow_branch follow_branch(
+    .clk,
+    .rst,
+
+    .instr_valid(!stall_next_comb),
+    .instruction(next_instruction),
+    .instruction_addr(fetch_pc),
+
+    .should_follow_branch,
+    .branch_target
+);
 
 reg bus_read_pending;
 always @(posedge clk) begin
@@ -281,9 +286,6 @@ always @(posedge clk) begin
 	endcase
 end
 
-// next_instruction is potentially invalid until we receive valid data
-logic [`ILEN-1:0] next_instruction;
-wire next_instruction_invalid_len = next_instruction[4:0] == 'b11111;
 always_comb begin
     unique case (state)
     // Note that we report alignment exceptions on the next cycle when entering STATE_EXCEPTION. It's not a huge priority to optimize.
@@ -312,7 +314,6 @@ always_comb begin
 end
 
 // Outputs
-logic stall_next_comb;
 always_comb begin
     if (rst || flush) begin
         stall_next_comb = '1;
