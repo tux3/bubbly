@@ -37,10 +37,16 @@ module exec_mem(
 
 // Instructions that go directly to the LSU
 wire is_load_store = opcode == opcodes::LOAD
-                  || opcode == opcodes::STORE;
-wire store_bit = opcode[3];
+                  || opcode == opcodes::STORE
+                  || opcode == opcodes::AMO;
+wire amo_op_store_cycle = '0;
+wire is_amo = opcode == opcodes::AMO;
+wire amo_is_lr = funct7[6:2] == 'b00010;
+wire amo_is_sc = funct7[6:2] == 'b00011;
+wire store_bit = (opcode[3] && !opcode[1]) // when input_is_mem, that's STORE || STORE_FP
+                 || (is_amo && (amo_is_sc || amo_op_store_cycle));
 
-wire [11:0] mem_imm = {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
+wire [11:0] mem_imm = is_amo ? '0 : {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
 wire [`ALEN-1:0] memory_addr_comb = $signed(rs1_data) + $signed(mem_imm);
 wire [basic_cache_params::aligned_addr_size-1:0] cache_line_addr_comb = memory_addr_comb[`ALEN-1 -: basic_cache_params::aligned_addr_size];
 wire [basic_cache_params::align_bits-1:0] cache_line_offset_comb = memory_addr_comb[0 +: basic_cache_params::align_bits];
@@ -99,7 +105,9 @@ integer mask_idx;
 logic [`XLEN-1:0] store_data;
 logic [(`XLEN/8)-1:0] store_mask;
 
-assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store) || is_access_misaligned;
+assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store)
+                        || (is_amo && amo_is_sc && !amo_has_reservation)
+                        || is_access_misaligned;
 assign lsu_addr = cache_line_addr_comb;
 assign lsu_do_load = !store_bit;
 assign lsu_do_store = store_bit;
@@ -129,15 +137,38 @@ always_comb begin
     endcase
 end
 
+reg amo_has_reservation;
+always_ff @(posedge clk) begin
+    if (rst)
+        amo_has_reservation <= '0;
+    else if (input_valid && input_is_mem) begin
+        if (store_bit)
+            amo_has_reservation <= '0;
+        else if (is_amo && amo_is_lr)
+            amo_has_reservation <= !is_access_misaligned;
+    end
+end
+
 reg exec_mem_output_valid_single_cycle;
 assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || !lsu_stall_next;
 always_ff @(posedge clk) begin
-    if (rst)
+    if (rst) begin
         exec_mem_output_valid_single_cycle <= '0;
-    else if (input_valid && input_is_mem && is_load_store)
-        exec_mem_output_valid_single_cycle <= is_access_misaligned;
-    else
+    end else if (input_valid && input_is_mem && is_load_store) begin
+        exec_mem_output_valid_single_cycle <= is_access_misaligned
+                                          || (is_amo && amo_is_sc && !amo_has_reservation);
+    end else begin
         exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
+    end
+end
+
+// Non LR AMO ops end with a write, so we can't just return loaded_data (that's 'x for a store!)
+reg had_amo_write;
+always_ff @(posedge clk) begin
+    if (rst)
+        had_amo_write <= '0;
+    else if (input_valid && input_is_mem)
+        had_amo_write <= is_amo && !amo_is_lr;
 end
 
 reg exec_mem_exception_reg;
@@ -145,13 +176,22 @@ reg [3:0] exec_mem_trap_cause_reg;
 reg [`XLEN-1:0] exec_mem_result_reg;
 assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
 assign exec_mem_trap_cause = lsu_stall_next ? exec_mem_trap_cause_reg : trap_causes::EXC_LOAD_ACCESS_FAULT;
-assign exec_mem_result = lsu_stall_next ? exec_mem_result_reg : loaded_data;
+assign exec_mem_result = (lsu_stall_next || had_amo_write) ? exec_mem_result_reg : loaded_data;
 always_ff @(posedge clk) begin
     exec_mem_exception_reg <= '0;
     exec_mem_trap_cause_reg <= 'x;
     exec_mem_fault_addr <= memory_addr_comb;
 
-    if (is_load_store) begin
+    unique if (is_load_store && is_amo) begin
+        // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
+        //       The other kinds of load/store results come from the load/store unit combinatorially
+        exec_mem_exception_reg <= is_access_misaligned;
+        exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
+        if (is_amo && amo_is_sc)
+            exec_mem_result_reg <= !amo_has_reservation;
+        else
+            exec_mem_result_reg <= 'x;
+    end else if (is_load_store && !is_amo) begin
         // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
         //       The other kinds of load/store results come from the load/store unit combinatorially
         exec_mem_exception_reg <= is_access_misaligned;
