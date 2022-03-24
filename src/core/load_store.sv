@@ -232,6 +232,8 @@ always @(posedge clk) begin
     assert property (!prev_stalled |-> !$isunknown(addr));
     assert property (!prev_stalled && do_store |-> !$isunknown(store_data));
     assert property (!prev_stalled && do_store |-> !$isunknown(store_mask));
+    assert property (data_bus.awvalid |-> !$isunknown(data_bus.awaddr));
+    assert property (data_bus.arvalid |-> !$isunknown(data_bus.araddr));
     assert property (data_bus.bvalid |-> data_bus.bresp == AXI4LITE_RESP_OKAY);
 end
 `endif

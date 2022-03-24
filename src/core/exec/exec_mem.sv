@@ -18,7 +18,7 @@ module exec_mem(
     input input_valid,
     input input_is_mem,
 
-    output lsu_prev_stalled,
+    output logic lsu_prev_stalled,
     input lsu_stall_next,
     output [basic_cache_params::aligned_addr_size-1:0] lsu_addr,
     input lsu_access_fault,
@@ -35,25 +35,33 @@ module exec_mem(
     output wire [`XLEN-1:0] exec_mem_result
 );
 
+reg amo_op_store_cycle;
+
 // Instructions that go directly to the LSU
 wire is_load_store = opcode == opcodes::LOAD
                   || opcode == opcodes::STORE
                   || opcode == opcodes::AMO;
-wire amo_op_store_cycle = '0;
 wire is_amo = opcode == opcodes::AMO;
 wire amo_is_lr = funct7[6:2] == 'b00010;
 wire amo_is_sc = funct7[6:2] == 'b00011;
+wire amo_is_op = funct7[3] == 'b0;
 wire store_bit = (opcode[3] && !opcode[1]) // when input_is_mem, that's STORE || STORE_FP
-                 || (is_amo && (amo_is_sc || amo_op_store_cycle));
+                 || (is_amo && amo_is_sc )
+                 || amo_op_store_cycle;
 
 wire [11:0] mem_imm = is_amo ? '0 : {i_imm[31:25], store_bit ? s_imm[4:0] : i_imm[24:20]};
 wire [`ALEN-1:0] memory_addr_comb = $signed(rs1_data) + $signed(mem_imm);
 wire [basic_cache_params::aligned_addr_size-1:0] cache_line_addr_comb = memory_addr_comb[`ALEN-1 -: basic_cache_params::aligned_addr_size];
+reg [basic_cache_params::aligned_addr_size-1:0] cache_line_addr;
 wire [basic_cache_params::align_bits-1:0] cache_line_offset_comb = memory_addr_comb[0 +: basic_cache_params::align_bits];
 reg [basic_cache_params::align_bits-1:0] cache_line_offset;
 
 always_ff @(posedge clk) begin
-    if (input_valid && input_is_mem) begin
+    if (rst) begin
+        cache_line_addr <= 'x;
+        cache_line_offset <= 'x;
+    end else if (input_valid && input_is_mem) begin
+        cache_line_addr <= cache_line_addr_comb;
         cache_line_offset <= cache_line_offset_comb;
     end
 end
@@ -105,10 +113,15 @@ integer mask_idx;
 logic [`XLEN-1:0] store_data;
 logic [(`XLEN/8)-1:0] store_mask;
 
-assign lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store)
-                        || (is_amo && amo_is_sc && !amo_has_reservation)
-                        || is_access_misaligned;
-assign lsu_addr = cache_line_addr_comb;
+always_comb begin
+    if (amo_op_store_cycle)
+        lsu_prev_stalled = '0;
+    else if (is_access_misaligned || (is_amo && amo_is_sc && !amo_has_reservation))
+        lsu_prev_stalled = '1;
+    else
+        lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store);
+end
+assign lsu_addr = amo_op_store_cycle ? cache_line_addr : cache_line_addr_comb;
 assign lsu_do_load = !store_bit;
 assign lsu_do_store = store_bit;
 assign lsu_store_data = store_data;
@@ -116,7 +129,7 @@ assign lsu_store_mask = store_mask;
 
 always_comb begin
     mask_idx = 'x;
-    unique case (access_size_comb)
+    unique case (amo_op_store_cycle ? access_size : access_size_comb)
         SIZE_BYTE: for (mask_idx=0; mask_idx*8<`XLEN; mask_idx+=1) begin
                        store_data[mask_idx*8 +: 8] = rs2_data[7:0];
                        store_mask[mask_idx*1 +: 1] = {1{cache_line_offset_comb[2:0] == mask_idx}};
@@ -126,11 +139,20 @@ always_comb begin
                        store_mask[mask_idx*2 +: 2] = {2{cache_line_offset_comb[2:1] == mask_idx}};
                    end
         SIZE_WORD: for (mask_idx=0; mask_idx*32<`XLEN; mask_idx+=1) begin
-                       store_data[mask_idx*32 +: 32] = rs2_data[31:0];
-                       store_mask[mask_idx*4 +: 4] = {4{cache_line_offset_comb[2] == mask_idx}};
+                       if (amo_op_store_cycle) begin
+                           store_data[mask_idx*32 +: 32] = amo_op_store_data[31:0];
+                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset[2] == mask_idx}};
+                       end else begin
+                           store_data[mask_idx*32 +: 32] = rs2_data[31:0];
+                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset_comb[2] == mask_idx}};
+                       end
                    end
         SIZE_DWORD: begin
-            store_data = rs2_data;
+            if (amo_op_store_cycle) begin
+                store_data = amo_op_store_data;
+            end else begin
+                store_data = rs2_data;
+            end
             store_mask = {8{1'b1}};
         end
         default: store_mask = 'x;
@@ -149,8 +171,56 @@ always_ff @(posedge clk) begin
     end
 end
 
+reg had_amo_write; // Non LR AMO ops end with a write, so we can't just return loaded_data (that's 'x for a store!)
+reg waiting_amo_op_load;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        had_amo_write <= '0;
+        waiting_amo_op_load <= '0;
+        amo_op_store_cycle <= '0;
+    end else if (input_valid && input_is_mem) begin
+        had_amo_write <= is_amo && !amo_is_lr && !is_access_misaligned;
+        waiting_amo_op_load <= is_amo && amo_is_op && !is_access_misaligned;
+        amo_op_store_cycle <= '0;
+    end else if (!lsu_stall_next) begin
+        waiting_amo_op_load <= '0;
+        amo_op_store_cycle <= waiting_amo_op_load;
+    end else if (amo_op_store_cycle) begin
+        amo_op_store_cycle <= '0;
+    end
+end
+
+logic [4:0] amo_op_reg;
+logic [`XLEN-1:0] amo_op_store_data;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        amo_op_reg <= 'x;
+        amo_op_store_data <= 'x;
+    end else if (input_valid && input_is_mem) begin
+        amo_op_reg <= is_amo && amo_is_op ? funct7[6:2] : 'x;
+        amo_op_store_data <= is_amo && amo_is_op ? rs2_data : 'x;
+    end else if (waiting_amo_op_load && !lsu_stall_next) begin
+        unique case (amo_op_reg)
+            'b00001: amo_op_store_data <= amo_op_store_data; // AMOSWAP
+            'b00000: amo_op_store_data <= amo_op_store_data + loaded_data; // AMOADD
+            'b00100: amo_op_store_data <= amo_op_store_data ^ loaded_data; // AMOXOR
+            'b01100: amo_op_store_data <= amo_op_store_data & loaded_data; // AMOAND
+            'b01000: amo_op_store_data <= amo_op_store_data | loaded_data; // AMOOR
+            'b10000: amo_op_store_data <= ($signed(amo_op_store_data) < $signed(loaded_data))
+                                        ? amo_op_store_data : loaded_data; // AMOMIN
+            'b10100: amo_op_store_data <= ($signed(amo_op_store_data) > $signed(loaded_data))
+                                        ? amo_op_store_data : loaded_data; // AMOMAX
+            'b11000: amo_op_store_data <= amo_op_store_data < loaded_data
+                                        ? amo_op_store_data : loaded_data; // AMOMINU
+            'b11100: amo_op_store_data <= amo_op_store_data > loaded_data
+                                        ? amo_op_store_data : loaded_data; // AMOMAXU
+            default: amo_op_store_data <= 'x;
+        endcase
+    end
+end
+
 reg exec_mem_output_valid_single_cycle;
-assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || !lsu_stall_next;
+assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || (!lsu_stall_next && !waiting_amo_op_load);
 always_ff @(posedge clk) begin
     if (rst) begin
         exec_mem_output_valid_single_cycle <= '0;
@@ -160,15 +230,6 @@ always_ff @(posedge clk) begin
     end else begin
         exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
     end
-end
-
-// Non LR AMO ops end with a write, so we can't just return loaded_data (that's 'x for a store!)
-reg had_amo_write;
-always_ff @(posedge clk) begin
-    if (rst)
-        had_amo_write <= '0;
-    else if (input_valid && input_is_mem)
-        had_amo_write <= is_amo && !amo_is_lr;
 end
 
 reg exec_mem_exception_reg;
@@ -182,30 +243,35 @@ always_ff @(posedge clk) begin
     exec_mem_trap_cause_reg <= 'x;
     exec_mem_fault_addr <= memory_addr_comb;
 
-    unique if (is_load_store && is_amo) begin
-        // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
-        //       The other kinds of load/store results come from the load/store unit combinatorially
-        exec_mem_exception_reg <= is_access_misaligned;
-        exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
-        if (is_amo && amo_is_sc)
-            exec_mem_result_reg <= !amo_has_reservation;
-        else
+    if (waiting_amo_op_load && !lsu_stall_next) begin
+        exec_mem_result_reg <= loaded_data;
+        exec_mem_exception_reg <= '0;
+        exec_mem_trap_cause_reg <= 'x;
+    end else if (input_valid && input_is_mem) begin
+        unique if (is_load_store && is_amo) begin
+            // NOTE: We only output those regs here in case of misaligned exception (or for SC results)
+            exec_mem_exception_reg <= is_access_misaligned;
+            exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
+            if (is_amo && amo_is_sc)
+                exec_mem_result_reg <= !amo_has_reservation;
+            else
+                exec_mem_result_reg <= 'x;
+        end else if (is_load_store && !is_amo) begin
+            // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
+            //       The other kinds of load/store results come from the load/store unit combinatorially
+            exec_mem_exception_reg <= is_access_misaligned;
+            exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
             exec_mem_result_reg <= 'x;
-    end else if (is_load_store && !is_amo) begin
-        // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
-        //       The other kinds of load/store results come from the load/store unit combinatorially
-        exec_mem_exception_reg <= is_access_misaligned;
-        exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
-        exec_mem_result_reg <= 'x;
-    end else if (opcode == opcodes::MISC_MEM) begin
-        // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
-        exec_mem_exception_reg <= funct3 != 'b000;
-        exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
-        exec_mem_result_reg <= 'x;
-    end else begin
-        exec_mem_exception_reg <= '1;
-        exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
-        exec_mem_result_reg <= 'x;
+        end else if (opcode == opcodes::MISC_MEM) begin
+            // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
+            exec_mem_exception_reg <= funct3 != 'b000;
+            exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
+            exec_mem_result_reg <= 'x;
+        end else begin
+            exec_mem_exception_reg <= '1;
+            exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
+            exec_mem_result_reg <= 'x;
+        end
     end
 end
 
