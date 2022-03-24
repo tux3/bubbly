@@ -60,36 +60,42 @@ skid_buf_ctl sb_ctl(
 
 wire [$bits(prev_exception)-1:0] sb_prev_exception_out;
 skid_buf_data #(.WIDTH($bits(prev_exception))) sb_prev_exception(
+    .rst(rst || flush),
     .*,
     .in(prev_exception),
     .out(sb_prev_exception_out)
 );
 wire [$bits(prev_trap_cause)-1:0] sb_prev_trap_cause_out;
 skid_buf_data #(.WIDTH($bits(prev_trap_cause)), .MAYBE_UNKNOWN(1)) sb_prev_trap_cause(
+    .rst(rst || flush),
     .*,
     .in(prev_trap_cause),
     .out(sb_prev_trap_cause_out)
 );
 wire [$bits(original_instruction)-1:0] sb_original_instruction_out;
 skid_buf_data #(.WIDTH($bits(original_instruction)), .MAYBE_UNKNOWN(1)) sb_original_instruction(
+    .rst(rst || flush),
     .*,
     .in(original_instruction),
     .out(sb_original_instruction_out)
 );
 wire [$bits(instruction)-1:0] sb_instruction_out;
 skid_buf_data #(.WIDTH($bits(instruction))) sb_instruction(
+    .rst(rst || flush),
     .*,
     .in(instruction),
     .out(sb_instruction_out)
 );
 wire [$bits(instruction_addr)-1:0] sb_instruction_addr_out;
 skid_buf_data #(.WIDTH($bits(instruction_addr))) sb_instruction_addr(
+    .rst(rst || flush),
     .*,
     .in(instruction_addr),
     .out(sb_instruction_addr_out)
 );
 wire [$bits(instruction_next_addr)-1:0] sb_instruction_next_addr_out;
 skid_buf_data #(.WIDTH($bits(instruction_next_addr))) sb_instruction_next_addr(
+    .rst(rst || flush),
     .*,
     .in(instruction_next_addr),
     .out(sb_instruction_next_addr_out)

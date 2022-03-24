@@ -39,14 +39,23 @@ always_ff @(posedge clk) begin
     end else begin
         if (!prev_stalled && next_stalled && !stall_next) begin
             skid_buf <= in;
-        end else begin
+        end
+        // Preserve out_buf if: next_stalled
+        if (!next_stalled && !stall_next) begin
+            out_buf <= prev_stalled ? 'x : in;
+        end else if (!prev_stalled && (!next_stalled || stall_next)) begin
             out_buf <= in;
         end
     end
 end
 
 `ifndef SYNTHESIS
-always @(posedge clk) begin
+always @(negedge clk) begin
+    assert property (!buf_full && prev_stalled |=> !buf_full);
+    assert property (!buf_full && prev_stalled && stall_next  |=> !buf_full && stall_next);
+    assert property (!buf_full && !prev_stalled && stall_next && !rst |=> !buf_full && !stall_next);
+    assert property (!buf_full && !prev_stalled && !stall_next && next_stalled && !rst |=> buf_full && !stall_next);
+    assert property (!buf_full && !prev_stalled && !stall_next && !next_stalled && !rst |=> !buf_full && !stall_next);
     if (!MAYBE_UNKNOWN) begin
         assert property (buf_full |-> !$isunknown(out_buf) && !$isunknown(skid_buf));
         assert property (!buf_full |-> $isunknown(skid_buf));

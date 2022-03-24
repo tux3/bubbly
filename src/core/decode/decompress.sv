@@ -37,30 +37,35 @@ skid_buf_ctl sb_ctl(
 
 wire [$bits(ifetch_exception)-1:0] sb_ifetch_exception_out;
 skid_buf_data #(.WIDTH($bits(ifetch_exception))) sb_ifetch_exception(
+    .rst(rst || flush),
     .*,
     .in(ifetch_exception),
     .out(sb_ifetch_exception_out)
 );
 wire [$bits(ifetch_trap_cause)-1:0] sb_ifetch_trap_cause_out;
 skid_buf_data #(.WIDTH($bits(ifetch_trap_cause)), .MAYBE_UNKNOWN(1)) sb_ifetch_trap_cause(
+    .rst(rst || flush),
     .*,
     .in(ifetch_trap_cause),
     .out(sb_ifetch_trap_cause_out)
 );
 wire [$bits(instruction)-1:0] sb_instruction_out;
 skid_buf_data #(.WIDTH($bits(instruction)), .MAYBE_UNKNOWN(1)) sb_instruction( // May be unknown on last 2 bytes of a cache line, upper two bytes will be 'x
+    .rst(rst || flush),
     .*,
     .in(instruction),
     .out(sb_instruction_out)
 );
 wire [$bits(instruction_addr)-1:0] sb_instruction_addr_out;
 skid_buf_data #(.WIDTH($bits(instruction_addr))) sb_instruction_addr(
+    .rst(rst || flush),
     .*,
     .in(instruction_addr),
     .out(sb_instruction_addr_out)
 );
 wire [$bits(instruction_next_addr)-1:0] sb_instruction_next_addr_out;
 skid_buf_data #(.WIDTH($bits(instruction_next_addr))) sb_instruction_next_addr(
+    .rst(rst || flush),
     .*,
     .in(instruction_next_addr),
     .out(sb_instruction_next_addr_out)
