@@ -24,8 +24,10 @@ module bram_block #(
         if (read_after_write) begin
             reg conflict;
             reg [data_width-1:0] written_data;
-            reg [addr_width-1:0] raddr_reg;
-            assign rdata = conflict ? written_data : mem[raddr_reg];
+            reg [data_width-1:0] rdata_reg;
+            assign rdata = conflict ? written_data : rdata_reg;
+            always_ff @(posedge clk)
+                rdata_reg <= mem[raddr];
 
             always_ff @(posedge clk)
                 if (write_enable)
@@ -33,9 +35,6 @@ module bram_block #(
 
             always_ff @(posedge clk)
                 conflict <= write_enable && raddr == waddr;
-
-            always_ff @(posedge clk)
-                raddr_reg <= raddr;
 
             always_ff @(posedge clk)
                 if (write_enable)
