@@ -45,8 +45,8 @@ enum {
     CSR_SIZE_32 = 'h32
 } csr_size_e;
 
-//                                64               C     I
-wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b00100000100000000000000000};
+//                                64             A C     I
+wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b10100000100000000000000000};
 
 //    CSR name       addr   size            init        AND write mask  OR write mask
 `define CSR_X_REG_LIST \
