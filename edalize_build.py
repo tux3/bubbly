@@ -29,7 +29,7 @@ def auto_order(files):
     return files
 
 files = auto_order(scan_files('src/**', 'systemVerilogSource'))
-test_files = scan_files('test/**', 'systemVerilogSource')
+test_files = scan_files('test/**/*.sv', 'systemVerilogSource')
 files += test_files
 
 files += scan_files('board/arty/*.sv', 'systemVerilogSource')
