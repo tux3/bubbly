@@ -60,9 +60,12 @@ logic [`XLEN*2-1:0] mul_result;
 always_ff @(posedge clk) begin
     if (rst) begin
         mul_result <= 'x;
-    end else if (input_valid && input_is_int && is_muldiv) begin
-        mul_result <= { {`XLEN{rs1_mul_sign}}, rs1_data }
-                    * { {`XLEN{rs2_mul_sign}}, rs2_data };
+    end else if (input_valid && input_is_int) begin
+        if (is_muldiv)
+            mul_result <= { {`XLEN{rs1_mul_sign}}, rs1_data }
+                        * { {`XLEN{rs2_mul_sign}}, rs2_data };
+        else
+            mul_result <= 'x;
     end
 end
 

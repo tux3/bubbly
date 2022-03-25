@@ -29,7 +29,9 @@ logic [basic_cache_params::data_size-1:0] icache_wdata;
 logic [basic_cache_params::aligned_addr_size-1:0] icache_raddr;
 wire [basic_cache_params::data_size-1:0] icache_rdata;
 wire icache_lookup_valid;
-basic_cache icache(
+basic_cache #(
+    .use_block_ram(1)
+) icache (
 	.clk,
 	.rst,
 	.write_enable(icache_write_enable),
