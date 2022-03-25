@@ -39,6 +39,8 @@ module decode_explode(
     // Note: decode_rsX_data don't check the exec comb bypass (they're 1 cycle late), and may be invalid as a result
     output logic [`XLEN-1:0] decode_rs1_data,
     output logic [`XLEN-1:0] decode_rs2_data,
+    output logic rs1_mul_sign,
+    output logic rs2_mul_sign,
     output logic [6:0] funct7,
     output logic [31:20] i_imm,
     output logic [11:0] s_imm,
@@ -152,6 +154,8 @@ module decode_explode_impl(
     output reg [4:0] rs2,
     output reg [`XLEN-1:0] decode_rs1_data,
     output reg [`XLEN-1:0] decode_rs2_data,
+    output reg rs1_mul_sign,
+    output reg rs2_mul_sign,
     output reg [6:0] funct7,
     output reg [31:20] i_imm,
     output reg [11:0] s_imm,
@@ -163,10 +167,34 @@ module decode_explode_impl(
 wire [4:0] rd_comb = instruction[11:7];
 wire [4:0] rs1_comb = instruction[19:15];
 wire [4:0] rs2_comb = instruction[24:20];
+wire [2:0] funct3_comb = instruction[14:12];
 
 always_comb begin
     decode_reg_read1_sel = rs1_comb;
     decode_reg_read2_sel = rs2_comb;
+end
+
+logic [`XLEN-1:0] decode_rs1_data_comb;
+logic [`XLEN-1:0] decode_rs2_data_comb;
+
+always_comb begin
+    if (rs1_comb == '0)
+        decode_rs1_data_comb = '0;
+    else if (bypass_net_exec_reg == rs1_comb)
+        decode_rs1_data_comb = bypass_net_exec_data;
+    else if (bypass_net_writeback_reg == rs1_comb)
+        decode_rs1_data_comb = bypass_net_writeback_data;
+    else
+        decode_rs1_data_comb = decode_reg_read1_data;
+
+    if (rs2_comb == '0)
+        decode_rs2_data_comb = '0;
+    else if (bypass_net_exec_reg == rs2_comb)
+        decode_rs2_data_comb = bypass_net_exec_data;
+    else if (bypass_net_writeback_reg == rs2_comb)
+        decode_rs2_data_comb = bypass_net_writeback_data;
+    else
+        decode_rs2_data_comb = decode_reg_read2_data;
 end
 
 always @(posedge clk) begin
@@ -174,7 +202,7 @@ always @(posedge clk) begin
 
     opcode <= instruction[6:2];
     rd <= rd_comb;
-    funct3 <= instruction[14:12];
+    funct3 <= funct3_comb;
     rs1 <= rs1_comb;
     rs2 <= rs2_comb;
     funct7 <= instruction[31:25];
@@ -189,23 +217,11 @@ always @(posedge clk) begin
     decode_is_reg_write <= instruction[6:2] != opcodes::STORE
                         && instruction[6:2] != opcodes::BRANCH;
 
-    if (rs1_comb == '0)
-        decode_rs1_data <= '0;
-    else if (bypass_net_exec_reg == rs1_comb)
-        decode_rs1_data <= bypass_net_exec_data;
-    else if (bypass_net_writeback_reg == rs1_comb)
-        decode_rs1_data <= bypass_net_writeback_data;
-    else
-        decode_rs1_data <= decode_reg_read1_data;
+    decode_rs1_data <= decode_rs1_data_comb;
+    decode_rs2_data <= decode_rs2_data_comb;
 
-    if (rs2_comb == '0)
-        decode_rs2_data <= '0;
-    else if (bypass_net_exec_reg == rs2_comb)
-        decode_rs2_data <= bypass_net_exec_data;
-    else if (bypass_net_writeback_reg == rs2_comb)
-        decode_rs2_data <= bypass_net_writeback_data;
-    else
-        decode_rs2_data <= decode_reg_read2_data;
+    rs1_mul_sign <= funct3_comb[1:0] == 'b11 ? '0 : decode_rs1_data_comb[`XLEN-1];
+    rs2_mul_sign <= funct3_comb[1] ? '0 : decode_rs2_data_comb[`XLEN-1];
 end
 
 always @(posedge clk) begin

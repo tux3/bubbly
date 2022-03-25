@@ -11,6 +11,8 @@ module exec_int(
     input [4:0] rs2,
     input [`XLEN-1:0] rs1_data,
     input [`XLEN-1:0] rs2_data,
+    input rs1_mul_sign,
+    input rs2_mul_sign,
     input [6:0] funct7,
     input [31:20] i_imm,
     input [31:12] u_imm,
@@ -23,6 +25,9 @@ module exec_int(
     output reg [3:0] exec_int_trap_cause,
     output reg [`XLEN-1:0] exec_int_result
 );
+
+wire [`XLEN*2-1:0] mul_result = { {`XLEN{rs1_mul_sign}}, rs1_data }
+                              * { {`XLEN{rs2_mul_sign}}, rs2_data };
 
 always_ff @(posedge clk) begin
     if (rst)
@@ -99,54 +104,89 @@ always_ff @(posedge clk) begin
             end
         endcase
     end else if (opcode == opcodes::OP) begin
-        // NOTE: $signed() is okay because:
-        //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
-        unique case (funct3)
-            3'b000: begin // ADD/SUB
-                exec_int_result <= $signed(rs1_data) + (i_imm[30] ? -$signed(rs2_data) : $signed(rs2_data));
-            end
-            3'b001: begin // SLL
-                exec_int_result <= rs1_data << rs2_data[$clog2(`XLEN)-1:0];
-            end
-            3'b010: begin // SLT
-                exec_int_result <= $signed(rs1_data) < $signed(rs2_data);
-            end
-            3'b011: begin // SLTU
-                exec_int_result <= rs1_data < rs2_data;
-            end
-            3'b100: begin // XOR
-                exec_int_result <= $signed(rs1_data) ^ $signed(rs2_data);
-            end
-            3'b101: begin // SRL/SRA
-                exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> rs2_data[$clog2(`XLEN)-1:0];
-            end
-            3'b110: begin // OR
-                exec_int_result <= $signed(rs1_data) | $signed(rs2_data);
-            end
-            3'b111: begin // AND
-                exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
-            end
-        endcase
+        if (funct7 == 'b0000001) begin // MULDIV
+            unique case (funct3)
+                3'b000: begin // MUL
+                    exec_int_result <= mul_result[`XLEN-1:0];
+                end
+                3'b001: begin // MULH
+                    exec_int_result <= mul_result[`XLEN*2-1:`XLEN];
+                end
+                3'b010: begin // MULHSU
+                    exec_int_result <= mul_result[`XLEN*2-1:`XLEN];
+                end
+                3'b011: begin // MULHU
+                    exec_int_result <= mul_result[`XLEN*2-1:`XLEN];
+                end
+                default: begin
+                    exec_int_exception <= '1;
+                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    exec_int_result <= 'x;
+                end
+            endcase
+        end else begin
+            // NOTE: $signed() is okay because:
+            //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
+            unique case (funct3)
+                3'b000: begin // ADD/SUB
+                    exec_int_result <= $signed(rs1_data) + (i_imm[30] ? -$signed(rs2_data) : $signed(rs2_data));
+                end
+                3'b001: begin // SLL
+                    exec_int_result <= rs1_data << rs2_data[$clog2(`XLEN)-1:0];
+                end
+                3'b010: begin // SLT
+                    exec_int_result <= $signed(rs1_data) < $signed(rs2_data);
+                end
+                3'b011: begin // SLTU
+                    exec_int_result <= rs1_data < rs2_data;
+                end
+                3'b100: begin // XOR
+                    exec_int_result <= $signed(rs1_data) ^ $signed(rs2_data);
+                end
+                3'b101: begin // SRL/SRA
+                    exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> rs2_data[$clog2(`XLEN)-1:0];
+                end
+                3'b110: begin // OR
+                    exec_int_result <= $signed(rs1_data) | $signed(rs2_data);
+                end
+                3'b111: begin // AND
+                    exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
+                end
+            endcase
+        end
     end else if (opcode == opcodes::OP_32) begin
-        // NOTE: $signed() is okay because:
-        //  - while the result is wider, we make the operation self-determined using unary concatenation
-        //  - both operands are signed and the same size
-        unique case (funct3)
-            3'b000: begin // ADDW/SUBW
-                exec_int_result <= $signed({ $signed(rs1_data[31:0]) + (i_imm[30] ? -$signed(rs2_data[31:0]) : $signed(rs2_data[31:0])) });
-            end
-            3'b001: begin // SLLW
-                exec_int_result <= $signed({ rs1_data[31:0] << rs2_data[4:0] });
-            end
-            3'b101: begin // SRLW/SRAW
-                exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> rs2_data[4:0];
-            end
-            default: begin
-                exec_int_exception <= '1;
-                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-                exec_int_result <= 'x;
-            end
-        endcase
+        if (funct7 == 'b0000001) begin // MULDIV
+            unique case (funct3)
+                3'b000: begin // MULW
+                    exec_int_result <= $signed({ mul_result[31:0] });
+                end
+                default: begin
+                    exec_int_exception <= '1;
+                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    exec_int_result <= 'x;
+                end
+            endcase
+        end else begin
+            // NOTE: $signed() is okay because:
+            //  - while the result is wider, we make the operation self-determined using unary concatenation
+            //  - both operands are signed and the same size
+            unique case (funct3)
+                3'b000: begin // ADDW/SUBW
+                    exec_int_result <= $signed({ $signed(rs1_data[31:0]) + (i_imm[30] ? -$signed(rs2_data[31:0]) : $signed(rs2_data[31:0])) });
+                end
+                3'b001: begin // SLLW
+                    exec_int_result <= $signed({ rs1_data[31:0] << rs2_data[4:0] });
+                end
+                3'b101: begin // SRLW/SRAW
+                    exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> rs2_data[4:0];
+                end
+                default: begin
+                    exec_int_exception <= '1;
+                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    exec_int_result <= 'x;
+                end
+            endcase
+        end
     end else begin
         exec_int_exception <= '1;
         exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
