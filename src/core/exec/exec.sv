@@ -215,43 +215,69 @@ enum {
     MEM_OUTPUT_VALID =      'b0001
 } valid_output_types;
 
-always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
+logic [3:0] last_output_type;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        last_output_type <= NO_OUTPUT_VALID;
+    end else if (input_valid) begin
+        last_output_type <= ({input_is_branch, input_is_int, input_is_system, input_is_mem});
+    end else if (!stall_next) begin
+        last_output_type <= NO_OUTPUT_VALID;
+    end
+end
+
+always_comb unique case (last_output_type)
     NO_OUTPUT_VALID: begin
         exec_exception = decode_valid_exception_buf;
         exec_trap_cause = decode_trap_cause_buf;
-        stall_next = !exec_exception;
         exec_result = 'x;
     end
     BRANCH_OUTPUT_VALID: begin
-        stall_next = '0;
         exec_exception = exec_branch_exception;
         exec_trap_cause = exec_branch_trap_cause;
         exec_result = exec_branch_result;
     end
     INT_OUTPUT_VALID: begin
-        stall_next = '0;
         exec_exception = exec_int_exception;
         exec_trap_cause = exec_int_trap_cause;
         exec_result = exec_int_result;
     end
     SYSTEM_OUTPUT_VALID: begin
-        stall_next = '0;
         exec_exception = exec_system_exception;
         exec_trap_cause = exec_system_trap_cause;
         exec_result = exec_system_result;
     end
     MEM_OUTPUT_VALID: begin
-        stall_next = '0;
         exec_exception = exec_mem_exception;
         exec_trap_cause = exec_mem_trap_cause;
         exec_result = exec_mem_result;
     end
     default: begin
-        // This can happen during delta cycles... and hopefully only delta cycles.
-        stall_next = 'x;
         exec_exception = 'x;
         exec_trap_cause = 'x;
         exec_result = 'x;
+    end
+endcase
+
+always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
+    NO_OUTPUT_VALID: begin
+        stall_next = !exec_exception;
+    end
+    BRANCH_OUTPUT_VALID: begin
+        stall_next = '0;
+    end
+    INT_OUTPUT_VALID: begin
+        stall_next = '0;
+    end
+    SYSTEM_OUTPUT_VALID: begin
+        stall_next = '0;
+    end
+    MEM_OUTPUT_VALID: begin
+        stall_next = '0;
+    end
+    default: begin
+        // This can happen during delta cycles... and hopefully only delta cycles.
+        stall_next = 'x;
     end
 endcase
 
