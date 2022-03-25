@@ -93,18 +93,15 @@ wire is_access_misaligned = (access_size_comb == SIZE_HALF  && cache_line_offset
                          || (access_size_comb == SIZE_WORD  && cache_line_offset_comb[1:0])
                          || (access_size_comb == SIZE_DWORD && cache_line_offset_comb[2:0]);
 
-// NOTE: We do all this swizzling combinatorially for the loaded data output! This goes right into writeback stage input delay...
-wire [7:0] loaded_byte = lsu_load_data[cache_line_offset[2:0] * 8 +: 8];
-wire [15:0] loaded_half = lsu_load_data[cache_line_offset[2:1] * 16 +: 16];
-wire [31:0] loaded_word = lsu_load_data[cache_line_offset[2:2] * 32 +: 32];
-wire [63:0] loaded_dword = lsu_load_data;
+// NOTE: We don't care that this read goes out of bounds, we've checked alignment, so we never actually use the OOB data
+wire [31:0] loaded_uword = lsu_load_data[cache_line_offset[2:0] * 8 +: 32];
 logic [`XLEN-1:0] loaded_data;
 always_comb begin
     unique case (access_size)
-        SIZE_BYTE: loaded_data = access_unsigned ? loaded_byte : {{`XLEN-7{loaded_byte[7]}}, loaded_byte[6:0]};
-        SIZE_HALF: loaded_data = access_unsigned ? loaded_half : {{`XLEN-15{loaded_half[15]}}, loaded_half[14:0]};
-        SIZE_WORD: loaded_data = access_unsigned ? loaded_word : {{`XLEN-31{loaded_word[31]}}, loaded_word[30:0]};
-        SIZE_DWORD: loaded_data = loaded_dword;
+        SIZE_BYTE: loaded_data = access_unsigned ? loaded_uword[7:0] : {{`XLEN-7{loaded_uword[7]}}, loaded_uword[6:0]};
+        SIZE_HALF: loaded_data = access_unsigned ? loaded_uword[15:0] : {{`XLEN-15{loaded_uword[15]}}, loaded_uword[14:0]};
+        SIZE_WORD: loaded_data = access_unsigned ? loaded_uword[31:0] : {{`XLEN-31{loaded_uword[31]}}, loaded_uword[30:0]};
+        SIZE_DWORD: loaded_data = lsu_load_data[63:0];
         default: loaded_data = 'x;
     endcase
 end
