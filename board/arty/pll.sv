@@ -22,7 +22,7 @@ PLLE2_BASE #(
     .CLKFBOUT_PHASE(0.0),      // Phase offset in degrees of CLKFB (-360.000-360.000).
     .CLKIN1_PERIOD(10.00),       // Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
     // CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
-    .CLKOUT0_DIVIDE(40),
+    .CLKOUT0_DIVIDE(20),
     // CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for each CLKOUT (0.01-0.99).
     .CLKOUT0_DUTY_CYCLE(0.5),
     // CLKOUT0_PHASE - CLKOUT6_PHASE: Phase offset for each CLKOUT (-360.000-360.000).
