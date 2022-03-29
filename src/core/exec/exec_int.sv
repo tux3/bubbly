@@ -26,33 +26,99 @@ module exec_int(
     output reg [`XLEN-1:0] exec_int_result
 );
 
-logic muldiv_pending;
-wire is_muldiv = (opcode == opcodes::OP || opcode == opcodes::OP_32) && funct7 == 'b0000001;
-
-always_ff @(posedge clk) begin
-    if (rst) begin
-        muldiv_pending <= '0;
-        exec_int_output_valid <= '0;
-    end else begin
-        if (input_valid && input_is_int) begin
-            muldiv_pending <= is_muldiv;
-            exec_int_output_valid <= !is_muldiv;
-        end else begin
-            muldiv_pending <= '0;
-            exec_int_output_valid <= muldiv_pending;
-        end
-    end
-end
-
 logic [4:0] opcode_buf;
 logic [2:0] funct3_buf;
+wire div_was_rem = funct3_buf[1];
 always_ff @(posedge clk) begin
     if (rst) begin
         opcode_buf <= 'x;
         funct3_buf <= 'x;
-    end else begin
+    end else if (input_valid && input_is_int) begin
         opcode_buf <= opcode;
         funct3_buf <= funct3;
+    end
+end
+
+logic mul_pending;
+wire is_muldiv = (opcode == opcodes::OP || opcode == opcodes::OP_32) && funct7 == 'b0000001;
+wire is_muldiv_mul = !funct3[2];
+wire is_muldiv_div = funct3[2];
+
+always_ff @(posedge clk) begin
+    if (rst) begin
+        mul_pending <= '0;
+        exec_int_output_valid <= '0;
+    end else begin
+        if (input_valid && input_is_int) begin
+            mul_pending <= is_muldiv && is_muldiv_mul;
+            exec_int_output_valid <= !is_muldiv;
+        end else begin
+            mul_pending <= '0;
+            exec_int_output_valid <= mul_pending || div_output_valid;
+        end
+    end
+end
+
+logic [`XLEN-1:0] div_a;
+logic [`XLEN-1:0] div_b;
+logic [`XLEN-1:0] div_q;
+wire div_input_valid = input_valid && input_is_int && is_muldiv && is_muldiv_div;
+logic div_output_valid;
+exec_div exec_div(
+    .clk,
+    .rst,
+    .a_in(div_a),
+    .b_in(div_b),
+    .q_out(div_q),
+    .do_rem(div_was_rem),
+    .input_valid(div_input_valid),
+    .output_valid(div_output_valid)
+);
+
+logic [`XLEN-1:0] dividend_buf;
+logic [`XLEN-1:0] abs_dividend_buf;
+logic div_was_by_zero;
+logic div_was_signed_overflow;
+logic div_had_sign_mismatch;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        dividend_buf <= 'x;
+        div_was_by_zero <= 'x;
+        div_was_signed_overflow <= 'x;
+        div_had_sign_mismatch <= 'x;
+    end else if (div_input_valid) begin
+        dividend_buf <= rs1_data;
+        abs_dividend_buf <= div_a;
+        if (opcode == opcodes::OP_32) begin
+            div_was_by_zero <= rs2_data[31:0] == '0;
+            div_was_signed_overflow <= rs1_data[31:0] == 'h8000_0000 && rs2_data[31:0] == '1;
+            div_had_sign_mismatch <= rs1_data[31] != rs2_data[31];
+        end else begin
+            div_was_by_zero <= rs2_data == '0;
+            div_was_signed_overflow <= rs1_data == 'h8000_0000_0000_0000 && rs2_data == '1;
+            div_had_sign_mismatch <= rs1_data[`XLEN-1] != rs2_data[`XLEN-1];
+        end        
+    end
+end
+
+wire muldiv_is_unsigned = funct3[0];
+always_comb begin
+    if (opcode == opcodes::OP_32) begin
+        if (muldiv_is_unsigned) begin
+            div_a = rs1_data[31:0];
+            div_b = rs2_data[31:0];
+        end else begin
+            div_a = rs1_data[31] ? ({ -rs1_data[31:0] }) : rs1_data[31:0];
+            div_b = rs2_data[31] ? ({ -rs2_data[31:0] }) : rs2_data[31:0];
+        end
+    end else begin
+        if (muldiv_is_unsigned) begin
+            div_a = rs1_data;
+            div_b = rs2_data;
+        end else begin
+            div_a = rs1_data[`XLEN-1] ? -rs1_data : rs1_data;
+            div_b = rs2_data[`XLEN-1] ? -rs2_data : rs2_data;
+        end
     end
 end
 
@@ -74,7 +140,7 @@ always_ff @(posedge clk) begin
     exec_int_trap_cause <= 'x;
 
     if (input_valid && input_is_int) begin
-        if (opcode == opcodes::LUI) begin
+        unique if (opcode == opcodes::LUI) begin
             exec_int_result <= {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
         end else if (opcode == opcodes::AUIPC) begin
             exec_int_result <= decode_instruction_addr + {{`XLEN-31{u_imm[31]}}, u_imm[30:12], 12'b0};
@@ -137,7 +203,9 @@ always_ff @(posedge clk) begin
                     exec_int_result <= 'x;
                 end
             endcase
-        end else if (opcode == opcodes::OP) begin
+        end else if (opcode == opcodes::OP && funct7 == 1) begin
+            exec_int_result <= 'x; // MULDIV result set later
+        end else if (opcode == opcodes::OP && funct7[4:0] == '0) begin
             // NOTE: $signed() is okay because:
             //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
             unique case (funct3)
@@ -166,7 +234,9 @@ always_ff @(posedge clk) begin
                     exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
                 end
             endcase
-        end else if (opcode == opcodes::OP_32) begin
+        end else if (opcode == opcodes::OP_32 && funct7 == 1) begin
+            exec_int_result <= 'x; // MULDIV result set later
+        end else if (opcode == opcodes::OP_32 && funct7[4:0] == '0) begin
             // NOTE: $signed() is okay because:
             //  - while the result is wider, we make the operation self-determined using unary concatenation
             //  - both operands are signed and the same size
@@ -191,7 +261,7 @@ always_ff @(posedge clk) begin
             exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
             exec_int_result <= 'x;
         end
-    end else if (muldiv_pending) begin
+    end else if (mul_pending) begin
         if (opcode_buf == opcodes::OP_32) begin
             unique case (funct3_buf)
                 3'b000: begin // MULW
@@ -216,6 +286,84 @@ always_ff @(posedge clk) begin
                 end
                 3'b011: begin // MULHU
                     exec_int_result <= mul_result[`XLEN*2-1:`XLEN];
+                end
+                default: begin
+                    exec_int_exception <= '1;
+                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    exec_int_result <= 'x;
+                end
+            endcase
+        end
+    end else if (div_output_valid) begin
+        if (opcode_buf == opcodes::OP_32) begin
+            unique case (funct3_buf)
+                3'b100: begin // DIVW
+                    if (div_was_by_zero)
+                        exec_int_result <= '1;
+                    else if (div_was_signed_overflow)
+                        exec_int_result <= $signed({ 'h8000_0000 });
+                    else
+                        exec_int_result <= $signed({ div_had_sign_mismatch ? -div_q[31:0] : div_q[31:0] });
+                end
+                3'b101: begin // DIVUW
+                    if (div_was_by_zero)
+                        exec_int_result <= '1;
+                    else
+                        exec_int_result <= $signed({ div_q[31:0] });
+                end
+                3'b110: begin // REMW
+                    if (div_was_by_zero)
+                        exec_int_result <= $signed({ dividend_buf[31:0] });
+                    else if (div_was_signed_overflow)
+                        exec_int_result <= '0;
+                    else if (dividend_buf[31]) // Rem is negative iff dividend was negative
+                        exec_int_result <= $signed({ div_q[31:0] - abs_dividend_buf[31:0] });
+                    else
+                        exec_int_result <= $signed({ abs_dividend_buf[31:0] - div_q[31:0] });
+                end
+                3'b111: begin // REMUW
+                    if (div_was_by_zero)
+                        exec_int_result <= $signed({ dividend_buf[31:0] });
+                    else
+                        exec_int_result <= $signed({ abs_dividend_buf[31:0] - div_q[31:0] });
+                end
+                default: begin
+                    exec_int_exception <= '1;
+                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    exec_int_result <= 'x;
+                end
+            endcase
+        end else if (opcode_buf == opcodes::OP) begin
+            unique case (funct3_buf)
+                3'b100: begin // DIV
+                    if (div_was_by_zero)
+                        exec_int_result <= '1;
+                    else if (div_was_signed_overflow)
+                        exec_int_result <= 'h8000_0000_0000_0000;
+                    else
+                        exec_int_result <= div_had_sign_mismatch ? -div_q : div_q;
+                end
+                3'b101: begin // DIVU
+                    if (div_was_by_zero)
+                        exec_int_result <= '1;
+                    else
+                        exec_int_result <= div_q;
+                end
+                3'b110: begin // REM
+                    if (div_was_by_zero)
+                        exec_int_result <= dividend_buf;
+                    else if (div_was_signed_overflow)
+                        exec_int_result <= '0;
+                    else if (dividend_buf[`XLEN-1]) // Rem is negative iff dividend was negative
+                        exec_int_result <= div_q - abs_dividend_buf;
+                    else
+                        exec_int_result <= abs_dividend_buf - div_q;
+                end
+                3'b111: begin // REMU
+                    if (div_was_by_zero)
+                        exec_int_result <= dividend_buf;
+                    else
+                        exec_int_result <= abs_dividend_buf - div_q;
                 end
                 default: begin
                     exec_int_exception <= '1;
