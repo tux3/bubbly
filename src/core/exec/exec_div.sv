@@ -30,17 +30,17 @@ module exec_div(
     input [`XLEN-1:0] a_in,
     input [`XLEN-1:0] b_in,
     // NOTE: If do_rem, we really output the re-multiplied (q * b_in) result in q_out
-    output [`XLEN-1:0] q_out,
+    output logic [`XLEN-1:0] q_out,
     // do_rem must be held valid until output_valid falling edge, even while !input_valid
     input do_rem,
     input input_valid,
-    output output_valid
-);    
+    output logic output_valid
+);
     logic [65:0] mult_a;
     logic [127:0] mult_b;
     wire [127:0] mult_r;
     fixp_mult mult(.a(mult_a), .b(mult_b), .r(mult_r));
-    
+
     wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b_in);
     logic [127:0] a;
     logic [127:0] b;
@@ -56,7 +56,7 @@ module exec_div(
             b_in_buf <= b_in;
         end
     end
-    
+
     logic [127:0] x;
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -87,11 +87,9 @@ module exec_div(
             mult_b <= x + mult_r;
         end
     end
-    
+
     logic [4:0] counter;
     wire [4:0] counter_max = do_rem ? 'hF : 'hE;
-    assign output_valid = counter == counter_max;
-    assign q_out = output_valid ? (do_rem ? mult_r[0 +: 64] : mult_r[64 +: 64]) : 'x;
     always_ff @(posedge clk) begin
         if (rst) begin
             counter <= '0;
@@ -104,10 +102,22 @@ module exec_div(
         end
     end
 
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            output_valid <= '0;
+            q_out <= 'x;
+        end else begin
+            output_valid <= counter == counter_max;
+            if (counter == counter_max)
+                q_out <= do_rem ? mult_r[0 +: 64] : mult_r[64 +: 64];
+            else
+                q_out <= 'x;
+        end
+    end
+
     `ifndef SYNTHESIS
     always @(posedge clk) begin
         assert property (input_valid |-> !$isunknown(a_in) && !$isunknown(b_in));
     end
     `endif
 endmodule
-
