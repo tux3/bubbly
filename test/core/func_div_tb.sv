@@ -8,7 +8,7 @@ module func_div_tb;
     bit clk = 0;
     bit rst = 0;
 
-    const logic [39*32-1:0] code_buf = {<<{
+    const logic [40*32-1:0] code_buf = {<<{
         {<<{32'hc88cd0b7 }}, //               lui     x1,0xc88cd
         {<<{16'h008a }}, //                   slli    x1,x1,0x2
         {<<{32'h45508093 }}, //               addi    x1,x1,1109
@@ -57,8 +57,8 @@ module func_div_tb;
         {<<{32'h02314d3b }}, //               divw    x26,x2,x3
         {<<{32'h02316dbb }}, //               remw    x27,x2,x3
 
-        {<<{32'b11111111110111111111_00000_1101111}},   // Inf. loop
-        {<<{32'h00000000}}, {<<{32'h00000000}}          // padding
+        {<<{32'b11111111110111111111_00000_1101111}},               // Inf. loop
+        {<<{32'h00000000}}, {<<{32'h00000000}}, {<<{32'h00000000}}  // padding
     }};
 
     wire cs, sclk, si, so, wp, hold;
@@ -99,7 +99,7 @@ module func_div_tb;
     
     initial begin
         #2; @(posedge clk);
-        #1000;
+        #1500;
 
         assert(soc.core.regs.xreg[1] == 'h8000000000000000);
         assert(soc.core.regs.xreg[2] == 'h0000000080000000);

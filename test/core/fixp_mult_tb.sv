@@ -4,22 +4,30 @@
 module fixp_mult_tb;
     timeunit 100ns;
     timeprecision 10ns;
+    
+    bit clk = 0;
         
     wire [127:0] mult_r;
     logic [65:0] mult_a;
     logic [127:0] mult_b;
-    fixp_mult mult(.a(mult_a), .b(mult_b), .r(mult_r));
+    fixp_mult mult(.clk(clk), .a(mult_a), .b(mult_b), .r(mult_r));
     
     task automatic expect_fixp_mult(input [63:0] a, input [63:0] b, input [63:0] expected);
-        #1;
-        mult_a <= {a, {64{1'b0}}};
-        mult_b <= {b, {64{1'b0}}};
-        #1;
+        @(posedge clk) begin
+            mult_a <= {a, {64{1'b0}}};
+            mult_b <= {b, {64{1'b0}}};
+        end
+        @(posedge clk);
+        @(posedge clk);
         assert(expected == mult_r[64 +: 64]) else $error("[%t] Expected %h * %h to give %h, but got %h", $time, a, b, expected, mult_r[64 +: 64]);
-        #1;
     endtask
     
+    initial forever
+        #0.5 clk = !clk;
+    
     initial begin
+        @(posedge clk);
+    
         expect_fixp_mult(2, 5, 10);
         expect_fixp_mult(8, 0, 0);
         expect_fixp_mult(1, 'h1234_5678, 'h1234_5678);

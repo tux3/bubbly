@@ -39,7 +39,7 @@ module exec_div(
     logic [65:0] mult_a;
     logic [127:0] mult_b;
     wire [127:0] mult_r;
-    fixp_mult mult(.a(mult_a), .b(mult_b), .r(mult_r));
+    fixp_mult mult(.clk, .a(mult_a), .b(mult_b), .r(mult_r));
 
     wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b_in);
     logic [127:0] a;
@@ -65,31 +65,31 @@ module exec_div(
             mult_a <= 'h1e1e1e1e1e1e1e1e1;
             mult_b <= b_in << (64 - b_log2);
             x <= 'x;
-        end else if (counter == 'h1) begin
+        end else if (counter == 'h2) begin
             // Initialize with approximate reciprocal 48/17 - 32/17 * b
             x <= 'h2d2d2d2d2d2d2d2d2 - mult_r;
             mult_a <= b;
             mult_b <= 'h2d2d2d2d2d2d2d2d2 - mult_r;
-        end else if (counter == 'hD) begin
+        end else if (counter == 'h1A) begin
             x <= 'x;
             mult_a <= x + mult_r;
             mult_b <= a;
-        end else if (counter == 'hE) begin
+        end else if (counter == 'h1C) begin
             // The `remultiplied = q * b` step for the REM (caller does the `rem = a - remultiplied` op)
             mult_a <= {mult_r[64 +: 64], 1'b0};
             mult_b <= {b_in_buf, 63'b0};
-        end else if (|counter && !counter[0]) begin
-            mult_a <= x;
-            mult_b <= 'h10000000000000000 - mult_r;
-        end else if (|counter && counter[0]) begin
+        end else if (counter[1:0] == 'b10) begin
             x <= x + mult_r;
             mult_a <= b;
             mult_b <= x + mult_r;
+        end else begin
+            mult_a <= x;
+            mult_b <= 'h10000000000000000 - mult_r;
         end
     end
 
-    logic [4:0] counter;
-    wire [4:0] counter_max = do_rem ? 'hF : 'hE;
+    logic [5:0] counter;
+    wire [5:0] counter_max = do_rem ? 'h1E : 'h1C;
     always_ff @(posedge clk) begin
         if (rst) begin
             counter <= '0;
@@ -118,6 +118,7 @@ module exec_div(
     `ifndef SYNTHESIS
     always @(posedge clk) begin
         assert property (input_valid |-> !$isunknown(a_in) && !$isunknown(b_in));
+        assert property (input_valid |-> counter == 0);
     end
     `endif
 endmodule
