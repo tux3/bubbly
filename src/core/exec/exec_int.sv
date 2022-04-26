@@ -122,20 +122,33 @@ always_comb begin
     end
 end
 
-logic [`XLEN-1:0] mul_result_lr_rl;
-logic [`XLEN*2-1:0] mul_result_rr;
-wire [`XLEN*2-1:0] mul_result = {mul_result_lr_rl + mul_result_rr[`XLEN +: `XLEN], mul_result_rr[0 +: `XLEN]};
+logic [`XLEN-1:0] mul_result_high;
+logic [`XLEN-1:0] mul_result_ll;
+logic [`XLEN-1:0] mul_result_lr;
+logic [`XLEN-1:0] mul_result_rl;
+logic [`XLEN-1:0] mul_result_rr;
+wire [`XLEN*2-1:0] mul_result_low = mul_result_rr + {mul_result_lr, 32'b0} + {mul_result_rl, 32'b0} + {mul_result_ll, 64'b0};
+wire [`XLEN*2-1:0] mul_result = {mul_result_high + mul_result_low[`XLEN +: `XLEN], mul_result_low[0 +: `XLEN]};
 always_ff @(posedge clk) begin
     if (rst) begin
-        mul_result_lr_rl <= 'x;
+        mul_result_high <= 'x;
+        mul_result_ll <= 'x;
+        mul_result_lr <= 'x;
+        mul_result_rl <= 'x;
         mul_result_rr <= 'x;
     end else if (input_valid && input_is_int) begin
         if (is_muldiv) begin
-            mul_result_lr_rl <= (rs1_mul_sign ? ({ -rs2_data }) : '0)
+            mul_result_high <= (rs1_mul_sign ? ({ -rs2_data }) : '0)
                               + (rs2_mul_sign ? ({ -rs1_data }) : '0);
-            mul_result_rr <= rs1_data * rs2_data;
+            mul_result_ll <= rs1_data[63:32] * rs2_data[63:32];
+            mul_result_lr <= rs1_data[63:32] * rs2_data[31:0];
+            mul_result_rl <= rs1_data[31:0] * rs2_data[63:32];
+            mul_result_rr <= rs1_data[31:0] * rs2_data[31:0];
         end else begin
-            mul_result_lr_rl <= 'x;
+            mul_result_high <= 'x;
+            mul_result_ll <= 'x;
+            mul_result_lr <= 'x;
+            mul_result_rl <= 'x;
             mul_result_rr <= 'x;
         end
     end
