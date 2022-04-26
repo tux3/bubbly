@@ -41,7 +41,7 @@ module exec_div(
     wire [127:0] mult_r;
     fixp_mult mult(.clk, .a(mult_a), .b(mult_b), .r(mult_r));
 
-    wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b_in);
+    wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b);
     logic [127:0] a;
     logic [127:0] b;
     logic [63:0] b_in_buf;
@@ -51,9 +51,12 @@ module exec_div(
             b <= 'x;
             b_in_buf <= 'x;
         end else if (input_valid) begin
-            a <= a_in << (64 - b_log2);
-            b <= b_in << (64 - b_log2);
+            a <= a_in;
+            b <= b_in;
             b_in_buf <= b_in;
+        end else if (counter == 'h1) begin
+            a <= a << (64 - b_log2);
+            b <= b << (64 - b_log2);
         end
     end
 
@@ -61,24 +64,24 @@ module exec_div(
     always_ff @(posedge clk) begin
         if (rst) begin
             x <= 'x;
-        end else if (input_valid) begin
+        end else if (counter == 'h1) begin
             mult_a <= 'h1e1e1e1e1e1e1e1e1;
-            mult_b <= b_in << (64 - b_log2);
+            mult_b <= b << (64 - b_log2);
             x <= 'x;
-        end else if (counter == 'h2) begin
+        end else if (counter == 'h3) begin
             // Initialize with approximate reciprocal 48/17 - 32/17 * b
             x <= 'h2d2d2d2d2d2d2d2d2 - mult_r;
             mult_a <= b;
             mult_b <= 'h2d2d2d2d2d2d2d2d2 - mult_r;
-        end else if (counter == 'h1A) begin
+        end else if (counter == 'h1B) begin
             x <= 'x;
             mult_a <= x + mult_r;
             mult_b <= a;
-        end else if (counter == 'h1C) begin
+        end else if (counter == 'h1D) begin
             // The `remultiplied = q * b` step for the REM (caller does the `rem = a - remultiplied` op)
             mult_a <= {mult_r[64 +: 64], 1'b0};
             mult_b <= {b_in_buf, 63'b0};
-        end else if (counter[1:0] == 'b10) begin
+        end else if (counter[1:0] == 'b11) begin
             x <= x + mult_r;
             mult_a <= b;
             mult_b <= x + mult_r;
@@ -89,7 +92,7 @@ module exec_div(
     end
 
     logic [5:0] counter;
-    wire [5:0] counter_max = do_rem ? 'h1E : 'h1C;
+    wire [5:0] counter_max = do_rem ? 'h1F : 'h1D;
     always_ff @(posedge clk) begin
         if (rst) begin
             counter <= '0;
