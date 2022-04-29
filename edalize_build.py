@@ -28,17 +28,26 @@ def auto_order(files):
         files.append(f)
     return files
 
-files = auto_order(scan_files('src/**', 'systemVerilogSource'))
+files = auto_order(scan_files('src/**/*.v', 'systemVerilogSource')
+        + scan_files('src/**/*.sv', 'systemVerilogSource')
+        + scan_files('src/**/*.svh', 'systemVerilogSource'))
 test_files = scan_files('test/**/*.sv', 'systemVerilogSource')
 files += test_files
 
 files += scan_files('board/arty/*.sv', 'systemVerilogSource')
 files += scan_files('board/arty/*.xdc', 'xdc')
+constr_files = scan_files('src/**/*.tcl', 'xdc') # TCL constraints
+files += constr_files
 
 with open('test_sources.tcl', 'w+') as f:
     test_file_names = ' '.join([file['name'] for file in test_files])
     f.write('move_files -fileset sim_1 [get_files  {' + test_file_names + '}]')
 files += [{'name': 'test_sources.tcl', 'file_type': 'tclSource'}]
+
+with open('constr_sources.tcl', 'w+') as f:
+    file_names = ' '.join([file['name'] for file in constr_files])
+    f.write('set_property file_type "TCL" [get_files  {' + file_names + '}]')
+files += [{'name': 'constr_sources.tcl', 'file_type': 'tclSource'}]
 
 tool = 'vivado'
 tool_options = {

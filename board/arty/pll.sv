@@ -4,7 +4,8 @@ module pll(
     input RSTN,
     output clk,
     output reg rst,
-    output flash_capture_clk
+    output flash_capture_clk,
+    output eth_ref_clk
 );
     
 logic [4:0] rstn_buf = '0;
@@ -23,22 +24,25 @@ PLLE2_BASE #(
     .CLKFBOUT_PHASE(0.0),      // Phase offset in degrees of CLKFB (-360.000-360.000).
     .CLKIN1_PERIOD(10.00),       // Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
     // CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
-    .CLKOUT0_DIVIDE(16),
-    .CLKOUT1_DIVIDE(16),
+    .CLKOUT0_DIVIDE(20),
+    .CLKOUT1_DIVIDE(20),
+    .CLKOUT2_DIVIDE(52),
     // CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for each CLKOUT (0.01-0.99).
     .CLKOUT0_DUTY_CYCLE(0.5),
     .CLKOUT1_DUTY_CYCLE(0.3),
+    .CLKOUT2_DUTY_CYCLE(0.5),
     // CLKOUT0_PHASE - CLKOUT6_PHASE: Phase offset for each CLKOUT (-360.000-360.000).
     .CLKOUT0_PHASE(0.0),
-    .CLKOUT1_PHASE(150.0),
-    .DIVCLK_DIVIDE(5),         // Master division value (1-106)
+    .CLKOUT1_PHASE(148.5),
+    .CLKOUT2_PHASE(0.0),
+    .DIVCLK_DIVIDE(4),         // Master division value (1-106)
     .REF_JITTER1(0.0),         // Reference input jitter in UI (0.000-0.999).
     .STARTUP_WAIT("TRUE")     // Delays DONE until MMCM is locked (FALSE, TRUE)
 ) MMCME2_BASE_inst (
     // Clock Outputs: 1-bit (each) output: User configurable clock outputs
     .CLKOUT0(clk),     // 1-bit output: CLKOUT0
     .CLKOUT1(flash_capture_clk),   // 1-bit output: CLKOUT1
-    .CLKOUT2(),   // 1-bit output: CLKOUT2
+    .CLKOUT2(eth_ref_clk),   // 1-bit output: CLKOUT2
     .CLKOUT3(),   // 1-bit output: CLKOUT3
     .CLKOUT4(),   // 1-bit output: CLKOUT4
     .CLKOUT5(),   // 1-bit output: CLKOUT5

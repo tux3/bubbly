@@ -20,7 +20,20 @@ module spi_soc#(
     inout FLASH_HOLD,
     input [0:0] SWITCH,
     output [PROBE_OUTPUTS-1:0] PROBE,
-    output reg [LED_OUTPUTS-1:0] LED
+    output reg [LED_OUTPUTS-1:0] LED,
+    
+    // Ethernet
+    input ETH_COL,
+    input ETH_CRS,
+    input ETH_REF_CLK,
+    output ETH_RSTN,
+    input ETH_RX_CLK,
+    input ETH_RX_DV,
+    input [3:0] ETH_RXD,
+    input ETH_RXERR,
+    input ETH_TX_CLK,
+    output ETH_TX_EN,
+    output [3:0] ETH_TXD
 );
 
 //assign PROBE[0] = FLASH_CS;
@@ -32,18 +45,18 @@ module spi_soc#(
 //assign PROBE[6] = FLASH_CLK;
 //assign PROBE[7] = rst;
 
-//assign PROBE[0] = gated_core_clk;
-//assign PROBE[1] = basic_soc.core.ifetch_stall_next;
-//assign PROBE[2] = basic_soc.core.ifetch_exception;
-//assign PROBE[3] = basic_soc.core.decode_stall_next;
-//assign PROBE[4] = basic_soc.core.decode_next_stalled;
-//assign PROBE[5] = basic_soc.core.decode_exception;
-//assign PROBE[6] = basic_soc.core.exec_stall_next;
-//assign PROBE[7] = basic_soc.core.exec_exception;
-//assign PROBE[8] = basic_soc.core.exec_is_reg_write;
-//assign PROBE[9] = basic_soc.core.exec_is_trap;
+assign PROBE[0] = gated_core_clk;
+assign PROBE[1] = eth_soc.core.ifetch_stall_next;
+assign PROBE[2] = eth_soc.core.ifetch_exception;
+assign PROBE[3] = eth_soc.core.decode_stall_next;
+assign PROBE[4] = eth_soc.core.decode_next_stalled;
+assign PROBE[5] = eth_soc.core.decode_exception;
+assign PROBE[6] = eth_soc.core.exec_stall_next;
+assign PROBE[7] = eth_soc.core.exec_exception;
+assign PROBE[8] = eth_soc.core.exec_is_reg_write;
+assign PROBE[9] = eth_soc.core.exec_is_trap;
 
-assign PROBE = '0;
+//assign PROBE = '0;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
@@ -86,11 +99,11 @@ wire [`XLEN-1:0] reg_pc;
 wire [`XLEN-1:0] core_reg_read_data;
 wire [$bits(LED)-1:0] led_gpio;
 
-basic_soc #(
+eth_soc #(
     .RESET_PC(RESET_PC),
     .GPIO_OUTPUTS($bits(LED))
-) basic_soc (
-    .clk(gated_core_clk),
+) eth_soc (
+    .clk(clk), // FIXME: gated_core_clk
     .rst,
 
     .cs(FLASH_CS),
@@ -100,6 +113,17 @@ basic_soc #(
     .so(FLASH_MISO),
     .wp(FLASH_WP),
     .hold(FLASH_HOLD),
+    
+    .eth_rx_clk(ETH_RX_CLK),
+    .eth_rxd(ETH_RXD),
+    .eth_rx_dv(ETH_RX_DV),
+    .eth_rx_er(ETH_RXERR),
+    .eth_tx_clk(ETH_TX_CLK),
+    .eth_txd(ETH_TXD),
+    .eth_tx_en(ETH_TX_EN),
+    .eth_col(ETH_COL),
+    .eth_crs(ETH_CRS),
+    .eth_reset_n(ETH_RSTN),
 
     .fetch_instr,
     .reg_pc,
@@ -164,73 +188,73 @@ begin: set_led
         core_clk_enable <= '1;
         core_clk_pulse <= '0;
     end else if (recv_ready) begin
-        if (dbg_state == DBG_IDLE) begin
-            if (recv_data == DBG_CMD_NOP) begin
-                send_data <= '0;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_ECHO) begin
-                send_data <= DBG_CMD_ECHO;
-                dbg_state <= DBG_ECHO;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_TOGGLE_LED)begin
-                send_data <= '0;
-                send_buf_count <= 'x;
-                led_buf <= ~led_buf;
-            end else if (recv_data == DBG_CMD_ENABLE_CLOCK) begin
-                core_clk_enable <= '1;
-                send_data <= '0;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_DISABLE_CLOCK) begin
-                core_clk_enable <= '0;
-                send_data <= '0;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_STEP_CLOCK) begin
-                core_clk_pulse <= !core_clk_pulse;
-                send_data <= '0;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_GET_PC) begin
-                send_buf <= reg_pc;
-                send_buf_count <= 8;
-                dbg_state <= DBG_REPLYING;
-                send_data <= '0;
-            end else if (recv_data == DBG_CMD_GET_REG) begin
-                send_data <= '0;
-                send_buf_count <= 'x;
-                dbg_state <= DBG_READ_REG;
-            end else if (recv_data == DBG_CMD_READ_FLASH) begin
-                // Flash is in use by the CPU
-				//dbg_state <= DBG_FLASH_READ_ADDR;
-				//dbg_read_addr_count = 'b11;
-				send_data <= 'hFF;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_ECHO_CC) begin
-                send_data <= 'hCC;
-                send_buf_count <= 'x;
-            end else if (recv_data == DBG_CMD_GET_FETCHED_INSTR) begin
-                send_buf <= fetch_instr;
-                send_buf_count <= 14;
-                dbg_state <= DBG_REPLYING;
-                send_data <= '0;
-            end else begin
-                send_data <= 'hFF;
-                send_buf_count <= 'x;
-            end
-        end else if (dbg_state == DBG_ECHO) begin
-            send_data <= recv_data;
-            dbg_state <= DBG_IDLE;
-        end else if (dbg_state == DBG_READ_REG) begin
-            send_buf <= core_reg_read_data;
-            send_buf_count <= 8;
-            dbg_state <= DBG_REPLYING;
-            send_data <= '0;
-        end else if (dbg_state == DBG_REPLYING) begin
-            send_data <= send_buf[send_buf_count*8-1 -: 8];
-            if (send_buf_count == 1)
-                dbg_state <= DBG_IDLE;
-            send_buf_count <= send_buf_count-1;
-        end else begin
-            send_data <= 'hFF;
-        end
+//        if (dbg_state == DBG_IDLE) begin
+//            if (recv_data == DBG_CMD_NOP) begin
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_ECHO) begin
+//                send_data <= DBG_CMD_ECHO;
+//                dbg_state <= DBG_ECHO;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_TOGGLE_LED)begin
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//                led_buf <= ~led_buf;
+//            end else if (recv_data == DBG_CMD_ENABLE_CLOCK) begin
+//                core_clk_enable <= '1;
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_DISABLE_CLOCK) begin
+//                core_clk_enable <= '0;
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_STEP_CLOCK) begin
+//                core_clk_pulse <= !core_clk_pulse;
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_GET_PC) begin
+//                send_buf <= reg_pc;
+//                send_buf_count <= 8;
+//                dbg_state <= DBG_REPLYING;
+//                send_data <= '0;
+//            end else if (recv_data == DBG_CMD_GET_REG) begin
+//                send_data <= '0;
+//                send_buf_count <= 'x;
+//                dbg_state <= DBG_READ_REG;
+//            end else if (recv_data == DBG_CMD_READ_FLASH) begin
+//                // Flash is in use by the CPU
+//				//dbg_state <= DBG_FLASH_READ_ADDR;
+//				//dbg_read_addr_count = 'b11;
+//				send_data <= 'hFF;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_ECHO_CC) begin
+//                send_data <= 'hCC;
+//                send_buf_count <= 'x;
+//            end else if (recv_data == DBG_CMD_GET_FETCHED_INSTR) begin
+//                send_buf <= fetch_instr;
+//                send_buf_count <= 14;
+//                dbg_state <= DBG_REPLYING;
+//                send_data <= '0;
+//            end else begin
+//                send_data <= 'hFF;
+//                send_buf_count <= 'x;
+//            end
+//        end else if (dbg_state == DBG_ECHO) begin
+//            send_data <= recv_data;
+//            dbg_state <= DBG_IDLE;
+//        end else if (dbg_state == DBG_READ_REG) begin
+//            send_buf <= core_reg_read_data;
+//            send_buf_count <= 8;
+//            dbg_state <= DBG_REPLYING;
+//            send_data <= '0;
+//        end else if (dbg_state == DBG_REPLYING) begin
+//            send_data <= send_buf[send_buf_count*8-1 -: 8];
+//            if (send_buf_count == 1)
+//                dbg_state <= DBG_IDLE;
+//            send_buf_count <= send_buf_count-1;
+//        end else begin
+//            send_data <= 'hFF;
+//        end
     end
 end
 

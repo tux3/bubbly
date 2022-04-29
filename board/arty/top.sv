@@ -20,6 +20,18 @@ module top(
     inout FLASH_MISO,
     inout FLASH_WP,
     inout FLASH_HOLD,
+    
+    input ETH_COL,
+    input ETH_CRS,
+    output ETH_REF_CLK,
+    output ETH_RSTN,
+    input ETH_RX_CLK,
+    input ETH_RX_DV,
+    input [3:0] ETH_RXD,
+    input ETH_RXERR,
+    input ETH_TX_CLK,
+    output ETH_TX_EN,
+    output [3:0] ETH_TXD,
 
     input [3:0] SWITCH,
     output [9:0] PROBE,
@@ -29,12 +41,15 @@ module top(
 
 wire clk, rst;
 wire flash_capture_clk;
+wire eth_ref_clk;
+assign ETH_REF_CLK = eth_ref_clk;
 pll pll(
     .CLK100MHZ,
     .RSTN,
     .clk,
     .rst,
-    .flash_capture_clk
+    .flash_capture_clk,
+    .eth_ref_clk
 );
 
 reg [$bits(SWITCH)-1:0] switch_sync1;
@@ -47,6 +62,17 @@ end
 spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
     .clk,
     .rst,
+    
+    .ETH_RX_CLK(ETH_RX_CLK),
+    .ETH_RXD(ETH_RXD),
+    .ETH_RX_DV(ETH_RX_DV),
+    .ETH_RXERR(ETH_RXERR),
+    .ETH_TX_CLK(ETH_TX_CLK),
+    .ETH_TXD(ETH_TXD),
+    .ETH_TX_EN(ETH_TX_EN),
+    .ETH_COL(ETH_COL),
+    .ETH_CRS(ETH_CRS),
+    .ETH_RSTN(ETH_RSTN),
 
     .FLASH_CAPTURE_CLK(flash_capture_clk),
 
