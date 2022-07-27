@@ -11,6 +11,7 @@ module basic_soc#(
     // ROM flash interface
     output cs,
     output sclk,
+    input capture_clk,
     inout si,
     inout so,
     inout wp,
@@ -106,6 +107,7 @@ axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
     .bus(flash_axi),
     .cs,
     .sclk,
+    .capture_clk,
     .si,
     .so,
     .wp,

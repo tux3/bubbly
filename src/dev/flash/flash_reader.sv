@@ -23,6 +23,7 @@ module flash_reader #(
     // Pins iface
     output cs,
     output sclk,
+    input capture_clk,
     inout si,
     inout so,
     inout wp,
@@ -50,6 +51,7 @@ module flash_reader #(
         .data,
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

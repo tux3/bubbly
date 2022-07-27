@@ -6,7 +6,7 @@ _start:
 	li s2, 1
 
 loop:
-	li s3, 4*1000*1000
+	li s3, 8*1000*1000
 	sb s2, 0(s1)
 	xor s2, s2, 1
 

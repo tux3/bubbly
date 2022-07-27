@@ -9,6 +9,7 @@ module axi4lite_flash #(
     // QSPI flash pins
     output cs,
     output sclk,
+    input capture_clk,
     inout si,
     inout so,
     inout wp,
@@ -46,6 +47,7 @@ module axi4lite_flash #(
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

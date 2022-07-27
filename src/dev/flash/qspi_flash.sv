@@ -4,6 +4,8 @@
 //
 // After reset, this module initializes the Flash chip to work in continous quad-read mode (XIP).
 
+// The clock edge order is pos clk, pos capture_clk, neg clk, neg capture clk, pos clk, ...
+
 module qspi_flash #(
     parameter USE_SB_IO = 1
 ) (
@@ -18,6 +20,7 @@ module qspi_flash #(
     // Pins iface
     output sclk,
     output cs,
+    input capture_clk,
     inout si, so, wp, hold
 );
 
@@ -44,7 +47,7 @@ wire switch_to_quad_send_mode = setup_counter == 'h1 && tx_counter == 'h30;
 wire si_in, so_in, wp_in, hold_in;
 
 assign cs = cs_reg;
-assign sclk = !cs && clk;
+assign sclk = clk; // We set cs on negedge, there'll be enough CS high setup time before the next sclk posedge that we don't need to mask it
 assign setup_done = !(|setup_counter);
 
 generate
@@ -81,7 +84,7 @@ end
 endgenerate
 
 // Update setup_counter
-always @(negedge clk)
+always @(negedge capture_clk)
 begin
     if (rst) begin
         setup_counter <= 'h6;
@@ -94,7 +97,7 @@ begin
 end
 
 // Update serial_command_sent
-always @(negedge clk)
+always @(negedge capture_clk)
 begin
     if (rst) begin
         serial_command_sent <= 'h0;
@@ -107,7 +110,7 @@ begin
 end
 
 // Update tx_counter and quad_send_mode
-always @(negedge clk)
+always @(negedge capture_clk)
 begin
     if (rst) begin
         tx_counter <= 'h08;
@@ -155,7 +158,7 @@ begin
 end
 
 // Prepare data to send
-always @(negedge clk)
+always @(negedge capture_clk)
 begin
     if (rst) begin
 		sliding_send_buf <= {8'hAB, {32{'x}}}; // Wake opcode
@@ -188,14 +191,15 @@ begin
 end
 
 // Check chip supports quad-send mode
-always @(negedge clk)
+wire [7:0] comb_setup_data = {data[6:0], so_in};
+always @(posedge capture_clk)
 begin
-    if (rst) begin
+    if (capture_rst) begin
         supports_quad_mode <= 'h1;
     end else if (setup_counter == 'h5) begin
-        if (tx_counter == 'h08 && data != supported_qspi_vendor)
+        if (tx_counter == 'h08 && comb_setup_data != supported_qspi_vendor)
             supports_quad_mode <= 'h0;
-        else if (tx_counter == 'h05 && data[2:0] != supported_qspi_models[7:5])
+        else if (tx_counter == 'h05 && comb_setup_data[2:0] != supported_qspi_models[7:5])
             supports_quad_mode <= 'h0;
     end
 end
@@ -216,7 +220,7 @@ begin
 end
 
 // Maintain cs
-always @(negedge clk)
+always @(negedge capture_clk)
 begin
     if (rst) begin
         cs_reg <= 'h1;
@@ -227,10 +231,14 @@ begin
     end
 end
 
+logic capture_rst;
+always @(negedge capture_clk)
+    capture_rst <= rst;
+
 // Receive data
-always @(posedge clk)
+always @(posedge capture_clk)
 begin
-    if (rst) begin
+    if (capture_rst) begin
         data_ready <= 'b0;
         data <= 'x;
     end else if (setup_done) begin

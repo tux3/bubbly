@@ -16,14 +16,15 @@ set_property CONFIG_MODE SPIx4 [current_design]
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports CLK100MHZ]
 create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_ports CLK100MHZ]
 create_generated_clock -name sys_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT0]
-create_clock -period [get_property PERIOD [get_clocks sys_clk]] -name FLASH_CLK
+create_generated_clock -name flash_capture_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT1]
+
+# The BUFGCE could glitch when rst goes up asynchronously, but it's okay: it's a reset, and it lasts several cycles
+set_false_path -from [get_pins pll/rst_reg/C] -to [get_pins spi_soc/flash_capture_clk_gated_bufgce/CE]
 
 create_clock -period 500.000 -name SPI_CLK -waveform {0.000 250.000} [get_ports SPI_CLK]
 
 # We have clock domain crossings due to the SPI, declare the clocks as unrelated...
-set_clock_groups -asynchronous \
-     -group { sys_clk_pin sys_clk FLASH_CLK } \
-     -group { SPI_CLK }
+set_clock_groups -asynchronous -group { SPI_CLK }
 
 ## Switches
 set_property -dict { PACKAGE_PIN A8    IOSTANDARD LVCMOS33 } [get_ports { SWITCH[0] }]; #IO_L12N_T1_MRCC_16 Sch=sw[0]
@@ -236,6 +237,34 @@ set_property -dict {PACKAGE_PIN K17 IOSTANDARD LVCMOS33} [get_ports FLASH_MOSI]
 set_property -dict {PACKAGE_PIN K18 IOSTANDARD LVCMOS33} [get_ports FLASH_MISO]
 set_property -dict {PACKAGE_PIN L14 IOSTANDARD LVCMOS33} [get_ports FLASH_WP]
 set_property -dict {PACKAGE_PIN M14 IOSTANDARD LVCMOS33} [get_ports FLASH_HOLD]
+
+set FLASH_tHO 2
+set FLASH_tV 8
+# Wire delay value is a wild guess
+set FLASH_wire_delay 3
+# Note: We add a half period because it's from negedge to posedge, not from posedge to same posedge
+set FLASH_tco_min [expr [get_property PERIOD [get_clocks flash_capture_clk]]/2 + $FLASH_tHO + $FLASH_wire_delay]
+set FLASH_tco_max [expr [get_property PERIOD [get_clocks flash_capture_clk]]/2 + $FLASH_tV + $FLASH_wire_delay]
+set FLASH_out_min -2.000
+set FLASH_out_max 1.500
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_tco_min [get_ports FLASH_HOLD]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_tco_max [get_ports FLASH_HOLD]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_tco_min [get_ports FLASH_MISO]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_tco_max [get_ports FLASH_MISO]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_tco_min [get_ports FLASH_MOSI]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_tco_max [get_ports FLASH_MOSI]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_tco_min [get_ports FLASH_WP]
+set_input_delay -clock [get_clocks flash_capture_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_tco_max [get_ports FLASH_WP]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_out_min [get_ports FLASH_CS]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_out_max [get_ports FLASH_CS]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_out_min [get_ports FLASH_HOLD]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_out_max [get_ports FLASH_HOLD]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_out_min [get_ports FLASH_MISO]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_out_max [get_ports FLASH_MISO]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_out_min [get_ports FLASH_MOSI]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_out_max [get_ports FLASH_MOSI]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -min -add_delay $FLASH_out_min [get_ports FLASH_WP]
+set_output_delay -clock [get_clocks sys_clk] -reference_pin [get_ports FLASH_CLK] -max -add_delay $FLASH_out_max [get_ports FLASH_WP]
 
 ## Power Measurements
 #set_property -dict { PACKAGE_PIN B17   IOSTANDARD LVCMOS33     } [get_ports { vsnsvu_n }]; #IO_L7N_T1_AD2N_15 Sch=ad_n[2]

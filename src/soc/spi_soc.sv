@@ -13,6 +13,7 @@ module spi_soc#(
     input SPI_SS,
     output FLASH_CS,
     output FLASH_CLK,
+    input FLASH_CAPTURE_CLK,
     inout FLASH_MOSI,
     inout FLASH_MISO,
     inout FLASH_WP,
@@ -23,11 +24,13 @@ module spi_soc#(
 );
 
 //assign PROBE[0] = FLASH_CS;
-//assign PROBE[1] = FLASH_CLK;
+//assign PROBE[1] = flash_capture_clk_gated;
 //assign PROBE[2] = FLASH_MOSI;
 //assign PROBE[3] = FLASH_MISO;
 //assign PROBE[4] = FLASH_WP;
 //assign PROBE[5] = FLASH_HOLD;
+//assign PROBE[6] = FLASH_CLK;
+//assign PROBE[7] = rst;
 
 //assign PROBE[0] = gated_core_clk;
 //assign PROBE[1] = basic_soc.core.ifetch_stall_next;
@@ -45,7 +48,20 @@ assign PROBE = '0;
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
 // We have synchronous resets, so the gated clock must run during rst!
-wire gated_core_clk = clk && (rst || (SWITCH & core_clk_enable_reg));
+wire gated_core_clk;
+BUFGCE gated_core_clk_bufgce (
+    .I(clk),
+    .O(gated_core_clk),
+    .CE(rst || (SWITCH & core_clk_enable_reg))
+);
+assign FLASH_CLK = gated_core_clk;
+
+wire flash_capture_clk_gated;
+BUFGCE flash_capture_clk_gated_bufgce (
+    .I(FLASH_CAPTURE_CLK),
+    .O(flash_capture_clk_gated),
+    .CE(rst || (SWITCH & core_clk_enable_reg))
+);
 
 reg [7:0] send_data;
 wire send_ready;
@@ -78,7 +94,8 @@ basic_soc #(
     .rst,
 
     .cs(FLASH_CS),
-    .sclk(FLASH_CLK),
+    .sclk(),
+    .capture_clk(flash_capture_clk_gated),
     .si(FLASH_MOSI),
     .so(FLASH_MISO),
     .wp(FLASH_WP),

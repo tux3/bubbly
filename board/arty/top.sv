@@ -28,16 +28,18 @@ module top(
     );
 
 wire clk, rst;
+wire flash_capture_clk;
 pll pll(
     .CLK100MHZ,
     .RSTN,
     .clk,
-    .rst
+    .rst,
+    .flash_capture_clk
 );
 
 reg [$bits(SWITCH)-1:0] switch_sync1;
 reg [$bits(SWITCH)-1:0] switch_reg;
-always_ff @(posedge clk) begin
+always_ff @(posedge flash_capture_clk) begin
     switch_sync1 <= SWITCH;
     switch_reg <= switch_sync1;
 end
@@ -45,6 +47,8 @@ end
 spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
     .clk,
     .rst,
+
+    .FLASH_CAPTURE_CLK(flash_capture_clk),
 
     .SWITCH(switch_reg[0]),
     .PROBE,
@@ -55,7 +59,7 @@ spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
 
 assign PROBE_GND_34 = '0;
 
-logic [23:0] counter;
+logic [24:0] counter;
 assign LED[0] = counter[$bits(counter)-1];
 
 always_ff @(posedge clk) begin
