@@ -11,13 +11,13 @@ module flash_reader_tb;
     logic [7:0] data;
     logic data_ready;
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
 
     qspi_flash_pattern_mock flash(
         .*
     );
 
-    flash_reader flash_reader(
+    flash_reader #(.USE_SB_IO(0)) flash_reader(
         .*
     );
 

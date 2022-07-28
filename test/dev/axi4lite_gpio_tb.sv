@@ -29,7 +29,7 @@ module axi4lite_gpio_tb;
          gpio_addr[31:0], gpio_addr[63:32]     // gpio ptr
     }};
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
     serial_spi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
@@ -46,6 +46,7 @@ module axi4lite_gpio_tb;
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

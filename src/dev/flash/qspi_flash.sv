@@ -191,15 +191,14 @@ begin
 end
 
 // Check chip supports quad-send mode
-wire [7:0] comb_setup_data = {data[6:0], so_in};
 always @(posedge capture_clk)
 begin
     if (capture_rst) begin
         supports_quad_mode <= 'h1;
     end else if (setup_counter == 'h5) begin
-        if (tx_counter == 'h08 && comb_setup_data != supported_qspi_vendor)
+        if (tx_counter == 'h08 && data != supported_qspi_vendor)
             supports_quad_mode <= 'h0;
-        else if (tx_counter == 'h05 && comb_setup_data[2:0] != supported_qspi_models[7:5])
+        else if (tx_counter == 'h05 && data[2:0] != supported_qspi_models[7:5])
             supports_quad_mode <= 'h0;
     end
 end

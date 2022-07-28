@@ -8,7 +8,7 @@ module ifetch_tb;
     bit clk = 0;
     bit rst = 0;
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
 
     axi4lite #(.ADDR_WIDTH(24)) bus();
     axi4lite_flash #(.USE_SB_IO(0)) axi4lite_flash(
@@ -16,6 +16,7 @@ module ifetch_tb;
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

@@ -1,9 +1,20 @@
 module serial_spi_flash_pattern_mock(
     input cs, sclk,
+    output logic capture_clk,
     inout si, so, wp, hold
 );
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 100ns;
+timeprecision 10ns;
+
+initial begin
+    capture_clk = 0;
+    #0.8;
+    forever begin
+        capture_clk = 1;
+        #0.4 capture_clk = 0;
+        #0.6;
+    end
+end
 
 typedef enum { CMD_WAKEUP = 'hAB, CMD_FAST_READ = 'h0B, CMD_READ_ID = 'h9F } commands;
 enum { DISABLED, ADDR_1, ADDR_2, ADDR_3, DUMMY, SEND } send_mode;
@@ -28,7 +39,7 @@ assign so = send_id ? chip_identifier[send_id_pos] : (should_send ? reply_byte[s
 assign wp = 'z;
 assign hold = 'z;
 
-always @(posedge sclk, posedge cs) begin
+always @(negedge sclk, posedge cs) begin
     if (cs) begin
         addr <= 'x;
         recv_count <= 0;
@@ -39,7 +50,7 @@ always @(posedge sclk, posedge cs) begin
     end
 end
 
-always @(posedge sclk, posedge cs) begin
+always @(negedge sclk, posedge cs) begin
     if (cs) begin
         send_pos <= $bits(reply_byte)-1;
         send_id_pos <= $bits(chip_identifier)-1;

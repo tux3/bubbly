@@ -35,7 +35,7 @@ module func_store_tb;
          'h11223344, 'h55667788                 // misc data
     }};
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
     qspi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
@@ -51,6 +51,7 @@ module func_store_tb;
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

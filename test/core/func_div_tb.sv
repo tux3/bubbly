@@ -61,7 +61,7 @@ module func_div_tb;
         {<<{32'h00000000}}, {<<{32'h00000000}}, {<<{32'h00000000}}  // padding
     }};
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
     qspi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
@@ -77,6 +77,7 @@ module func_div_tb;
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,

@@ -1,7 +1,7 @@
 module qspi_flash_tb();
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 100ns;
+timeprecision 10ns;
 
 bit clk = 0;
 bit rst = 0;
@@ -12,7 +12,7 @@ wire setup_done;
 wire data_ready;
 wire [7:0] data;
 
-wire cs, sclk, si, so, wp, hold;
+wire cs, sclk, si, so, wp, hold, capture_clk;
 
 qspi_flash_pattern_mock flash_mock(
     .*
@@ -28,6 +28,7 @@ qspi_flash #(.USE_SB_IO(0)) flash(
     .data(data),
     .cs(cs),
     .sclk(sclk),
+    .capture_clk(capture_clk),
     .si(si),
     .so(so),
     .wp(wp),
@@ -38,15 +39,15 @@ qspi_flash #(.USE_SB_IO(0)) flash(
 initial
 begin
     #0 rst = 1;
-    #50 clk = 1;
-    #50 clk = 0;
-    #50 clk = 1;
-    #35 // Pretend we just barely meet release timing (for some reason?)
+    #0.5 clk = 1;
+    #0.5 clk = 0;
+    #0.5 clk = 1;
+    #0.3 // Pretend we just barely meet release timing (for some reason?)
     rst = 0;
-    #15 clk = 0;
+    #0.2 clk = 0;
 
     forever begin
-        #50 clk = !clk;
+        #0.5 clk = !clk;
     end
 end
 
@@ -96,17 +97,18 @@ begin
         assert({hold, wp, so, si} === 4'bzzzz) else $error("[%t] Expected high-Z, but got %b", $time, {hold, wp, so, si});
     @(posedge sclk)
         assert({hold, wp, so, si} === 4'bzzzz) else $error("[%t] Expected high-Z, but got %b", $time, {hold, wp, so, si});
-    #50;
+    #0.5;
 end
 endtask
 
 task assert_transfer_quad_byte;
 input [7:0] byte_to_send;
 begin
-    #1 @(posedge sclk);
+    #0.1 @(posedge sclk);
     @(negedge sclk);
     @(posedge sclk) begin
-        #1
+        @(posedge capture_clk);
+        #0.1
         assert(data_ready == 1'b1) else $error("[%t] Expected data_ready to go high", $time);
         assert(data == byte_to_send) else $error("[%t] Expected xfered byte %b, but got %b", $time, byte_to_send, data);
     end
@@ -115,8 +117,8 @@ endtask
 
 task assert_cs_goes_up;
 begin
-    @(negedge sclk)
-        #1 assert(cs == 'b1) else $fatal(1, "[%t] Expected cs to go up", $time);
+    @(negedge capture_clk)
+        #0.1 assert(cs == 'b1) else $fatal(1, "[%t] Expected cs to go up", $time);
 end
 endtask
 
@@ -132,7 +134,7 @@ begin
     addr <= 24'h8F428F;
 
     @(posedge setup_done)
-        #200;
+        #2;
     @(posedge clk)
         do_read <= 'b1;
 end
@@ -140,7 +142,7 @@ end
 // Read asserts
 initial
 begin
-    // I. Check setup
+    $display("[%t] 1. Check setup", $time);
 
 	// Wake-up (missing all the required delay!)
     @(negedge cs);
@@ -186,7 +188,7 @@ begin
     assert(cs == 1'b1) else $error("[%t] Expected cs to go high after setup", $time);
     assert(data_ready == 1'b0) else $error("[%t] Expected data_ready to stay low after setup", $time);
 
-    // II. Check data transfer
+    $display("[%t] 2. Check data transfer", $time);
 
     @(negedge cs);
     assert_read_quad_byte(addr[23:16]); // Addr
@@ -204,7 +206,9 @@ begin
 
     // Stop reading for a short time
     do_read <= 'b0;
-    #50
+    #0.5
+    
+    $display("[%t] 3. Restart from second address", $time);
 
     // Restart reading from different addresss
     @(posedge clk);
@@ -226,7 +230,9 @@ begin
     // Stop reading for a long time, at an odd cycle
     @(posedge clk);
     do_read <= 'b0;
-    #400
+    #4
+    
+    $display("[%t] 4. Restart from third address", $time);
 
     // Restart reading from different addresss
     @(posedge clk);
@@ -249,7 +255,7 @@ begin
     do_read <= 0;
     addr <= 'bx;
 
-    #1000 $finish;
+    #10 $finish;
 
 end
 

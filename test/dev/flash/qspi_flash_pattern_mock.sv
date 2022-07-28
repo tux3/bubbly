@@ -1,7 +1,20 @@
 module qspi_flash_pattern_mock(
     input cs, sclk,
+    output logic capture_clk,
     inout si, so, wp, hold
 );
+timeunit 100ns;
+timeprecision 10ns;
+
+initial begin
+    capture_clk = 0;
+    #0.8;
+    forever begin
+        capture_clk = 1;
+        #0.4 capture_clk = 0;
+        #0.6;
+    end
+end
 
 typedef enum { CMD_QUAD_READ = 'hEB, CMD_READ_ID = 'h9F } commands;
 enum { DISABLED, ADDR_1, ADDR_2, ADDR_3, MODE, DUMMY_1, DUMMY_2, SEND } quad_mode;
@@ -25,7 +38,7 @@ assign so = send_id ? chip_identifier[send_id_pos] : (should_send ? reply_byte[4
 assign wp = should_send ? reply_byte[4*recv_got_byte+2] : 'z;
 assign hold = should_send ? reply_byte[4*recv_got_byte+3] : 'z;
 
-always @(posedge sclk, posedge cs) begin
+always @(negedge sclk, posedge cs) begin
     if (cs) begin
         addr <= 'x;
         recv_count <= 0;

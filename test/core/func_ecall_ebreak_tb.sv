@@ -29,7 +29,7 @@ module func_ecall_ebreak_tb;
         'b00000000000000000000_00000_0000000
     }};
 
-    wire cs, sclk, si, so, wp, hold;
+    wire cs, sclk, si, so, wp, hold, capture_clk;
     qspi_flash_buffer_mock #(.BUFFER_SIZE($bits(code_buf))) qspi_flash_mock(
         .*,
         .buffer(code_buf)
@@ -45,6 +45,7 @@ module func_ecall_ebreak_tb;
 
         .cs,
         .sclk,
+        .capture_clk,
         .si,
         .so,
         .wp,
