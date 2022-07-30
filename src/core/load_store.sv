@@ -4,7 +4,9 @@
 // There is no stall_next, we instead require users to wait for !stall_next before starting a load/store
 // In other words, do not try to start load/stores in parallel.
 // In exchange we can move buffers internally, users can forward to comb inputs directly since we never stall_prev
-module load_store(
+module load_store #(
+    parameter UNCACHEABLE_ADDR_MASK
+) (
     input clk, rst,
 	input prev_stalled,
     output logic stall_next,
@@ -61,6 +63,14 @@ basic_cache dcache(
 	.lookup_valid(dcache_lookup_valid)
 );
 
+logic dcache_addr_uncacheable;
+always_ff @(posedge clk) begin
+    if (rst)
+        dcache_addr_uncacheable <= 'x;
+    else
+        dcache_addr_uncacheable <= (dcache_raddr & (UNCACHEABLE_ADDR_MASK >> 3)) != '0;
+end
+
 enum bit[3:0] {
 	STATE_IDLE,
     STATE_LOAD_CHECK_CACHE,
@@ -81,7 +91,7 @@ always_comb begin
         dcache_write_enable = data_bus.rvalid;
         dcache_wdata = data_bus.rdata;
     end else if (state == STATE_STORE_CHECK_CACHE) begin
-        dcache_write_enable = dcache_lookup_valid || store_mask_buf == '1;
+        dcache_write_enable = !dcache_addr_uncacheable && (dcache_lookup_valid || store_mask_buf == '1);
         for (mask_idx=0; mask_idx<$size(dcache_wdata)/8; mask_idx+=1)
             dcache_wdata[mask_idx*8 +: 8] = store_mask_buf[mask_idx] ? store_data_buf[mask_idx*8 +: 8] : dcache_rdata[mask_idx*8 +: 8];
     end else begin
@@ -104,7 +114,7 @@ always_comb begin
     	STATE_IDLE:
             stall_next = '1;
         STATE_LOAD_CHECK_CACHE: begin
-            stall_next = !dcache_lookup_valid;
+            stall_next = !dcache_lookup_valid || dcache_addr_uncacheable;
             load_data = dcache_rdata;
         end
     	STATE_LOAD_PENDING: begin
@@ -132,7 +142,7 @@ always @(posedge clk) begin
         end
 	end
     STATE_LOAD_CHECK_CACHE: begin
-        if (!dcache_lookup_valid) begin
+        if (!dcache_lookup_valid || dcache_addr_uncacheable) begin
             state <= STATE_LOAD_PENDING;
         end else if (prev_stalled) begin
             state <= STATE_IDLE;
@@ -213,7 +223,7 @@ end
 assign data_bus.aclk = clk;
 assign data_bus.aresetn = !rst;
 
-assign data_bus.arvalid = state == STATE_LOAD_CHECK_CACHE && !dcache_lookup_valid;
+assign data_bus.arvalid = state == STATE_LOAD_CHECK_CACHE && (!dcache_lookup_valid || dcache_addr_uncacheable);
 assign data_bus.araddr = {addr_buf, 3'b000};
 assign data_bus.arprot = 'b000;
 

@@ -1,6 +1,8 @@
 `include "../params.svh"
 
-module exec(
+module exec #(
+    parameter UNCACHEABLE_ADDR_MASK
+) (
     input clk,
     input rst,
     input prev_stalled,
@@ -108,7 +110,9 @@ wire [`XLEN-1:0] lsu_load_data;
 wire lsu_do_store;
 wire [`XLEN-1:0] lsu_store_data;
 wire [(`XLEN/8)-1:0] lsu_store_mask;
-load_store lsu(
+load_store #(
+    .UNCACHEABLE_ADDR_MASK(UNCACHEABLE_ADDR_MASK)
+) lsu (
     .clk,
     .rst,
     .prev_stalled(lsu_prev_stalled),

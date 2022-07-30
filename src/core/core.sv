@@ -1,7 +1,8 @@
 `include "params.svh"
 
 module core#(
-    parameter RESET_PC = `RESET_PC
+    parameter RESET_PC = `RESET_PC,
+    parameter UNCACHEABLE_ADDR_MASK = '0 // If an addr AND-ed with this mask is non-zero, it's considered uncacheable
 ) (
     input clk, rst,
 
@@ -129,7 +130,9 @@ wire exec_is_reg_write;
 wire exec_is_xret;
 wire [`ALEN-1:0] exec_branch_target;
 wire [`ALEN-1:0] exec_instruction_next_addr;
-exec exec(
+exec #(
+    .UNCACHEABLE_ADDR_MASK(UNCACHEABLE_ADDR_MASK)
+) exec (
     .clk,
     .rst,
     .prev_stalled(decode_stall_next),

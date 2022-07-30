@@ -99,7 +99,10 @@ axilxbar #(
 
 axi4lite ifetch_axi();
 axi4lite data_axi();
-core #(.RESET_PC(RESET_PC)) core(
+core #(
+    .RESET_PC(RESET_PC),
+    .UNCACHEABLE_ADDR_MASK({3'b111, {(`ALEN-3){1'b0}}})
+) core (
     .clk,
     .rst,
 
