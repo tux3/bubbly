@@ -23,15 +23,163 @@ wire clk = bus.aclk;
 wire rst = !bus.aresetn;
 assign phy_reset_n = !rst;
 
+// With our 64bit MMIO regs, we can move 7 bytes worth in and out, so set the AXIS width to that
+localparam ETH_AXIS_DATA_WIDTH = 7*8;
+
+// AXI between MAC and Ethernet modules
+wire [ETH_AXIS_DATA_WIDTH-1:0] rx_axis_tdata;
+wire rx_axis_tvalid;
+wire rx_axis_tready;
+wire rx_axis_tlast;
+wire rx_axis_tuser;
+
+wire [ETH_AXIS_DATA_WIDTH-1:0] tx_axis_tdata;
+wire tx_axis_tvalid;
+wire tx_axis_tready;
+wire tx_axis_tlast;
+wire tx_axis_tuser;
+
+// Ethernet frame
+logic rx_eth_hdr_ready;
+logic rx_eth_hdr_valid;
+logic [47:0] rx_eth_dest_mac;
+logic [47:0] rx_eth_src_mac;
+logic [15:0] rx_eth_type;
+logic [ETH_AXIS_DATA_WIDTH-1:0] rx_eth_payload_axis_tdata;
+logic [ETH_AXIS_DATA_WIDTH/8-1:0] rx_eth_payload_axis_tkeep;
+logic rx_eth_payload_axis_tvalid;
+logic rx_eth_payload_axis_tready;
+logic rx_eth_payload_axis_tlast;
+logic rx_eth_payload_axis_tuser;
+
+logic tx_eth_hdr_ready;
+logic tx_eth_hdr_valid;
+logic [47:0] tx_eth_dest_mac;
+logic [47:0] tx_eth_src_mac;
+logic [15:0] tx_eth_type;
+logic [ETH_AXIS_DATA_WIDTH-1:0] tx_eth_payload_axis_tdata;
+logic [ETH_AXIS_DATA_WIDTH/8-1:0] tx_eth_payload_axis_tkeep;
+logic tx_eth_payload_axis_tvalid;
+logic tx_eth_payload_axis_tready;
+logic tx_eth_payload_axis_tlast;
+logic tx_eth_payload_axis_tuser;
+
+eth_mac_mii_fifo #(
+    .TARGET(TARGET),
+    .CLOCK_INPUT_STYLE("BUFR"),
+    .AXIS_DATA_WIDTH(ETH_AXIS_DATA_WIDTH),
+    .ENABLE_PADDING(1),
+    .MIN_FRAME_LENGTH(64),
+    .TX_FIFO_DEPTH(4096),
+    .TX_FRAME_FIFO(1),
+    .RX_FIFO_DEPTH(4096),
+    .RX_FRAME_FIFO(1)
+)
+eth_mac_inst (
+    .rst(rst),
+    .logic_clk(clk),
+    .logic_rst(rst),
+
+    .tx_axis_tdata(tx_axis_tdata),
+    .tx_axis_tvalid(tx_axis_tvalid),
+    .tx_axis_tready(tx_axis_tready),
+    .tx_axis_tlast(tx_axis_tlast),
+    .tx_axis_tuser(tx_axis_tuser),
+
+    .rx_axis_tdata(rx_axis_tdata),
+    .rx_axis_tvalid(rx_axis_tvalid),
+    .rx_axis_tready(rx_axis_tready),
+    .rx_axis_tlast(rx_axis_tlast),
+    .rx_axis_tuser(rx_axis_tuser),
+
+    .mii_rx_clk(phy_rx_clk),
+    .mii_rxd(phy_rxd),
+    .mii_rx_dv(phy_rx_dv),
+    .mii_rx_er(phy_rx_er),
+    .mii_tx_clk(phy_tx_clk),
+    .mii_txd(phy_txd),
+    .mii_tx_en(phy_tx_en),
+    .mii_tx_er(),
+
+    .tx_fifo_overflow(),
+    .tx_fifo_bad_frame(),
+    .tx_fifo_good_frame(),
+    .rx_error_bad_frame(),
+    .rx_error_bad_fcs(),
+    .rx_fifo_overflow(),
+    .rx_fifo_bad_frame(),
+    .rx_fifo_good_frame(),
+
+    .ifg_delay(12)
+);
+
+eth_axis_rx #(
+    .DATA_WIDTH(ETH_AXIS_DATA_WIDTH)
+) eth_axis_rx_inst (
+    .clk(clk),
+    .rst(rst),
+    // AXI input
+    .s_axis_tdata(rx_axis_tdata),
+    .s_axis_tvalid(rx_axis_tvalid),
+    .s_axis_tready(rx_axis_tready),
+    .s_axis_tlast(rx_axis_tlast),
+    .s_axis_tuser(rx_axis_tuser),
+    // Ethernet frame output
+    .m_eth_hdr_valid(rx_eth_hdr_valid),
+    .m_eth_hdr_ready(rx_eth_hdr_ready),
+    .m_eth_dest_mac(rx_eth_dest_mac),
+    .m_eth_src_mac(rx_eth_src_mac),
+    .m_eth_type(rx_eth_type),
+    .m_eth_payload_axis_tdata(rx_eth_payload_axis_tdata),
+    .m_eth_payload_axis_tkeep(rx_eth_payload_axis_tkeep),
+    .m_eth_payload_axis_tvalid(rx_eth_payload_axis_tvalid),
+    .m_eth_payload_axis_tready(rx_eth_payload_axis_tready),
+    .m_eth_payload_axis_tlast(rx_eth_payload_axis_tlast),
+    .m_eth_payload_axis_tuser(rx_eth_payload_axis_tuser),
+    // Status signals
+    .busy(),
+    .error_header_early_termination()
+);
+
+eth_axis_tx #(
+    .DATA_WIDTH(ETH_AXIS_DATA_WIDTH)
+) eth_axis_tx_inst (
+    .clk(clk),
+    .rst(rst),
+    // Ethernet frame input
+    .s_eth_hdr_valid(tx_eth_hdr_valid),
+    .s_eth_hdr_ready(tx_eth_hdr_ready),
+    .s_eth_dest_mac(tx_eth_dest_mac),
+    .s_eth_src_mac(tx_eth_src_mac),
+    .s_eth_type(tx_eth_type),
+    .s_eth_payload_axis_tdata(tx_eth_payload_axis_tdata),
+    .s_eth_payload_axis_tkeep(tx_eth_payload_axis_tkeep),
+    .s_eth_payload_axis_tvalid(tx_eth_payload_axis_tvalid),
+    .s_eth_payload_axis_tready(tx_eth_payload_axis_tready),
+    .s_eth_payload_axis_tlast(tx_eth_payload_axis_tlast),
+    .s_eth_payload_axis_tuser(tx_eth_payload_axis_tuser),
+    // AXI output
+    .m_axis_tdata(tx_axis_tdata),
+    .m_axis_tvalid(tx_axis_tvalid),
+    .m_axis_tready(tx_axis_tready),
+    .m_axis_tlast(tx_axis_tlast),
+    .m_axis_tuser(tx_axis_tuser),
+    // Status signals
+    .busy()
+);
+
 // NOTE: We mask out the three low bits of the address, you cannot do partial accesses at an offset.
 //       *(reg0+3) still addresses *(reg0), while *(reg0+4) snaps to *(reg1). We also completely ignore the wstrb signal.
 //       (and the core doesn't have a notion of non-cached memory regions yet, but the cacheline size *is* 64bits, so it works out!)
-localparam NUM_MMIO_REGS = 2;
+localparam NUM_MMIO_REGS = 5;
 localparam MMIO_REGS_ALEN = $clog2(NUM_MMIO_REGS);
 reg [47:0] mmio_eth_src_mac; // Reg 0: Source MAC to use for writes
 reg [63:0] mmio_eth_ethertype_dst_mac; // Reg 1: Dest MAC and ethertype to use for writes
 wire [15:0] mmio_eth_ethertype = mmio_eth_ethertype_dst_mac[48 +: 16];
 wire [47:0] mmio_eth_dst_mac = mmio_eth_ethertype_dst_mac[0 +: 48];
+// Reg 2 (virtual): Received data 
+reg [47:0] mmio_eth_rx_srx_mac; // Reg 3: Source MAC of the last frame we started receiving
+reg [63:0] mmio_eth_rx_ethertype_dst_mac; // Reg 4: Dest MAC and ethertype of last frame we started receiving
 
 // Handle reads
 wire [`ALEN-1-3:0] bus_araddr_masked = (bus.araddr & ADDR_MASK) >> 3;
@@ -51,6 +199,37 @@ wire is_reading = ar_beat || has_pending_araddr;
 wire should_update_rdata = !rdata_jam && is_reading;
 wire rvalid_next = is_reading || (bus.rvalid && !r_beat);
 
+// State for MMIO reg 2 reads
+reg eth_rx_reading; // Set when we've acknowledged the first AXIS beat of a received ethernet frame, unset after getting the AXI `last` bit
+logic [2:0] eth_rx_read_size;
+always_comb unique case (rx_eth_payload_axis_tkeep)
+    'b0000000: eth_rx_read_size = 0;
+    'b0000001: eth_rx_read_size = 1;
+    'b0000011: eth_rx_read_size = 2;
+    'b0000111: eth_rx_read_size = 3;
+    'b0001111: eth_rx_read_size = 4;
+    'b0011111: eth_rx_read_size = 5;
+    'b0111111: eth_rx_read_size = 6;
+    'b1111111: eth_rx_read_size = 7;
+    default: eth_rx_read_size = 'x;
+endcase
+
+// NOTE: We don't check araddr is valid here to save combinatorial time.
+// If you read an invalid addr that ends like MMIO reg 2, we'll drop a beat of data on the floor.
+wire reading_mmio_reg2 = should_update_rdata && araddr_comb == 'h2;
+assign rx_eth_hdr_ready = reading_mmio_reg2 && !eth_rx_reading && rx_eth_payload_axis_tvalid;
+assign rx_eth_payload_axis_tready = reading_mmio_reg2;
+
+assign tx_eth_hdr_valid = '0;
+assign tx_eth_dest_mac = mmio_eth_dst_mac;
+assign tx_eth_src_mac = mmio_eth_src_mac;
+assign tx_eth_type = mmio_eth_ethertype;
+assign tx_eth_payload_axis_tdata = '0;
+assign tx_eth_payload_axis_tkeep = '0;
+assign tx_eth_payload_axis_tvalid = '0;
+assign tx_eth_payload_axis_tlast = '0;
+assign tx_eth_payload_axis_tuser = '0;
+
 always_ff @(posedge clk) begin
     if (rst) begin
         bus.rvalid <= 'b0;
@@ -61,6 +240,8 @@ always_ff @(posedge clk) begin
         has_pending_araddr <= '0;
         pending_araddr <= '0;
         pending_araddr_bad_bits <= '0;
+        
+        eth_rx_reading <= '0;
     end else begin
         bus.arready <= !rvalid_next || !has_pending_araddr;
 
@@ -95,7 +276,24 @@ always_ff @(posedge clk) begin
                 unique if (araddr_comb == 'h0) begin
                     bus.rdata <= {16'b0, mmio_eth_src_mac};
                 end else if (araddr_comb == 'h1) begin
-                    bus.rdata <= {16'b0, mmio_eth_ethertype_dst_mac};
+                    bus.rdata <= mmio_eth_ethertype_dst_mac;
+                end else if (araddr_comb == 'h2) begin: mmio_reg2
+                    // Read ethernet frame from AXIS rx, if available
+                    if (!eth_rx_reading && rx_eth_payload_axis_tvalid && rx_eth_hdr_valid) begin
+                        eth_rx_reading <= !rx_eth_payload_axis_tlast;
+                        mmio_eth_rx_srx_mac <= rx_eth_src_mac;
+                        mmio_eth_rx_ethertype_dst_mac <= {rx_eth_type, rx_eth_dest_mac};
+                        bus.rdata <= {1'b1, rx_eth_payload_axis_tlast, 3'b0, eth_rx_read_size, rx_eth_payload_axis_tdata};
+                    end else if (eth_rx_reading && rx_eth_payload_axis_tvalid) begin
+                        eth_rx_reading <= !rx_eth_payload_axis_tlast;
+                        bus.rdata <= {1'b1, rx_eth_payload_axis_tlast, 3'b0, eth_rx_read_size, rx_eth_payload_axis_tdata};
+                    end else begin
+                        bus.rdata <= '0; // All 0 means not valid, not last, 0 bytes received
+                    end
+                end else if (araddr_comb == 'h3) begin
+                    bus.rdata <= {16'b0, mmio_eth_rx_srx_mac};
+                end else if (araddr_comb == 'h4) begin
+                    bus.rdata <= mmio_eth_rx_ethertype_dst_mac;
                 end else begin
                     bus.rresp <= AXI4LITE_RESP_SLVERR;
                 end
@@ -200,160 +398,12 @@ always_ff @(posedge clk) begin
     end
 end
 
-// AXI between MAC and Ethernet modules
-wire [7:0] rx_axis_tdata;
-wire rx_axis_tvalid;
-wire rx_axis_tready;
-wire rx_axis_tlast;
-wire rx_axis_tuser;
-
-wire [7:0] tx_axis_tdata;
-wire tx_axis_tvalid;
-wire tx_axis_tready;
-wire tx_axis_tlast;
-wire tx_axis_tuser;
-
-// Ethernet frame
-wire rx_eth_hdr_ready;
-wire rx_eth_hdr_valid;
-wire [47:0] rx_eth_dest_mac;
-wire [47:0] rx_eth_src_mac;
-wire [15:0] rx_eth_type;
-wire [7:0] rx_eth_payload_axis_tdata;
-wire rx_eth_payload_axis_tvalid;
-wire rx_eth_payload_axis_tready;
-wire rx_eth_payload_axis_tlast;
-wire rx_eth_payload_axis_tuser;
-
-wire tx_eth_hdr_ready;
-wire tx_eth_hdr_valid;
-wire [47:0] tx_eth_dest_mac;
-wire [47:0] tx_eth_src_mac;
-wire [15:0] tx_eth_type;
-wire [7:0] tx_eth_payload_axis_tdata;
-wire tx_eth_payload_axis_tvalid;
-wire tx_eth_payload_axis_tready;
-wire tx_eth_payload_axis_tlast;
-wire tx_eth_payload_axis_tuser;
-
-eth_mac_mii_fifo #(
-    .TARGET(TARGET),
-    .CLOCK_INPUT_STYLE("BUFR"),
-    .ENABLE_PADDING(1),
-    .MIN_FRAME_LENGTH(64),
-    .TX_FIFO_DEPTH(4096),
-    .TX_FRAME_FIFO(1),
-    .RX_FIFO_DEPTH(4096),
-    .RX_FRAME_FIFO(1)
-)
-eth_mac_inst (
-    .rst(rst),
-    .logic_clk(clk),
-    .logic_rst(rst),
-
-    .tx_axis_tdata(tx_axis_tdata),
-    .tx_axis_tvalid(tx_axis_tvalid),
-    .tx_axis_tready(tx_axis_tready),
-    .tx_axis_tlast(tx_axis_tlast),
-    .tx_axis_tuser(tx_axis_tuser),
-
-    .rx_axis_tdata(rx_axis_tdata),
-    .rx_axis_tvalid(rx_axis_tvalid),
-    .rx_axis_tready(rx_axis_tready),
-    .rx_axis_tlast(rx_axis_tlast),
-    .rx_axis_tuser(rx_axis_tuser),
-
-    .mii_rx_clk(phy_rx_clk),
-    .mii_rxd(phy_rxd),
-    .mii_rx_dv(phy_rx_dv),
-    .mii_rx_er(phy_rx_er),
-    .mii_tx_clk(phy_tx_clk),
-    .mii_txd(phy_txd),
-    .mii_tx_en(phy_tx_en),
-    .mii_tx_er(),
-
-    .tx_fifo_overflow(),
-    .tx_fifo_bad_frame(),
-    .tx_fifo_good_frame(),
-    .rx_error_bad_frame(),
-    .rx_error_bad_fcs(),
-    .rx_fifo_overflow(),
-    .rx_fifo_bad_frame(),
-    .rx_fifo_good_frame(),
-
-    .ifg_delay(12)
-);
-
-eth_axis_rx
-eth_axis_rx_inst (
-    .clk(clk),
-    .rst(rst),
-    // AXI input
-    .s_axis_tdata(rx_axis_tdata),
-    .s_axis_tvalid(rx_axis_tvalid),
-    .s_axis_tready(rx_axis_tready),
-    .s_axis_tlast(rx_axis_tlast),
-    .s_axis_tuser(rx_axis_tuser),
-    // Ethernet frame output
-    .m_eth_hdr_valid(rx_eth_hdr_valid),
-    .m_eth_hdr_ready(rx_eth_hdr_ready),
-    .m_eth_dest_mac(rx_eth_dest_mac),
-    .m_eth_src_mac(rx_eth_src_mac),
-    .m_eth_type(rx_eth_type),
-    .m_eth_payload_axis_tdata(rx_eth_payload_axis_tdata),
-    .m_eth_payload_axis_tvalid(rx_eth_payload_axis_tvalid),
-    .m_eth_payload_axis_tready(rx_eth_payload_axis_tready),
-    .m_eth_payload_axis_tlast(rx_eth_payload_axis_tlast),
-    .m_eth_payload_axis_tuser(rx_eth_payload_axis_tuser),
-    // Status signals
-    .busy(),
-    .error_header_early_termination()
-);
-
-eth_axis_tx
-eth_axis_tx_inst (
-    .clk(clk),
-    .rst(rst),
-    // Ethernet frame input
-    .s_eth_hdr_valid(tx_eth_hdr_valid),
-    .s_eth_hdr_ready(tx_eth_hdr_ready),
-    .s_eth_dest_mac(tx_eth_dest_mac),
-    .s_eth_src_mac(tx_eth_src_mac),
-    .s_eth_type(tx_eth_type),
-    .s_eth_payload_axis_tdata(tx_eth_payload_axis_tdata),
-    .s_eth_payload_axis_tvalid(tx_eth_payload_axis_tvalid),
-    .s_eth_payload_axis_tready(tx_eth_payload_axis_tready),
-    .s_eth_payload_axis_tlast(tx_eth_payload_axis_tlast),
-    .s_eth_payload_axis_tuser(tx_eth_payload_axis_tuser),
-    // AXI output
-    .m_axis_tdata(tx_axis_tdata),
-    .m_axis_tvalid(tx_axis_tvalid),
-    .m_axis_tready(tx_axis_tready),
-    .m_axis_tlast(tx_axis_tlast),
-    .m_axis_tuser(tx_axis_tuser),
-    // Status signals
-    .busy()
-);
-
-// Echo back ethernet frames..
-assign tx_eth_hdr_valid = rx_eth_hdr_valid;
-assign rx_eth_hdr_ready = tx_eth_hdr_ready;
-assign tx_eth_dest_mac = mmio_eth_dst_mac;
-assign tx_eth_src_mac = mmio_eth_src_mac;
-assign tx_eth_hdr_valid = rx_eth_hdr_valid;
-assign tx_eth_type = mmio_eth_ethertype;
-assign tx_eth_payload_axis_tdata = rx_eth_payload_axis_tdata;
-assign tx_eth_payload_axis_tvalid = rx_eth_payload_axis_tvalid;
-assign rx_eth_payload_axis_tready = tx_eth_payload_axis_tready;
-assign tx_eth_payload_axis_tlast = rx_eth_payload_axis_tlast;
-assign tx_eth_payload_axis_tuser = rx_eth_payload_axis_tuser;
-
-
 `ifndef SYNTHESIS
 always @(posedge clk) begin
     assert property (is_reading && !rst |=> bus.rvalid);
     assert property (ar_beat |-> !rdata_jam || !has_pending_araddr);
     assert property (rdata_jam |-> !ar_beat || !has_pending_araddr);
+    assert property (rx_eth_payload_axis_tready |-> eth_rx_reading || (rx_eth_payload_axis_tvalid && rx_eth_hdr_valid));
 end
 `endif
 

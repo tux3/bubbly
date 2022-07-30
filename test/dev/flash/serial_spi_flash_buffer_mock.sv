@@ -28,7 +28,7 @@ logic [2:0] recv_count;
 logic [7:0] recv_buf;
 wire recv_got_byte = recv_count == 0;
 
-logic [8:0] addr; // FIXME: Should be 23
+logic [8:0] addr;
 wire should_send = !cs && send_mode == SEND;
 int send_pos;
 
