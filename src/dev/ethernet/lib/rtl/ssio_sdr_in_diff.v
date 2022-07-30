@@ -101,6 +101,7 @@ endgenerate
 
 ssio_sdr_in #(
     .TARGET(TARGET),
+    .IODDR_STYLE(IODDR_STYLE),
     .CLOCK_INPUT_STYLE(CLOCK_INPUT_STYLE),
     .WIDTH(WIDTH)
 )

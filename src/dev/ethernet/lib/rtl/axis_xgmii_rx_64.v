@@ -125,28 +125,26 @@ reg [DATA_WIDTH-1:0] m_axis_tdata_reg = {DATA_WIDTH{1'b0}}, m_axis_tdata_next;
 reg [KEEP_WIDTH-1:0] m_axis_tkeep_reg = {KEEP_WIDTH{1'b0}}, m_axis_tkeep_next;
 reg m_axis_tvalid_reg = 1'b0, m_axis_tvalid_next;
 reg m_axis_tlast_reg = 1'b0, m_axis_tlast_next;
-reg m_axis_tuser_reg = 1'b0, m_axis_tuser_next;
+reg [USER_WIDTH-1:0] m_axis_tuser_reg = {USER_WIDTH{1'b0}}, m_axis_tuser_next;
 
 reg [1:0] start_packet_reg = 2'b00;
 reg error_bad_frame_reg = 1'b0, error_bad_frame_next;
 reg error_bad_fcs_reg = 1'b0, error_bad_fcs_next;
 
 reg [PTP_TS_WIDTH-1:0] ptp_ts_reg = 0;
+reg [PTP_TS_WIDTH-1:0] ptp_ts_adj_reg = 0;
+reg ptp_ts_borrow_reg = 0;
 
 reg [31:0] crc_state = 32'hFFFFFFFF;
 reg [31:0] crc_state3 = 32'hFFFFFFFF;
 
-wire [31:0] crc_next0;
-wire [31:0] crc_next1;
-wire [31:0] crc_next2;
-wire [31:0] crc_next3;
-wire [31:0] crc_next7;
+wire [31:0] crc_next[7:0];
 
-wire crc_valid0 = crc_next0 == ~32'h2144df1c;
-wire crc_valid1 = crc_next1 == ~32'h2144df1c;
-wire crc_valid2 = crc_next2 == ~32'h2144df1c;
-wire crc_valid3 = crc_next3 == ~32'h2144df1c;
-wire crc_valid7 = crc_next7 == ~32'h2144df1c;
+wire crc_valid0 = crc_next[0] == ~32'h2144df1c;
+wire crc_valid1 = crc_next[1] == ~32'h2144df1c;
+wire crc_valid2 = crc_next[2] == ~32'h2144df1c;
+wire crc_valid3 = crc_next[3] == ~32'h2144df1c;
+wire crc_valid7 = crc_next[7] == ~32'h2144df1c;
 
 reg crc_valid7_save = 1'b0;
 
@@ -154,75 +152,34 @@ assign m_axis_tdata = m_axis_tdata_reg;
 assign m_axis_tkeep = m_axis_tkeep_reg;
 assign m_axis_tvalid = m_axis_tvalid_reg;
 assign m_axis_tlast = m_axis_tlast_reg;
-assign m_axis_tuser = PTP_TS_ENABLE ? {ptp_ts_reg, m_axis_tuser_reg} : m_axis_tuser_reg;
+assign m_axis_tuser = m_axis_tuser_reg;
 
 assign start_packet = start_packet_reg;
 assign error_bad_frame = error_bad_frame_reg;
 assign error_bad_fcs = error_bad_fcs_reg;
 
-lfsr #(
-    .LFSR_WIDTH(32),
-    .LFSR_POLY(32'h4c11db7),
-    .LFSR_CONFIG("GALOIS"),
-    .LFSR_FEED_FORWARD(0),
-    .REVERSE(1),
-    .DATA_WIDTH(8),
-    .STYLE("AUTO")
-)
-eth_crc_8 (
-    .data_in(xgmii_rxd_crc[7:0]),
-    .state_in(crc_state3),
-    .data_out(),
-    .state_out(crc_next0)
-);
+generate
+    genvar n;
 
-lfsr #(
-    .LFSR_WIDTH(32),
-    .LFSR_POLY(32'h4c11db7),
-    .LFSR_CONFIG("GALOIS"),
-    .LFSR_FEED_FORWARD(0),
-    .REVERSE(1),
-    .DATA_WIDTH(16),
-    .STYLE("AUTO")
-)
-eth_crc_16 (
-    .data_in(xgmii_rxd_crc[15:0]),
-    .state_in(crc_state3),
-    .data_out(),
-    .state_out(crc_next1)
-);
+    for (n = 0; n < 4; n = n + 1) begin : crc
+        lfsr #(
+            .LFSR_WIDTH(32),
+            .LFSR_POLY(32'h4c11db7),
+            .LFSR_CONFIG("GALOIS"),
+            .LFSR_FEED_FORWARD(0),
+            .REVERSE(1),
+            .DATA_WIDTH(8*(n+1)),
+            .STYLE("AUTO")
+        )
+        eth_crc (
+            .data_in(xgmii_rxd_crc[0 +: 8*(n+1)]),
+            .state_in(crc_state3),
+            .data_out(),
+            .state_out(crc_next[n])
+        );
+    end
 
-lfsr #(
-    .LFSR_WIDTH(32),
-    .LFSR_POLY(32'h4c11db7),
-    .LFSR_CONFIG("GALOIS"),
-    .LFSR_FEED_FORWARD(0),
-    .REVERSE(1),
-    .DATA_WIDTH(24),
-    .STYLE("AUTO")
-)
-eth_crc_24 (
-    .data_in(xgmii_rxd_crc[23:0]),
-    .state_in(crc_state3),
-    .data_out(),
-    .state_out(crc_next2)
-);
-
-lfsr #(
-    .LFSR_WIDTH(32),
-    .LFSR_POLY(32'h4c11db7),
-    .LFSR_CONFIG("GALOIS"),
-    .LFSR_FEED_FORWARD(0),
-    .REVERSE(1),
-    .DATA_WIDTH(32),
-    .STYLE("AUTO")
-)
-eth_crc_32 (
-    .data_in(xgmii_rxd_crc[31:0]),
-    .state_in(crc_state3),
-    .data_out(),
-    .state_out(crc_next3)
-);
+endgenerate
 
 lfsr #(
     .LFSR_WIDTH(32),
@@ -234,10 +191,10 @@ lfsr #(
     .STYLE("AUTO")
 )
 eth_crc_64 (
-    .data_in(xgmii_rxd_crc[63:0]),
+    .data_in(xgmii_rxd_crc),
     .state_in(crc_state),
     .data_out(),
-    .state_out(crc_next7)
+    .state_out(crc_next[7])
 );
 
 // detect control characters
@@ -308,7 +265,8 @@ always @* begin
     m_axis_tkeep_next = {KEEP_WIDTH{1'b1}};
     m_axis_tvalid_next = 1'b0;
     m_axis_tlast_next = 1'b0;
-    m_axis_tuser_next = 1'b0;
+    m_axis_tuser_next = m_axis_tuser_reg;
+    m_axis_tuser_next[0] = 1'b0;
 
     error_bad_frame_next = 1'b0;
     error_bad_fcs_next = 1'b0;
@@ -320,13 +278,18 @@ always @* begin
 
             if (xgmii_rxc_d1[0] && xgmii_rxd_d1[7:0] == XGMII_START) begin
                 // start condition
+
+                if (PTP_TS_ENABLE) begin
+                    m_axis_tuser_next[1 +: PTP_TS_WIDTH] = (PTP_TS_WIDTH != 96 || ptp_ts_borrow_reg) ? ptp_ts_reg : ptp_ts_adj_reg;
+                end
+
                 if (control_masked) begin
                     // control or error characters in first data word
                     m_axis_tdata_next = {DATA_WIDTH{1'b0}};
                     m_axis_tkeep_next = 8'h01;
                     m_axis_tvalid_next = 1'b1;
                     m_axis_tlast_next = 1'b1;
-                    m_axis_tuser_next = 1'b1;
+                    m_axis_tuser_next[0] = 1'b1;
                     error_bad_frame_next = 1'b1;
                     state_next = STATE_IDLE;
                 end else begin
@@ -343,21 +306,25 @@ always @* begin
             m_axis_tkeep_next = {KEEP_WIDTH{1'b1}};
             m_axis_tvalid_next = 1'b1;
             m_axis_tlast_next = 1'b0;
-            m_axis_tuser_next = 1'b0;
+            m_axis_tuser_next[0] = 1'b0;
 
             last_cycle_tkeep_next = {4'b0000, tkeep_mask[7:4]};
+
+            if (detect_term) begin
+                reset_crc = 1'b1;
+                update_crc_last = 1'b1;
+            end
 
             if (control_masked) begin
                 // control or error characters in packet
                 m_axis_tlast_next = 1'b1;
-                m_axis_tuser_next = 1'b1;
+                m_axis_tuser_next[0] = 1'b1;
                 error_bad_frame_next = 1'b1;
                 reset_crc = 1'b1;
                 state_next = STATE_IDLE;
             end else if (detect_term) begin
                 if (detect_term[4:0]) begin
                     // end this cycle
-                    reset_crc = 1'b1;
                     m_axis_tkeep_next = {tkeep_mask[3:0], 4'b1111};
                     m_axis_tlast_next = 1'b1;
                     if ((detect_term[0] && crc_valid7_save) ||
@@ -367,14 +334,13 @@ always @* begin
                         (detect_term[4] && crc_valid3)) begin
                         // CRC valid
                     end else begin
-                        m_axis_tuser_next = 1'b1;
+                        m_axis_tuser_next[0] = 1'b1;
                         error_bad_frame_next = 1'b1;
                         error_bad_fcs_next = 1'b1;
                     end
                     state_next = STATE_IDLE;
                 end else begin
                     // need extra cycle
-                    update_crc_last = 1'b1;
                     state_next = STATE_LAST;
                 end
             end else begin
@@ -387,7 +353,7 @@ always @* begin
             m_axis_tkeep_next = last_cycle_tkeep_reg;
             m_axis_tvalid_next = 1'b1;
             m_axis_tlast_next = 1'b1;
-            m_axis_tuser_next = 1'b0;
+            m_axis_tuser_next[0] = 1'b0;
 
             reset_crc = 1'b1;
 
@@ -396,7 +362,7 @@ always @* begin
                 (detect_term_save[7] && crc_valid2)) begin
                 // CRC valid
             end else begin
-                m_axis_tuser_next = 1'b1;
+                m_axis_tuser_next[0] = 1'b1;
                 error_bad_frame_next = 1'b1;
                 error_bad_fcs_next = 1'b1;
             end
@@ -409,7 +375,7 @@ always @* begin
                     m_axis_tkeep_next = 8'h01;
                     m_axis_tvalid_next = 1'b1;
                     m_axis_tlast_next = 1'b1;
-                    m_axis_tuser_next = 1'b1;
+                    m_axis_tuser_next[0] = 1'b1;
                     error_bad_frame_next = 1'b1;
                     state_next = STATE_IDLE;
                 end else begin
@@ -443,10 +409,12 @@ always @(posedge clk) begin
     swap_rxd <= xgmii_rxd[63:32];
     swap_rxc <= xgmii_rxc[7:4];
 
-    if (PTP_TS_WIDTH == 96 && $signed({1'b0, ptp_ts_reg[45:16]}) - $signed(31'd1000000000) > 0) begin
+    if (PTP_TS_ENABLE && PTP_TS_WIDTH == 96) begin
         // ns field rollover
-        ptp_ts_reg[45:16] <= $signed({1'b0, ptp_ts_reg[45:16]}) - $signed(31'd1000000000);
-        ptp_ts_reg[95:48] <= ptp_ts_reg[95:48] + 1;
+        ptp_ts_adj_reg[15:0] <= ptp_ts_reg[15:0];
+        {ptp_ts_borrow_reg, ptp_ts_adj_reg[45:16]} <= $signed({1'b0, ptp_ts_reg[45:16]}) - $signed(31'd1000000000);
+        ptp_ts_adj_reg[47:46] <= 0;
+        ptp_ts_adj_reg[95:48] <= ptp_ts_reg[95:48] + 1;
     end
 
     if (xgmii_rxc[0] && xgmii_rxd[7:0] == XGMII_START) begin
@@ -506,13 +474,13 @@ always @(posedge clk) begin
     if (reset_crc) begin
         crc_state <= 32'hFFFFFFFF;
     end else begin
-        crc_state <= crc_next7;
+        crc_state <= crc_next[7];
     end
 
     if (update_crc_last) begin
-        crc_state3 <= crc_next3;
+        crc_state3 <= crc_next[3];
     end else begin
-        crc_state3 <= crc_next7;
+        crc_state3 <= crc_next[7];
     end
 
     crc_valid7_save <= crc_valid7;
@@ -532,9 +500,6 @@ always @(posedge clk) begin
         start_packet_reg <= 2'b00;
         error_bad_frame_reg <= 1'b0;
         error_bad_fcs_reg <= 1'b0;
-
-        crc_state <= 32'hFFFFFFFF;
-        crc_state3 <= 32'hFFFFFFFF;
 
         xgmii_rxc_d0 <= {CTRL_WIDTH{1'b0}};
         xgmii_rxc_d1 <= {CTRL_WIDTH{1'b0}};
