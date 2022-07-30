@@ -81,7 +81,7 @@ always_comb begin
         dcache_write_enable = data_bus.rvalid;
         dcache_wdata = data_bus.rdata;
     end else if (state == STATE_STORE_CHECK_CACHE) begin
-        dcache_write_enable = dcache_lookup_valid;
+        dcache_write_enable = dcache_lookup_valid || store_mask_buf == '1;
         for (mask_idx=0; mask_idx<$size(dcache_wdata)/8; mask_idx+=1)
             dcache_wdata[mask_idx*8 +: 8] = store_mask_buf[mask_idx] ? store_data_buf[mask_idx*8 +: 8] : dcache_rdata[mask_idx*8 +: 8];
     end else begin
