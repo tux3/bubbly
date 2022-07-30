@@ -37,7 +37,30 @@ module top(
     output [9:0] PROBE,
     output PROBE_GND_34,
     output reg [3:0] LED
-    );
+);
+
+//assign PROBE[0] = FLASH_CS;
+//assign PROBE[1] = flash_capture_clk_gated;
+//assign PROBE[2] = FLASH_MOSI;
+//assign PROBE[3] = FLASH_MISO;
+//assign PROBE[4] = FLASH_WP;
+//assign PROBE[5] = FLASH_HOLD;
+//assign PROBE[6] = FLASH_CLK;
+//assign PROBE[7] = rst;
+
+//assign PROBE[0] = gated_core_clk;
+//assign PROBE[1] = eth_soc.core.ifetch_stall_next;
+//assign PROBE[2] = eth_soc.core.ifetch_exception;
+//assign PROBE[3] = eth_soc.core.decode_stall_next;
+//assign PROBE[4] = eth_soc.core.decode_next_stalled;
+//assign PROBE[5] = eth_soc.core.decode_exception;
+//assign PROBE[6] = eth_soc.core.exec_stall_next;
+//assign PROBE[7] = eth_soc.core.exec_exception;
+//assign PROBE[8] = eth_soc.core.exec_is_reg_write;
+//assign PROBE[9] = eth_soc.core.exec_is_trap;
+
+assign PROBE = '0;
+assign PROBE_GND_34 = '0;
 
 wire clk, rst;
 wire flash_capture_clk;
@@ -59,34 +82,37 @@ always_ff @(posedge flash_capture_clk) begin
     switch_reg <= switch_sync1;
 end
 
-spi_soc #(.RESET_PC(`FLASH_TEXT_ADDR)) spi_soc(
+eth_soc #(
+    .RESET_PC(`FLASH_TEXT_ADDR),
+    .GPIO_OUTPUTS($bits(LED)-1)
+) eth_soc (
     .clk,
     .rst,
-    
-    .ETH_RX_CLK(ETH_RX_CLK),
-    .ETH_RXD(ETH_RXD),
-    .ETH_RX_DV(ETH_RX_DV),
-    .ETH_RXERR(ETH_RXERR),
-    .ETH_TX_CLK(ETH_TX_CLK),
-    .ETH_TXD(ETH_TXD),
-    .ETH_TX_EN(ETH_TX_EN),
-    .ETH_COL(ETH_COL),
-    .ETH_CRS(ETH_CRS),
-    .ETH_RSTN(ETH_RSTN),
 
-    .FLASH_CAPTURE_CLK(flash_capture_clk),
+    .cs(FLASH_CS),
+    .sclk(FLASH_CLK),
+    .capture_clk(flash_capture_clk),
+    .si(FLASH_MOSI),
+    .so(FLASH_MISO),
+    .wp(FLASH_WP),
+    .hold(FLASH_HOLD),
 
-    .SWITCH(switch_reg[0]),
-    .PROBE,
-    .LED(LED[3:1]),
+    .eth_rx_clk(ETH_RX_CLK),
+    .eth_rxd(ETH_RXD),
+    .eth_rx_dv(ETH_RX_DV),
+    .eth_rx_er(ETH_RXERR),
+    .eth_tx_clk(ETH_TX_CLK),
+    .eth_txd(ETH_TXD),
+    .eth_tx_en(ETH_TX_EN),
+    .eth_col(ETH_COL),
+    .eth_crs(ETH_CRS),
+    .eth_reset_n(ETH_RSTN),
 
-    .*
+    .gpio_outputs(LED[3:1])
 );
 
-assign PROBE_GND_34 = '0;
-
 logic [24:0] counter;
-assign LED[0] = counter[$bits(counter)-1];
+assign LED[0] = counter[$bits(counter)-1] && switch_reg;
 
 always_ff @(posedge clk) begin
     if (rst)

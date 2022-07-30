@@ -16,7 +16,7 @@ AVHDL_SIM_OPTS=-O5 -L ice -l ${AVHDL_LOG} +access +w_nets +accb +accr +access +r
 
 SV_AUTO_ORDER=sv_auto_order -i ${SRCDIR}
 SV_AUTO_ORDER_FAILED=//__SV_AUTO_ORDER_FAIL__// # Can't find a clean way to exit if a $shell command fails, so use a marker error value
-SRCFILES_UNORDERED=$(shell find ${SRCDIR} -name *.v -or -name *.sv -or -name *.svh) $(shell find ${BOARDDIR}/ice40 -name *.v -or -name *.sv -or -name *.svh)
+SRCFILES_UNORDERED=$(shell find ${SRCDIR} -name *.v -or -name *.sv -or -name *.svh)
 test: TESTBENCHES=$(filter-out $(shell find ${PWD}/${TESTDIR}/post_synth/ -type f), $(shell find ${PWD}/${TESTDIR}/ -name *_tb.v -or -name *_tb.sv))
 test: TESTSRC=$(shell ${SV_AUTO_ORDER} --absolute $(filter-out $(shell find ${PWD}/${TESTDIR}/ -name *_tb.v -or -name *_tb.sv), $(shell find ${PWD}/${TESTDIR}/ -name *.v -or -name *.sv)))
 test: SRCFILES=$(shell ${SV_AUTO_ORDER} --absolute ${SRCFILES_UNORDERED})

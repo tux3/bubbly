@@ -18,19 +18,12 @@ create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_
 create_generated_clock -name sys_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT0]
 create_generated_clock -name flash_capture_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT1]
 
-# The BUFGCE could glitch when rst goes up asynchronously, but it's okay: it's a reset, and it lasts several cycles
-set_false_path -from [get_pins pll/rst_reg/C] -to [get_pins spi_soc/flash_capture_clk_gated_bufgce/CE]
-
-create_clock -period 500.000 -name SPI_CLK -waveform {0.000 250.000} [get_ports SPI_CLK]
-
-# We have clock domain crossings due to the SPI, declare the clocks as unrelated...
-set_clock_groups -asynchronous -group { SPI_CLK }
-
 ## Switches
 set_property -dict { PACKAGE_PIN A8    IOSTANDARD LVCMOS33 } [get_ports { SWITCH[0] }]; #IO_L12N_T1_MRCC_16 Sch=sw[0]
 set_property -dict { PACKAGE_PIN C11   IOSTANDARD LVCMOS33 } [get_ports { SWITCH[1] }]; #IO_L13P_T2_MRCC_16 Sch=sw[1]
 set_property -dict { PACKAGE_PIN C10   IOSTANDARD LVCMOS33 } [get_ports { SWITCH[2] }]; #IO_L13N_T2_MRCC_16 Sch=sw[2]
 set_property -dict { PACKAGE_PIN A10   IOSTANDARD LVCMOS33 } [get_ports { SWITCH[3] }]; #IO_L14P_T2_SRCC_16 Sch=sw[3]
+set_false_path -from [get_ports {SWITCH[*]}]
 
 ## RGB LEDs
 #set_property -dict { PACKAGE_PIN E1    IOSTANDARD LVCMOS33 } [get_ports { led0_b }]; #IO_L18N_T2_35 Sch=led0_b
@@ -192,11 +185,6 @@ set_property -dict {PACKAGE_PIN G1 IOSTANDARD LVCMOS33} [get_ports SPI_MISO]
 set_property -dict {PACKAGE_PIN H1 IOSTANDARD LVCMOS33} [get_ports SPI_MOSI]
 set_property -dict {PACKAGE_PIN F1 IOSTANDARD LVCMOS33} [get_ports SPI_CLK]
 set_property -dict {PACKAGE_PIN C1 IOSTANDARD LVCMOS33} [get_ports SPI_SS]
-
-# We run the SPI very slowly, to a bitbanged raspberry Pi SPI, over dupond wires... don't bother with timing...
-set_false_path -to [get_ports { SPI_MISO }]
-set_false_path -from [get_ports { SPI_MOSI }]
-set_false_path -from [get_ports { SPI_SS }]
 
 ## ChipKit I2C
 #set_property -dict { PACKAGE_PIN L18   IOSTANDARD LVCMOS33 } [get_ports { ck_scl }]; #IO_L4P_T0_D04_14 Sch=ck_scl
