@@ -120,7 +120,6 @@ end
 
 logic awpending;
 logic wpending;
-logic bpending;
 wire awhandshaked = (bus.awvalid && bus.awready) || awpending;
 wire whandshaked = (bus.wvalid && bus.wready) || wpending;
 

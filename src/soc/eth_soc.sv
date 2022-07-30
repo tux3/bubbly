@@ -41,7 +41,7 @@ axilxbar #(
     .C_AXI_DATA_WIDTH(64),
     .C_AXI_ADDR_WIDTH(`ALEN),
     .NM(2),
-    .NS(3)
+    .NS(4)
 ) sys_bus (
     .S_AXI_ACLK(clk),
     .S_AXI_ARESETN(!rst),
@@ -72,29 +72,29 @@ axilxbar #(
     .S_AXI_RREADY({ ifetch_axi.rready, data_axi.rready }),
 
     // Devices
-    .M_AXI_AWADDR({ gpio_axi.awaddr, sram_axi.awaddr, flash_axi.awaddr }),
-    .M_AXI_AWPROT({ gpio_axi.awprot, sram_axi.awprot, flash_axi.awprot }),
-    .M_AXI_AWVALID({ gpio_axi.awvalid, sram_axi.awvalid, flash_axi.awvalid }),
-    .M_AXI_AWREADY({ gpio_axi.awready, sram_axi.awready, flash_axi.awready }),
+    .M_AXI_AWADDR({ eth_axi.awaddr, gpio_axi.awaddr, sram_axi.awaddr, flash_axi.awaddr }),
+    .M_AXI_AWPROT({ eth_axi.awprot, gpio_axi.awprot, sram_axi.awprot, flash_axi.awprot }),
+    .M_AXI_AWVALID({ eth_axi.awvalid, gpio_axi.awvalid, sram_axi.awvalid, flash_axi.awvalid }),
+    .M_AXI_AWREADY({ eth_axi.awready, gpio_axi.awready, sram_axi.awready, flash_axi.awready }),
 
-    .M_AXI_WDATA({ gpio_axi.wdata, sram_axi.wdata, flash_axi.wdata }),
-    .M_AXI_WSTRB({ gpio_axi.wstrb, sram_axi.wstrb, flash_axi.wstrb }),
-    .M_AXI_WVALID({ gpio_axi.wvalid, sram_axi.wvalid, flash_axi.wvalid }),
-    .M_AXI_WREADY({ gpio_axi.wready, sram_axi.wready, flash_axi.wready }),
+    .M_AXI_WDATA({ eth_axi.wdata, gpio_axi.wdata, sram_axi.wdata, flash_axi.wdata }),
+    .M_AXI_WSTRB({ eth_axi.wstrb, gpio_axi.wstrb, sram_axi.wstrb, flash_axi.wstrb }),
+    .M_AXI_WVALID({ eth_axi.wvalid, gpio_axi.wvalid, sram_axi.wvalid, flash_axi.wvalid }),
+    .M_AXI_WREADY({ eth_axi.wready, gpio_axi.wready, sram_axi.wready, flash_axi.wready }),
 
-    .M_AXI_BRESP({ gpio_axi.bresp, sram_axi.bresp, flash_axi.bresp }),
-    .M_AXI_BVALID({ gpio_axi.bvalid, sram_axi.bvalid, flash_axi.bvalid }),
-    .M_AXI_BREADY({ gpio_axi.bready, sram_axi.bready, flash_axi.bready }),
+    .M_AXI_BRESP({ eth_axi.bresp, gpio_axi.bresp, sram_axi.bresp, flash_axi.bresp }),
+    .M_AXI_BVALID({ eth_axi.bvalid, gpio_axi.bvalid, sram_axi.bvalid, flash_axi.bvalid }),
+    .M_AXI_BREADY({ eth_axi.bready, gpio_axi.bready, sram_axi.bready, flash_axi.bready }),
 
-    .M_AXI_ARADDR({ gpio_axi.araddr, sram_axi.araddr, flash_axi.araddr }),
-    .M_AXI_ARPROT({ gpio_axi.arprot, sram_axi.arprot, flash_axi.arprot }),
-    .M_AXI_ARVALID({ gpio_axi.arvalid, sram_axi.arvalid, flash_axi.arvalid }),
-    .M_AXI_ARREADY({ gpio_axi.arready, sram_axi.arready, flash_axi.arready }),
+    .M_AXI_ARADDR({ eth_axi.araddr, gpio_axi.araddr, sram_axi.araddr, flash_axi.araddr }),
+    .M_AXI_ARPROT({ eth_axi.arprot, gpio_axi.arprot, sram_axi.arprot, flash_axi.arprot }),
+    .M_AXI_ARVALID({ eth_axi.arvalid, gpio_axi.arvalid, sram_axi.arvalid, flash_axi.arvalid }),
+    .M_AXI_ARREADY({ eth_axi.arready, gpio_axi.arready, sram_axi.arready, flash_axi.arready }),
 
-    .M_AXI_RDATA({ gpio_axi.rdata, sram_axi.rdata, flash_axi.rdata }),
-    .M_AXI_RRESP({ gpio_axi.rresp, sram_axi.rresp, flash_axi.rresp }),
-    .M_AXI_RVALID({ gpio_axi.rvalid, sram_axi.rvalid, flash_axi.rvalid }),
-    .M_AXI_RREADY({ gpio_axi.rready, sram_axi.rready, flash_axi.rready })
+    .M_AXI_RDATA({ eth_axi.rdata, gpio_axi.rdata, sram_axi.rdata, flash_axi.rdata }),
+    .M_AXI_RRESP({ eth_axi.rresp, gpio_axi.rresp, sram_axi.rresp, flash_axi.rresp }),
+    .M_AXI_RVALID({ eth_axi.rvalid, gpio_axi.rvalid, sram_axi.rvalid, flash_axi.rvalid }),
+    .M_AXI_RREADY({ eth_axi.rready, gpio_axi.rready, sram_axi.rready, flash_axi.rready })
 );
 
 axi4lite ifetch_axi();

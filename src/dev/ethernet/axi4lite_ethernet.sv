@@ -19,47 +19,184 @@ module axi4lite_ethernet #(
     output wire       phy_reset_n
 );
 
+wire clk = bus.aclk;
 wire rst = !bus.aresetn;
 assign phy_reset_n = !rst;
 
-// Ignore reads
-always @(posedge bus.aclk) begin
+// NOTE: We mask out the three low bits of the address, you cannot do partial accesses at an offset.
+//       *(reg0+3) still addresses *(reg0), while *(reg0+4) snaps to *(reg1). We also completely ignore the wstrb signal.
+//       (and the core doesn't have a notion of non-cached memory regions yet, but the cacheline size *is* 64bits, so it works out!)
+localparam NUM_MMIO_REGS = 2;
+localparam MMIO_REGS_ALEN = $clog2(NUM_MMIO_REGS);
+reg [47:0] mmio_eth_src_mac; // Reg 0: Source MAC to use for writes
+reg [63:0] mmio_eth_ethertype_dst_mac; // Reg 1: Dest MAC and ethertype to use for writes
+wire [15:0] mmio_eth_ethertype = mmio_eth_ethertype_dst_mac[48 +: 16];
+wire [47:0] mmio_eth_dst_mac = mmio_eth_ethertype_dst_mac[0 +: 48];
+
+// Handle reads
+wire [`ALEN-1-3:0] bus_araddr_masked = (bus.araddr & ADDR_MASK) >> 3;
+wire bus_araddr_bad_bits = bus_araddr_masked[`ALEN-1-3:MMIO_REGS_ALEN] != '0;
+
+reg has_pending_araddr;
+reg [MMIO_REGS_ALEN-1:0] pending_araddr;
+reg pending_araddr_bad_bits;
+wire [MMIO_REGS_ALEN-1:0] araddr_comb = has_pending_araddr ? pending_araddr : bus_araddr_masked;
+wire araddr_bad_bits_comb = has_pending_araddr ? pending_araddr_bad_bits : bus_araddr_bad_bits;
+
+wire ar_beat = bus.arvalid && bus.arready;
+wire r_beat = bus.rvalid && bus.rready;
+wire rdata_jam = bus.rvalid && !bus.rready;
+
+wire is_reading = ar_beat || has_pending_araddr;
+wire should_update_rdata = !rdata_jam && is_reading;
+wire rvalid_next = is_reading || (bus.rvalid && !r_beat);
+
+always_ff @(posedge clk) begin
     if (rst) begin
         bus.rvalid <= 'b0;
         bus.arready <= 'b0;
         bus.rdata <= 'x;
         bus.rresp <= 'x;
+        
+        has_pending_araddr <= '0;
+        pending_araddr <= '0;
+        pending_araddr_bad_bits <= '0;
     end else begin
-        bus.arready <= bus.arvalid && !bus.arready && (!bus.rvalid || bus.rready);
-        if (bus.arready && bus.arvalid) begin
+        bus.arready <= !rvalid_next || !has_pending_araddr;
+
+        if (rdata_jam) begin
+            if (ar_beat) begin
+                // We know !has_pending_araddr, as an invariant
+                has_pending_araddr <= 'b1;
+                pending_araddr <= bus_araddr_masked;
+                pending_araddr_bad_bits <= bus_araddr_bad_bits;
+            end
+        end else if (!ar_beat) begin
+            has_pending_araddr <= 'b0;
+            pending_araddr <= 'x;
+            pending_araddr_bad_bits <= 'x;
+        end else if (has_pending_araddr) begin
+            // No jam and an ar_beat means inflow = outflow
+            pending_araddr <= bus_araddr_masked;
+            pending_araddr_bad_bits <= bus_araddr_bad_bits;
+        end
+        
+        if (is_reading)
             bus.rvalid <= 'b1;
-            bus.rdata <= '0;
-            bus.rresp <= AXI4LITE_RESP_OKAY;
-        end else if (bus.rready && bus.rvalid) begin
+        else if (r_beat)
             bus.rvalid <= 'b0;
+
+        if (should_update_rdata) begin
             bus.rdata <= 'x;
-            bus.rresp <= 'x;
+            bus.rresp <= AXI4LITE_RESP_OKAY;
+            if (araddr_bad_bits_comb) begin
+                bus.rresp <= AXI4LITE_RESP_SLVERR;
+            end else begin
+                unique if (araddr_comb == 'h0) begin
+                    bus.rdata <= {16'b0, mmio_eth_src_mac};
+                end else if (araddr_comb == 'h1) begin
+                    bus.rdata <= {16'b0, mmio_eth_ethertype_dst_mac};
+                end else begin
+                    bus.rresp <= AXI4LITE_RESP_SLVERR;
+                end
+            end
         end
     end
 end
 
-// Ignore writes
-always @(posedge bus.aclk) begin
+// Handle writes
+wire [`ALEN-1-3:0] bus_waddr_masked = (bus.awaddr & ADDR_MASK) >> 3;
+wire bus_waddr_bad_bits = bus_waddr_masked[`ALEN-1-3:MMIO_REGS_ALEN] != '0;
+
+wire aw_beat = bus.awvalid && bus.awready;
+wire w_beat = bus.wvalid && bus.wready;
+wire b_beat = bus.bvalid && bus.bready;
+wire b_jam = bus.bvalid && !bus.bready;
+
+reg aw_pending;
+reg w_pending;
+wire aw_active = aw_beat || aw_pending;
+wire w_active = w_beat || w_pending;
+
+reg [MMIO_REGS_ALEN-1:0] waddr_buf;
+reg waddr_bad_bits_buf;
+reg [63:0] wdata_buf;
+wire [MMIO_REGS_ALEN-1:0] waddr = aw_pending ? waddr_buf : bus_waddr_masked;
+wire waddr_bad_bits = aw_pending ? waddr_bad_bits_buf : bus_waddr_bad_bits;
+wire [63:0] wdata = w_pending ? wdata_buf : bus.wdata;
+
+assign bus.awready = !aw_pending;
+assign bus.wready = !w_pending;
+
+// NOTE: AXI4 mandates ordering only for reads started _after_ a write response,
+//       so we don't have to do the write until the moment we set bvalid.
+always_ff @(posedge clk) begin
     if (rst) begin
-        bus.awready <= 'b0;
-        bus.wready <= 'b0;
-        bus.bvalid <= 'b0;
-        bus.bresp <= 'x;
-    end else begin
-        bus.awready <= bus.awvalid && bus.wvalid && !bus.awready;
-        bus.wready <= bus.awvalid && bus.wvalid && !bus.wready;
-        if (bus.bvalid && bus.bready) begin
-            bus.bvalid <= 'b0;
-            bus.bresp <= 'x;
-        end else if (bus.awvalid && bus.wvalid && bus.awready && bus.wready) begin
-            bus.bvalid <= 'b1;
-            bus.bresp <= AXI4LITE_RESP_OKAY;
+        aw_pending <= '0;
+        w_pending <= '0;
+        waddr_buf <= 'x;
+        waddr_bad_bits_buf <= 'x;
+        wdata_buf <= 'x;
+        
+        mmio_eth_src_mac <= '0;
+        mmio_eth_ethertype_dst_mac <= '0;
+    end else if (aw_active && w_active && !(aw_pending && w_pending)) begin
+        if (!waddr_bad_bits) begin
+            unique if (waddr == 'h0) begin
+                mmio_eth_src_mac <= wdata[47:0];
+            end else if (waddr == 'h1) begin
+                mmio_eth_ethertype_dst_mac <= wdata; 
+            end else begin
+                // No write
+            end
         end
+    
+        if (b_jam) begin
+            aw_pending <= '1;
+            w_pending <= '1;
+            waddr_buf <= bus_waddr_masked;
+            waddr_bad_bits_buf <= bus_waddr_bad_bits;
+            wdata_buf <= bus.wdata;
+        end else begin
+            aw_pending <= '0;
+            w_pending <= '0;
+            waddr_buf <= 'x;
+            waddr_bad_bits_buf <= 'x;
+            wdata_buf <= 'x;
+        end
+    end else begin
+        if (aw_beat) begin
+            aw_pending <= '1;
+            waddr_buf <= bus_waddr_masked;
+            waddr_bad_bits_buf <= bus_waddr_bad_bits;
+        end else if (b_beat) begin
+            aw_pending <= '0;
+            waddr_buf <= 'x;
+            waddr_bad_bits_buf <= 'x;
+        end
+
+        if (w_beat) begin
+            w_pending <= '1;
+            wdata_buf <= bus.wdata;
+        end else if (b_beat) begin
+            w_pending <= '0;
+            wdata_buf <= 'x;
+        end
+    end
+end
+
+always_ff @(posedge clk) begin
+    if (rst) begin
+        bus.bvalid <= '0;
+        bus.bresp <= 'x;
+    end else if (b_jam) begin
+        // Hold outputs stable
+    end else if (aw_active && w_active) begin
+        bus.bvalid <= '1;
+        bus.bresp <= (waddr_bad_bits || waddr >= NUM_MMIO_REGS) ? AXI4LITE_RESP_SLVERR : AXI4LITE_RESP_OKAY;
+    end else begin
+        bus.bvalid <= '0;
+        bus.bresp <= 'x;
     end
 end
 
@@ -111,7 +248,7 @@ eth_mac_mii_fifo #(
 )
 eth_mac_inst (
     .rst(rst),
-    .logic_clk(bus.aclk),
+    .logic_clk(clk),
     .logic_rst(rst),
 
     .tx_axis_tdata(tx_axis_tdata),
@@ -149,7 +286,7 @@ eth_mac_inst (
 
 eth_axis_rx
 eth_axis_rx_inst (
-    .clk(bus.aclk),
+    .clk(clk),
     .rst(rst),
     // AXI input
     .s_axis_tdata(rx_axis_tdata),
@@ -175,7 +312,7 @@ eth_axis_rx_inst (
 
 eth_axis_tx
 eth_axis_tx_inst (
-    .clk(bus.aclk),
+    .clk(clk),
     .rst(rst),
     // Ethernet frame input
     .s_eth_hdr_valid(tx_eth_hdr_valid),
@@ -201,14 +338,23 @@ eth_axis_tx_inst (
 // Echo back ethernet frames..
 assign tx_eth_hdr_valid = rx_eth_hdr_valid;
 assign rx_eth_hdr_ready = tx_eth_hdr_ready;
-assign tx_eth_dest_mac = rx_eth_src_mac;
-assign tx_eth_src_mac = rx_eth_dest_mac;
+assign tx_eth_dest_mac = mmio_eth_dst_mac;
+assign tx_eth_src_mac = mmio_eth_src_mac;
 assign tx_eth_hdr_valid = rx_eth_hdr_valid;
-assign tx_eth_type = rx_eth_type;
+assign tx_eth_type = mmio_eth_ethertype;
 assign tx_eth_payload_axis_tdata = rx_eth_payload_axis_tdata;
 assign tx_eth_payload_axis_tvalid = rx_eth_payload_axis_tvalid;
 assign rx_eth_payload_axis_tready = tx_eth_payload_axis_tready;
 assign tx_eth_payload_axis_tlast = rx_eth_payload_axis_tlast;
 assign tx_eth_payload_axis_tuser = rx_eth_payload_axis_tuser;
+
+
+`ifndef SYNTHESIS
+always @(posedge clk) begin
+    assert property (is_reading && !rst |=> bus.rvalid);
+    assert property (ar_beat |-> !rdata_jam || !has_pending_araddr);
+    assert property (rdata_jam |-> !ar_beat || !has_pending_araddr);
+end
+`endif
 
 endmodule

@@ -45,18 +45,18 @@ module spi_soc#(
 //assign PROBE[6] = FLASH_CLK;
 //assign PROBE[7] = rst;
 
-assign PROBE[0] = gated_core_clk;
-assign PROBE[1] = eth_soc.core.ifetch_stall_next;
-assign PROBE[2] = eth_soc.core.ifetch_exception;
-assign PROBE[3] = eth_soc.core.decode_stall_next;
-assign PROBE[4] = eth_soc.core.decode_next_stalled;
-assign PROBE[5] = eth_soc.core.decode_exception;
-assign PROBE[6] = eth_soc.core.exec_stall_next;
-assign PROBE[7] = eth_soc.core.exec_exception;
-assign PROBE[8] = eth_soc.core.exec_is_reg_write;
-assign PROBE[9] = eth_soc.core.exec_is_trap;
+//assign PROBE[0] = gated_core_clk;
+//assign PROBE[1] = eth_soc.core.ifetch_stall_next;
+//assign PROBE[2] = eth_soc.core.ifetch_exception;
+//assign PROBE[3] = eth_soc.core.decode_stall_next;
+//assign PROBE[4] = eth_soc.core.decode_next_stalled;
+//assign PROBE[5] = eth_soc.core.decode_exception;
+//assign PROBE[6] = eth_soc.core.exec_stall_next;
+//assign PROBE[7] = eth_soc.core.exec_exception;
+//assign PROBE[8] = eth_soc.core.exec_is_reg_write;
+//assign PROBE[9] = eth_soc.core.exec_is_trap;
 
-//assign PROBE = '0;
+assign PROBE = '0;
 
 bit core_clk_enable, core_clk_pulse;
 reg core_clk_enable_reg, core_clk_pulse_reg;
@@ -103,7 +103,7 @@ eth_soc #(
     .RESET_PC(RESET_PC),
     .GPIO_OUTPUTS($bits(LED))
 ) eth_soc (
-    .clk(clk), // FIXME: gated_core_clk
+    .clk(gated_core_clk),
     .rst,
 
     .cs(FLASH_CS),
