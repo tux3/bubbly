@@ -1,0 +1,10 @@
+[package]
+name = "rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+riscv = "0.8.0"
+
+[profile.release]
+panic = "abort"
