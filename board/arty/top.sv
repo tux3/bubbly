@@ -59,6 +59,15 @@ module top(
 //assign PROBE[8] = eth_soc.core.exec_is_reg_write;
 //assign PROBE[9] = eth_soc.core.exec_is_trap;
 
+//assign PROBE[0] = rst;
+//assign PROBE[1] = eth_soc.axi4lite_ethernet.tx_eth_hdr_ready;
+//assign PROBE[2] = eth_soc.axi4lite_ethernet.tx_eth_hdr_valid;
+//assign PROBE[3] = eth_soc.axi4lite_ethernet.tx_eth_payload_axis_tready;
+//assign PROBE[4] = eth_soc.axi4lite_ethernet.tx_eth_payload_axis_tvalid;
+//assign PROBE[5] = eth_soc.axi4lite_ethernet.eth_tx_writing_first_data;
+//assign PROBE[6] = eth_soc.axi4lite_ethernet.eth_tx_writing;
+//assign PROBE[7] = clk;
+
 assign PROBE = '0;
 assign PROBE_GND_34 = '0;
 
