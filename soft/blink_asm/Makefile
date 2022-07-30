@@ -15,3 +15,6 @@ dump: blink.elf
 clean:
 	rm -f blink.bin blink.elf blink.o
 
+blink_cfgmem.mcs: blink.bin
+	vivado -notrace -nolog -nojournal -mode batch -source gen_blink_cfgmem.tcl
+
