@@ -161,24 +161,26 @@ localparam DEST_OFFSET = ID_OFFSET   + (ID_ENABLE   ? ID_WIDTH   : 0);
 localparam USER_OFFSET = DEST_OFFSET + (DEST_ENABLE ? DEST_WIDTH : 0);
 localparam WIDTH       = USER_OFFSET + (USER_ENABLE ? USER_WIDTH : 0);
 
+(* keep = "true" *)
 reg [ADDR_WIDTH:0] wr_ptr_reg = {ADDR_WIDTH+1{1'b0}};
 reg [ADDR_WIDTH:0] wr_ptr_cur_reg = {ADDR_WIDTH+1{1'b0}};
 reg [ADDR_WIDTH:0] wr_ptr_gray_reg = {ADDR_WIDTH+1{1'b0}};
 reg [ADDR_WIDTH:0] wr_ptr_sync_gray_reg = {ADDR_WIDTH+1{1'b0}};
 reg [ADDR_WIDTH:0] wr_ptr_cur_gray_reg = {ADDR_WIDTH+1{1'b0}};
+(* keep = "true" *)
 reg [ADDR_WIDTH:0] rd_ptr_reg = {ADDR_WIDTH+1{1'b0}};
 reg [ADDR_WIDTH:0] rd_ptr_gray_reg = {ADDR_WIDTH+1{1'b0}};
 
 reg [ADDR_WIDTH:0] wr_ptr_temp;
 reg [ADDR_WIDTH:0] rd_ptr_temp;
 
-(* SHREG_EXTRACT = "NO" *)
+(* keep = "true", SHREG_EXTRACT = "NO" *)
 reg [ADDR_WIDTH:0] wr_ptr_gray_sync1_reg = {ADDR_WIDTH+1{1'b0}};
-(* SHREG_EXTRACT = "NO" *)
+(* keep = "true", SHREG_EXTRACT = "NO" *)
 reg [ADDR_WIDTH:0] wr_ptr_gray_sync2_reg = {ADDR_WIDTH+1{1'b0}};
-(* SHREG_EXTRACT = "NO" *)
+(* keep = "true", SHREG_EXTRACT = "NO" *)
 reg [ADDR_WIDTH:0] rd_ptr_gray_sync1_reg = {ADDR_WIDTH+1{1'b0}};
-(* SHREG_EXTRACT = "NO" *)
+(* keep = "true", SHREG_EXTRACT = "NO" *)
 reg [ADDR_WIDTH:0] rd_ptr_gray_sync2_reg = {ADDR_WIDTH+1{1'b0}};
 
 reg wr_ptr_update_valid_reg = 1'b0;
