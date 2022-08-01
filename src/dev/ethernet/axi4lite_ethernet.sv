@@ -222,9 +222,9 @@ always_comb unique case (rx_eth_payload_axis_tkeep)
 endcase
 
 // NOTE: We don't check araddr is valid here to save combinatorial time.
-// If you read an invalid addr that ends like MMIO reg 2, we'll drop a beat of data on the floor.
+// If you read an invalid addr that ends like MMIO reg 5, we'll drop a beat of data on the floor.
 wire reading_mmio_reg5 = should_update_rdata && araddr_comb == 'h5;
-assign rx_eth_hdr_ready = reading_mmio_reg5 && !eth_rx_reading && rx_eth_payload_axis_tvalid;
+assign rx_eth_hdr_ready = reading_mmio_reg5 && !eth_rx_reading;
 assign rx_eth_payload_axis_tready = reading_mmio_reg5;
 
 always_ff @(posedge clk) begin
@@ -280,11 +280,12 @@ always_ff @(posedge clk) begin
                     bus.rdata <= mmio_eth_rx_ethertype_dst_mac;
                 end else if (araddr_comb == 'h5) begin
                     // Read ethernet frame from AXIS rx, if available
-                    if (!eth_rx_reading && rx_eth_payload_axis_tvalid && rx_eth_hdr_valid) begin
-                        eth_rx_reading <= !rx_eth_payload_axis_tlast;
+                    if (!eth_rx_reading && rx_eth_hdr_valid) begin
+                        eth_rx_reading <= !rx_eth_payload_axis_tvalid || !rx_eth_payload_axis_tlast;
                         mmio_eth_rx_srx_mac <= rx_eth_src_mac;
                         mmio_eth_rx_ethertype_dst_mac <= {rx_eth_type, rx_eth_dest_mac};
-                        bus.rdata <= {1'b1, rx_eth_payload_axis_tlast, 3'b0, eth_rx_read_size, rx_eth_payload_axis_tdata};
+                        bus.rdata <= {1'b1, rx_eth_payload_axis_tvalid && rx_eth_payload_axis_tlast, 3'b0,
+                                    rx_eth_payload_axis_tvalid ? eth_rx_read_size : 3'b0, rx_eth_payload_axis_tdata};
                     end else if (eth_rx_reading && rx_eth_payload_axis_tvalid) begin
                         eth_rx_reading <= !rx_eth_payload_axis_tlast;
                         bus.rdata <= {1'b1, rx_eth_payload_axis_tlast, 3'b0, eth_rx_read_size, rx_eth_payload_axis_tdata};
