@@ -235,8 +235,8 @@ always_ff @(posedge clk) begin
         bus.rresp <= 'x;
         
         has_pending_araddr <= '0;
-        pending_araddr <= '0;
-        pending_araddr_bad_bits <= '0;
+        pending_araddr <= 'x;
+        pending_araddr_bad_bits <= 'x;
         
         eth_rx_reading <= '0;
     end else begin

@@ -8,3 +8,5 @@ riscv = "0.8.0"
 
 [profile.release]
 panic = "abort"
+debug = 2
+overflow-checks = false
