@@ -39,7 +39,7 @@ pub struct RxEthernetFrame<'buf> {
 impl RxEthernetFrame<'_> {
     #[allow(dead_code)]
     pub fn dst_mac(&self) -> u64 {
-        self.dst_mac_type & 0xFF_FF_FF
+        self.dst_mac_type & 0xFFFF_FFFF_FFFF
     }
 
     #[allow(dead_code)]

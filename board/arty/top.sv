@@ -68,6 +68,17 @@ module top(
 //assign PROBE[6] = eth_soc.axi4lite_ethernet.eth_tx_writing;
 //assign PROBE[7] = clk;
 
+//assign PROBE[0] = rst;
+//assign PROBE[1] = eth_soc.core.exec.decode_instruction_addr[1];
+//assign PROBE[2] = eth_soc.core.exec.decode_instruction_addr[2];
+//assign PROBE[3] = eth_soc.core.exec.decode_instruction_addr[3];
+//assign PROBE[4] = eth_soc.core.exec.decode_instruction_addr[4];
+//assign PROBE[5] = eth_soc.core.exec.decode_instruction_addr[5];
+//assign PROBE[6] = eth_soc.core.exec.decode_instruction_addr[6];
+//assign PROBE[7] = eth_soc.core.exec.decode_instruction_addr[7];
+//assign PROBE[8] = eth_soc.core.exec.decode_instruction_addr[8];
+//assign PROBE[9] = eth_soc.core.exec.decode_instruction_addr[9];
+
 assign PROBE = '0;
 assign PROBE_GND_34 = '0;
 
