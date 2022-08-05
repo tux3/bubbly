@@ -19,7 +19,9 @@ const ETH_FRAME_BUF_SIZE: usize = 1520; // Leave extra space for 64bit writes
 
 fn set_led(on: bool) {
     let led_ptr = GPIO_BASE as *mut u8;
-    unsafe { core::ptr::write_volatile(led_ptr, on as u8); }
+    unsafe {
+        core::ptr::write_volatile(led_ptr, on as u8);
+    }
 }
 
 unsafe fn copy_and_exec(payload: &[u8]) -> ! {
@@ -32,7 +34,7 @@ unsafe fn copy_and_exec(payload: &[u8]) -> ! {
 
 unsafe fn main() -> ! {
     set_led(true);
-    eth_send_frame(b"Rust server started", 0xffff_ffff_ffff, 0x0);
+    //eth_send_frame(b"Rust server started", 0xffff_ffff_ffff, 0x0);
 
     let eth_frame_buf: &mut [u8; ETH_FRAME_BUF_SIZE] = &mut *(SRAM_BASE as *mut _);
 
@@ -40,11 +42,16 @@ unsafe fn main() -> ! {
     let mut last_mcycle = register::mcycle::read64();
     loop {
         if let Some(frame) = eth_recv_frame(eth_frame_buf) {
-            if frame.ethertype() == 0xB007 { // "BOOT" ethertype
+            if frame.ethertype() == 0xB007 {
+                // "BOOT" ethertype
                 let expected_hash = frame.dst_mac().to_le_bytes();
                 let payload_hash = xxh64(frame.payload, 0).to_le_bytes();
                 if expected_hash[..6] != payload_hash[..6] {
-                    eth_send_frame(b"Invalid boot payload hash", frame.src_mac, frame.ethertype());
+                    eth_send_frame(
+                        b"Invalid boot payload hash",
+                        frame.src_mac,
+                        frame.ethertype(),
+                    );
                     eth_send_frame(&expected_hash[..6], frame.src_mac, frame.ethertype());
                 } else {
                     eth_send_frame(b"Booting payload", frame.src_mac, frame.ethertype());
@@ -58,7 +65,7 @@ unsafe fn main() -> ! {
         }
 
         let mcycle = register::mcycle::read64();
-        if mcycle - last_mcycle > 15_000_000 {
+        if mcycle - last_mcycle > 30_000_000 {
             last_mcycle = mcycle;
             led_enable = !led_enable;
             set_led(led_enable);
@@ -79,6 +86,11 @@ unsafe extern "C" fn _start() -> ! {
     register::mtvec::write(panic as usize, TrapMode::Direct);
 
     eth_mmio_set_tx_src_mac(BOARD_MAC_ADDR);
+    eth_mmio_set_src_ip_gateway_ip(
+        u32::from_be_bytes([192, 168, 1, 110]),
+        u32::from_be_bytes([192, 168, 1, 254]),
+    );
+    eth_mmio_set_netmask(0xFF_FF_FF_00);
 
     main()
 }

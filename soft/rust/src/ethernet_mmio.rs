@@ -5,6 +5,8 @@ const ETH_MMIO_TX_DATA: *mut u64 = (ETHERNET_MMIO_BASE + 0x10) as _;
 const ETH_MMIO_RX_SRC_MAC: *mut u64 = (ETHERNET_MMIO_BASE + 0x18) as _;
 const ETH_MMIO_RX_DST_MAC_TYPE: *mut u64 = (ETHERNET_MMIO_BASE + 0x20) as _;
 const ETH_MMIO_RX_DATA: *mut u64 = (ETHERNET_MMIO_BASE + 0x28) as _;
+const ETH_MMIO_SRC_IP_GATEWAY_IP: *mut u64 = (ETHERNET_MMIO_BASE + 0x30) as _;
+const ETH_MMIO_NETMASK: *mut u64 = (ETHERNET_MMIO_BASE + 0x38) as _;
 
 pub fn eth_mmio_set_tx_src_mac(mac: u64) {
     unsafe { core::ptr::write_volatile(ETH_MMIO_TX_SRC_MAC, mac); }
@@ -28,6 +30,14 @@ pub fn eth_mmio_get_rx_dst_mac_ethertype() -> u64 {
 
 pub fn eth_mmio_read_rx_data() -> u64 {
     unsafe { core::ptr::read_volatile(ETH_MMIO_RX_DATA) }
+}
+
+pub fn eth_mmio_set_src_ip_gateway_ip(src_ip: u32, gateway_ip: u32) {
+    unsafe { core::ptr::write_volatile(ETH_MMIO_SRC_IP_GATEWAY_IP, ((gateway_ip as u64) << 32) | src_ip as u64); }
+}
+
+pub fn eth_mmio_set_netmask(mask: u32) {
+    unsafe { core::ptr::write_volatile(ETH_MMIO_NETMASK, mask as u64); }
 }
 
 pub struct RxEthernetFrame<'buf> {
