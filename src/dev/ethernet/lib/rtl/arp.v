@@ -389,6 +389,11 @@ always @* begin
                 arp_response_valid_next = 1'b1;
                 arp_response_error_next = 1'b0;
                 arp_response_mac_next = 48'hffffffffffff;
+            end else if (arp_request_ip[31:8] == {8'd224, 8'd0, 8'd0}) begin
+                // IPv4 multicast
+                arp_response_valid_next = 1'b1;
+                arp_response_error_next = 1'b0;
+                arp_response_mac_next = {24'h01005e, arp_request_ip[23:0]};
             end else if (((arp_request_ip ^ gateway_ip) & subnet_mask) == 0) begin
                 // within subnet
                 // (no bits differ between request IP and gateway IP where subnet mask is set)
