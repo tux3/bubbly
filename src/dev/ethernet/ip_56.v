@@ -44,8 +44,8 @@ module ip_56
     input  wire [47:0] s_eth_dest_mac,
     input  wire [47:0] s_eth_src_mac,
     input  wire [15:0] s_eth_type,
-    input  wire [63:0] s_eth_payload_axis_tdata,
-    input  wire [7:0]  s_eth_payload_axis_tkeep,
+    input  wire [55:0] s_eth_payload_axis_tdata,
+    input  wire [6:0]  s_eth_payload_axis_tkeep,
     input  wire        s_eth_payload_axis_tvalid,
     output wire        s_eth_payload_axis_tready,
     input  wire        s_eth_payload_axis_tlast,
@@ -59,8 +59,8 @@ module ip_56
     output wire [47:0] m_eth_dest_mac,
     output wire [47:0] m_eth_src_mac,
     output wire [15:0] m_eth_type,
-    output wire [63:0] m_eth_payload_axis_tdata,
-    output wire [7:0]  m_eth_payload_axis_tkeep,
+    output wire [55:0] m_eth_payload_axis_tdata,
+    output wire [6:0]  m_eth_payload_axis_tkeep,
     output wire        m_eth_payload_axis_tvalid,
     input  wire        m_eth_payload_axis_tready,
     output wire        m_eth_payload_axis_tlast,
@@ -89,8 +89,8 @@ module ip_56
     input  wire [7:0]  s_ip_protocol,
     input  wire [31:0] s_ip_source_ip,
     input  wire [31:0] s_ip_dest_ip,
-    input  wire [63:0] s_ip_payload_axis_tdata,
-    input  wire [7:0]  s_ip_payload_axis_tkeep,
+    input  wire [55:0] s_ip_payload_axis_tdata,
+    input  wire [6:0]  s_ip_payload_axis_tkeep,
     input  wire        s_ip_payload_axis_tvalid,
     output wire        s_ip_payload_axis_tready,
     input  wire        s_ip_payload_axis_tlast,
@@ -117,8 +117,8 @@ module ip_56
     output wire [15:0] m_ip_header_checksum,
     output wire [31:0] m_ip_source_ip,
     output wire [31:0] m_ip_dest_ip,
-    output wire [63:0] m_ip_payload_axis_tdata,
-    output wire [7:0]  m_ip_payload_axis_tkeep,
+    output wire [55:0] m_ip_payload_axis_tdata,
+    output wire [6:0]  m_ip_payload_axis_tkeep,
     output wire        m_ip_payload_axis_tvalid,
     input  wire        m_ip_payload_axis_tready,
     output wire        m_ip_payload_axis_tlast,
@@ -158,8 +158,8 @@ wire outgoing_ip_payload_axis_tready;
 /*
  * IP frame processing
  */
-ip_eth_rx_64
-ip_eth_rx_64_inst (
+ip_eth_rx_56
+ip_eth_rx_56_inst (
     .clk(clk),
     .rst(rst),
     // Ethernet frame input
@@ -207,8 +207,8 @@ ip_eth_rx_64_inst (
     .error_invalid_checksum(rx_error_invalid_checksum)
 );
 
-ip_eth_tx_64
-ip_eth_tx_64_inst (
+ip_eth_tx_56
+ip_eth_tx_56_inst (
     .clk(clk),
     .rst(rst),
     // IP frame input

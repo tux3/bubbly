@@ -49,8 +49,8 @@ module ip_complete_56 #(
     input  wire [47:0] s_eth_dest_mac,
     input  wire [47:0] s_eth_src_mac,
     input  wire [15:0] s_eth_type,
-    input  wire [63:0] s_eth_payload_axis_tdata,
-    input  wire [7:0]  s_eth_payload_axis_tkeep,
+    input  wire [55:0] s_eth_payload_axis_tdata,
+    input  wire [6:0]  s_eth_payload_axis_tkeep,
     input  wire        s_eth_payload_axis_tvalid,
     output wire        s_eth_payload_axis_tready,
     input  wire        s_eth_payload_axis_tlast,
@@ -64,8 +64,8 @@ module ip_complete_56 #(
     output wire [47:0] m_eth_dest_mac,
     output wire [47:0] m_eth_src_mac,
     output wire [15:0] m_eth_type,
-    output wire [63:0] m_eth_payload_axis_tdata,
-    output wire [7:0]  m_eth_payload_axis_tkeep,
+    output wire [55:0] m_eth_payload_axis_tdata,
+    output wire [6:0]  m_eth_payload_axis_tkeep,
     output wire        m_eth_payload_axis_tvalid,
     input  wire        m_eth_payload_axis_tready,
     output wire        m_eth_payload_axis_tlast,
@@ -83,8 +83,8 @@ module ip_complete_56 #(
     input  wire [7:0]  s_ip_protocol,
     input  wire [31:0] s_ip_source_ip,
     input  wire [31:0] s_ip_dest_ip,
-    input  wire [63:0] s_ip_payload_axis_tdata,
-    input  wire [7:0]  s_ip_payload_axis_tkeep,
+    input  wire [55:0] s_ip_payload_axis_tdata,
+    input  wire [6:0]  s_ip_payload_axis_tkeep,
     input  wire        s_ip_payload_axis_tvalid,
     output wire        s_ip_payload_axis_tready,
     input  wire        s_ip_payload_axis_tlast,
@@ -111,8 +111,8 @@ module ip_complete_56 #(
     output wire [15:0] m_ip_header_checksum,
     output wire [31:0] m_ip_source_ip,
     output wire [31:0] m_ip_dest_ip,
-    output wire [63:0] m_ip_payload_axis_tdata,
-    output wire [7:0]  m_ip_payload_axis_tkeep,
+    output wire [55:0] m_ip_payload_axis_tdata,
+    output wire [6:0]  m_ip_payload_axis_tkeep,
     output wire        m_ip_payload_axis_tvalid,
     input  wire        m_ip_payload_axis_tready,
     output wire        m_ip_payload_axis_tlast,
@@ -159,8 +159,8 @@ wire ip_rx_eth_hdr_ready;
 wire [47:0] ip_rx_eth_dest_mac;
 wire [47:0] ip_rx_eth_src_mac;
 wire [15:0] ip_rx_eth_type;
-wire [63:0] ip_rx_eth_payload_axis_tdata;
-wire [7:0] ip_rx_eth_payload_axis_tkeep;
+wire [55:0] ip_rx_eth_payload_axis_tdata;
+wire [6:0] ip_rx_eth_payload_axis_tkeep;
 wire ip_rx_eth_payload_axis_tvalid;
 wire ip_rx_eth_payload_axis_tready;
 wire ip_rx_eth_payload_axis_tlast;
@@ -171,8 +171,8 @@ wire ip_tx_eth_hdr_ready;
 wire [47:0] ip_tx_eth_dest_mac;
 wire [47:0] ip_tx_eth_src_mac;
 wire [15:0] ip_tx_eth_type;
-wire [63:0] ip_tx_eth_payload_axis_tdata;
-wire [7:0] ip_tx_eth_payload_axis_tkeep;
+wire [55:0] ip_tx_eth_payload_axis_tdata;
+wire [6:0] ip_tx_eth_payload_axis_tkeep;
 wire ip_tx_eth_payload_axis_tvalid;
 wire ip_tx_eth_payload_axis_tready;
 wire ip_tx_eth_payload_axis_tlast;
@@ -183,8 +183,8 @@ wire arp_rx_eth_hdr_ready;
 wire [47:0] arp_rx_eth_dest_mac;
 wire [47:0] arp_rx_eth_src_mac;
 wire [15:0] arp_rx_eth_type;
-wire [63:0] arp_rx_eth_payload_axis_tdata;
-wire [7:0] arp_rx_eth_payload_axis_tkeep;
+wire [55:0] arp_rx_eth_payload_axis_tdata;
+wire [6:0] arp_rx_eth_payload_axis_tkeep;
 wire arp_rx_eth_payload_axis_tvalid;
 wire arp_rx_eth_payload_axis_tready;
 wire arp_rx_eth_payload_axis_tlast;
@@ -195,8 +195,8 @@ wire arp_tx_eth_hdr_ready;
 wire [47:0] arp_tx_eth_dest_mac;
 wire [47:0] arp_tx_eth_src_mac;
 wire [15:0] arp_tx_eth_type;
-wire [63:0] arp_tx_eth_payload_axis_tdata;
-wire [7:0] arp_tx_eth_payload_axis_tkeep;
+wire [55:0] arp_tx_eth_payload_axis_tdata;
+wire [6:0] arp_tx_eth_payload_axis_tkeep;
 wire arp_tx_eth_payload_axis_tvalid;
 wire arp_tx_eth_payload_axis_tready;
 wire arp_tx_eth_payload_axis_tlast;
@@ -267,7 +267,7 @@ assign s_eth_payload_axis_tready = (s_select_ip_reg && ip_rx_eth_payload_axis_tr
  */
 eth_arb_mux #(
     .S_COUNT(2),
-    .DATA_WIDTH(64),
+    .DATA_WIDTH(56),
     .KEEP_ENABLE(1),
     .ID_ENABLE(0),
     .DEST_ENABLE(0),
@@ -312,7 +312,7 @@ eth_arb_mux_inst (
 /*
  * IP module
  */
-ip_64
+ip_56
 ip_inst (
     .clk(clk),
     .rst(rst),
@@ -407,9 +407,9 @@ ip_inst (
  * ARP module
  */
 arp #(
-    .DATA_WIDTH(64),
+    .DATA_WIDTH(56),
     .KEEP_ENABLE(1),
-    .KEEP_WIDTH(8),
+    .KEEP_WIDTH(7),
     .CACHE_ADDR_WIDTH(ARP_CACHE_ADDR_WIDTH),
     .REQUEST_RETRY_COUNT(ARP_REQUEST_RETRY_COUNT),
     .REQUEST_RETRY_INTERVAL(ARP_REQUEST_RETRY_INTERVAL),
