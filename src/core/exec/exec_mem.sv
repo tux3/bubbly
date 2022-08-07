@@ -28,11 +28,11 @@ module exec_mem(
     output [`XLEN-1:0] lsu_store_data,
     output [(`XLEN/8)-1:0] lsu_store_mask,
 
-    output wire exec_mem_output_valid,
-    output wire exec_mem_exception,
-    output wire [3:0] exec_mem_trap_cause,
+    output logic exec_mem_output_valid,
+    output logic exec_mem_exception,
+    output logic [3:0] exec_mem_trap_cause,
     output logic [`ALEN-1:0] exec_mem_fault_addr,
-    output wire [`XLEN-1:0] exec_mem_result
+    output logic [`XLEN-1:0] exec_mem_result
 );
 
 reg amo_op_store_cycle;
@@ -216,58 +216,54 @@ always_ff @(posedge clk) begin
     end
 end
 
-reg exec_mem_output_valid_single_cycle;
-assign exec_mem_output_valid = exec_mem_output_valid_single_cycle || (!lsu_stall_next && !waiting_amo_op_load);
 always_ff @(posedge clk) begin
     if (rst) begin
-        exec_mem_output_valid_single_cycle <= '0;
-    end else if (input_valid && input_is_mem && is_load_store) begin
-        exec_mem_output_valid_single_cycle <= is_access_misaligned
+        exec_mem_output_valid <= '0;
+    end else if (input_valid && input_is_mem) begin
+        exec_mem_output_valid <= !is_load_store || is_access_misaligned
                                           || (is_amo && amo_is_sc && !amo_has_reservation);
     end else begin
-        exec_mem_output_valid_single_cycle <= input_valid && input_is_mem && !is_load_store;
+        exec_mem_output_valid <= !lsu_stall_next && !waiting_amo_op_load;
     end
 end
 
-reg exec_mem_exception_reg;
-reg [3:0] exec_mem_trap_cause_reg;
-reg [`XLEN-1:0] exec_mem_result_reg;
-assign exec_mem_exception = lsu_stall_next ? exec_mem_exception_reg : lsu_access_fault;
-assign exec_mem_trap_cause = lsu_stall_next ? exec_mem_trap_cause_reg : trap_causes::EXC_LOAD_ACCESS_FAULT;
-assign exec_mem_result = (lsu_stall_next || had_amo_write) ? exec_mem_result_reg : loaded_data;
 always_ff @(posedge clk) begin
-    exec_mem_exception_reg <= '0;
-    exec_mem_trap_cause_reg <= 'x;
+    exec_mem_exception <= '0;
+    exec_mem_trap_cause <= 'x;
     exec_mem_fault_addr <= memory_addr_comb;
 
-    if (waiting_amo_op_load && !lsu_stall_next) begin
-        exec_mem_result_reg <= loaded_data;
-        exec_mem_exception_reg <= '0;
-        exec_mem_trap_cause_reg <= 'x;
+    if (!lsu_stall_next && waiting_amo_op_load) begin
+        exec_mem_result <= loaded_data;
+        exec_mem_exception <= '0;
+        exec_mem_trap_cause <= 'x;
+    end else if (!lsu_stall_next && !had_amo_write) begin
+        exec_mem_result <= loaded_data;
+        exec_mem_exception <= lsu_access_fault;
+        exec_mem_trap_cause <= trap_causes::EXC_LOAD_ACCESS_FAULT;
     end else if (input_valid && input_is_mem) begin
         unique if (is_load_store && is_amo) begin
             // NOTE: We only output those regs here in case of misaligned exception (or for SC results)
-            exec_mem_exception_reg <= is_access_misaligned;
-            exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
+            exec_mem_exception <= is_access_misaligned;
+            exec_mem_trap_cause <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
             if (is_amo && amo_is_sc)
-                exec_mem_result_reg <= !amo_has_reservation;
+                exec_mem_result <= !amo_has_reservation;
             else
-                exec_mem_result_reg <= 'x;
+                exec_mem_result <= 'x;
         end else if (is_load_store && !is_amo) begin
             // NOTE: For actual load/stores we only output using those regs in case of misaligned exception, so result is 'x
             //       The other kinds of load/store results come from the load/store unit combinatorially
-            exec_mem_exception_reg <= is_access_misaligned;
-            exec_mem_trap_cause_reg <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
-            exec_mem_result_reg <= 'x;
+            exec_mem_exception <= is_access_misaligned;
+            exec_mem_trap_cause <= store_bit ? trap_causes::EXC_STORE_ADDR_MISALIGNED : trap_causes::EXC_LOAD_ADDR_MISALIGNED;
+            exec_mem_result <= 'x;
         end else if (opcode == opcodes::MISC_MEM) begin
             // NOTE: Everything is already serialized, regular data FENCE is a no-op (but FENCE.I and others are not!)
-            exec_mem_exception_reg <= funct3 != 'b000;
-            exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
-            exec_mem_result_reg <= 'x;
+            exec_mem_exception <= funct3 != 'b000;
+            exec_mem_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+            exec_mem_result <= 'x;
         end else begin
-            exec_mem_exception_reg <= '1;
-            exec_mem_trap_cause_reg <= trap_causes::EXC_ILLEGAL_INSTR;
-            exec_mem_result_reg <= 'x;
+            exec_mem_exception <= '1;
+            exec_mem_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+            exec_mem_result <= 'x;
         end
     end
 end
