@@ -52,7 +52,9 @@ wire [basic_cache_params::aligned_addr_size-1:0] dcache_raddr = !prev_stalled ? 
 wire [basic_cache_params::data_size-1:0] dcache_rdata;
 wire dcache_lookup_valid;
 
-basic_cache dcache(
+basic_cache #(
+    .CHECK_TAG_EARLY(1)
+) dcache (
 	.clk,
 	.rst,
 	.write_enable(dcache_write_enable),

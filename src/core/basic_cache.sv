@@ -15,7 +15,11 @@ endpackage
 // Our basic_cache stores 64bits of data (64bit aligned), with 32 bits of tags we match ALEN=43, at 96bit per entry
 // On the iCE40 a BRAM is 4kbits 16-bit addressable, so we fit 256*96bit entries in 6 BRAMs
 // Cache line entry format: | Tag | Data |
-module basic_cache (
+module basic_cache #(
+    // Checking the tag early prevents dcache from being in a hard BRAM block, spends more time in
+    // the cycle setting up the read, but saves combinatorial time at the start of the cycle reading results
+    parameter CHECK_TAG_EARLY = 0
+) (
 	input clk,
 	input rst,
 	input write_enable,
@@ -38,14 +42,11 @@ wire [basic_cache_params::bram_blocks-1:0] write_mask = {basic_cache_params::bra
 logic [basic_cache_params::bram_addr_width-1:0] line_waddr;
 logic [basic_cache_params::entry_size-1:0] line_wdata;
 logic [basic_cache_params::bram_addr_width-1:0] line_raddr;
-wire [basic_cache_params::entry_size-1:0] line_rdata;
+logic [basic_cache_params::entry_size-1:0] line_rdata;
 
 logic [(1<<basic_cache_params::bram_addr_width)-1:0] valid_bits;
-logic [basic_cache_params::bram_addr_width-1:0] valid_raddr;
-wire entry_valid = valid_bits[valid_raddr];
 
 logic [basic_cache_params::tag_size-1:0] cur_raddr_tag;
-logic [basic_cache_params::tag_size-1:0] last_raddr_tag;
 wire [basic_cache_params::tag_size-1:0] entry_tag = line_rdata[basic_cache_params::data_size +: basic_cache_params::tag_size];
 
 always_comb begin: bram_io
@@ -60,22 +61,58 @@ always_comb begin: bram_io
 end
 
 logic [basic_cache_params::entry_size-1:0] mem [(1<<basic_cache_params::bram_addr_width-1):0];
-logic [basic_cache_params::entry_size-1:0] mem_read_comb;
 logic [basic_cache_params::entry_size-1:0] mem_read_buf;
-logic tag_matches_comb;
-logic valid_buf_comb;
-assign line_rdata = mem_read_buf;
 
-always_comb begin
-    mem_read_comb = (write_enable && line_raddr == line_waddr) ? line_wdata : mem[line_raddr];
-    valid_buf_comb = (write_enable && line_raddr == line_waddr) ? '1 : valid_bits[line_raddr];
-    tag_matches_comb = cur_raddr_tag == mem_read_comb[basic_cache_params::data_size +: basic_cache_params::tag_size];
-end
+generate
+if (CHECK_TAG_EARLY) begin
+    logic [basic_cache_params::entry_size-1:0] mem_read_comb;
+    logic tag_matches_comb;
+    logic valid_buf_comb;
 
-always_ff @(posedge clk) begin
-    mem_read_buf <= mem_read_comb;
-    lookup_valid <= valid_buf_comb && tag_matches_comb;
+    always_comb begin
+        mem_read_comb = (write_enable && line_raddr == line_waddr) ? line_wdata : mem[line_raddr];
+        valid_buf_comb = (write_enable && line_raddr == line_waddr) ? '1 : valid_bits[line_raddr];
+        tag_matches_comb = cur_raddr_tag == mem_read_comb[basic_cache_params::data_size +: basic_cache_params::tag_size];
+        line_rdata = mem_read_buf;
+    end
+    
+    always_ff @(posedge clk) begin
+        mem_read_buf <= mem_read_comb;
+        lookup_valid <= valid_buf_comb && tag_matches_comb;
+    end
+end else begin
+    logic [basic_cache_params::entry_size-1:0] line_wdata_buf;
+    logic [basic_cache_params::tag_size-1:0] last_raddr_tag;
+    logic [basic_cache_params::bram_addr_width-1:0] valid_raddr;
+    logic read_from_write;
+    wire entry_valid = valid_bits[valid_raddr];
+
+    always_comb begin
+        if (read_from_write)
+            line_rdata = line_wdata_buf;
+        else
+            line_rdata = mem_read_buf;
+        lookup_valid = entry_valid && last_raddr_tag == entry_tag;
+    end
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            read_from_write <= 'x;
+            last_raddr_tag <= 'x;
+            line_wdata_buf <= 'x;
+            mem_read_buf <= 'x;
+            valid_raddr <= '0;
+        end else begin
+            read_from_write <= write_enable && line_raddr == line_waddr;
+            last_raddr_tag <= cur_raddr_tag;
+            valid_raddr <= line_raddr;
+            if (write_enable)
+                line_wdata_buf <= line_wdata; 
+            mem_read_buf <= mem[line_raddr];
+        end
+    end
 end
+endgenerate
 
 always_ff @(posedge clk)
     if (write_enable)
@@ -84,20 +121,9 @@ always_ff @(posedge clk)
 always_ff @(posedge clk) begin
     if (rst) begin
         valid_bits <= '0;
-        valid_raddr <= '0;
     end else begin
         if (write_enable)
             valid_bits[line_waddr] <= 1'b1;
-        valid_raddr <= line_raddr;
-    end
-end
-
-
-always_ff @(posedge clk) begin
-if (rst) begin
-        last_raddr_tag <= 'x;
-    end else if (write_enable) begin
-        last_raddr_tag <= cur_raddr_tag;
     end
 end
 
