@@ -48,8 +48,8 @@ pub fn eth_mmio_get_rx_ttl_proto_id_len_frag() -> u64 {
     unsafe { core::ptr::read_volatile(MMIO_RX_TTL_PROTO_ID_LEN_FRAG) }
 }
 
-pub fn eth_mmio_get_rx_ecn_ver_ihl_chksum() -> u64 {
-    unsafe { core::ptr::read_volatile(MMIO_RX_DSCP_ECN_VER_IHL_CHKSUM) }
+pub fn eth_mmio_get_rx_ecn_ver_ihl_chksum() -> u32 {
+    unsafe { core::ptr::read_volatile(MMIO_RX_DSCP_ECN_VER_IHL_CHKSUM) as u32 }
 }
 
 pub fn eth_mmio_rx_data() -> u64 {
@@ -79,6 +79,8 @@ pub struct RxIpPacket<'buf> {
     pub dst_mac_type: u64,
     pub src_ip: u32,
     pub dst_ip: u32,
+    pub ttl_proto_id_len_frag: u64,
+    pub ecn_ver_ihl_chksum: u32,
     pub payload: &'buf [u8],
 }
 
@@ -91,6 +93,36 @@ impl RxIpPacket<'_> {
     #[allow(dead_code)]
     pub fn ethertype(&self) -> u16 {
         (self.dst_mac_type >> 48) as u16
+    }
+
+    #[allow(dead_code)]
+    pub fn fragment_flags(&self) -> u8 {
+        ((self.ttl_proto_id_len_frag >> 13) & 0x3) as u8
+    }
+
+    #[allow(dead_code)]
+    pub fn fragment_offset(&self) -> u16 {
+        (self.ttl_proto_id_len_frag & 0x1FFF) as u16
+    }
+
+    #[allow(dead_code)]
+    pub fn ip_hdr_len(&self) -> u16 {
+        (self.ttl_proto_id_len_frag >> 16) as u16
+    }
+
+    #[allow(dead_code)]
+    pub fn identifier(&self) -> u16 {
+        (self.ttl_proto_id_len_frag >> 32) as u16
+    }
+
+    #[allow(dead_code)]
+    pub fn proto(&self) -> u8 {
+        (self.ttl_proto_id_len_frag >> 48) as u8
+    }
+
+    #[allow(dead_code)]
+    pub fn ttl(&self) -> u8 {
+        (self.ttl_proto_id_len_frag >> 56) as u8
     }
 }
 
@@ -118,14 +150,18 @@ pub fn ip_recv_packet(buf: &mut [u8]) -> Option<RxIpPacket> {
         dst_mac_type: eth_mmio_get_rx_dst_mac_ethertype(),
         src_ip: (src_ip_dst_ip >> 32) as u32,
         dst_ip: (src_ip_dst_ip & 0xFFFF_FFFF) as u32,
+        ttl_proto_id_len_frag: eth_mmio_get_rx_ttl_proto_id_len_frag(),
+        ecn_ver_ihl_chksum: eth_mmio_get_rx_ecn_ver_ihl_chksum(),
         payload: &buf[..read],
     })
 }
 
-pub fn send_ip_packet(mut payload: &[u8], dst_ip: u32, proto: u8) {
-    assert!(payload.len() <= u16::MAX as usize);
-    eth_mmio_set_tx_ttl_proto_len_dst_ip(64, proto, payload.len() as u16, dst_ip);
+pub fn start_ip_packet(payload_len: usize, dst_ip: u32, proto: u8) {
+    assert!(payload_len <= u16::MAX as usize - 20);
+    eth_mmio_set_tx_ttl_proto_len_dst_ip(64, proto, (payload_len + 20) as u16, dst_ip);
+}
 
+pub fn finish_ip_packet(mut payload: &[u8]) {
     let initial_flags: u8 = 7;
     let mut data_buf = [0, 0, 0, 0, 0, 0, 0, initial_flags];
     while payload.len() > 7 {
@@ -139,4 +175,60 @@ pub fn send_ip_packet(mut payload: &[u8], dst_ip: u32, proto: u8) {
     let last_tx_flag = 0b0100_0000u8;
     data_buf[7] = last_tx_flag | payload.len() as u8;
     eth_mmio_tx_data(u64::from_le_bytes(data_buf));
+}
+
+pub fn send_ip_packet(payload: &[u8], dst_ip: u32, proto: u8) {
+    start_ip_packet(payload.len(), dst_ip, proto);
+    finish_ip_packet(payload)
+}
+
+fn send_udp_header_and_first_six_bytes(payload: &[u8], header_start: u64) {
+    // 7 first bytes of UDP header
+    eth_mmio_tx_data(header_start);
+    // 1 last byte of header (ignored checksum), 6 bytes of payload
+    let mut buf = [0, 0, 0, 0, 0, 0, 0, 7];
+    unsafe { core::ptr::copy_nonoverlapping(payload.as_ptr(), buf.as_mut_ptr().add(1), 6) };
+    eth_mmio_tx_data(u64::from_le_bytes(buf));
+}
+
+pub fn send_udp(mut payload: &[u8], dst_ip: u32, src_port: u16, dst_port: u16) {
+    const UDP_DATAGRAM_MTU: usize = 1500 - 20 - 8;
+    const UDP_IP_PROTO: u8 = 0x11;
+
+    let udp_header_start = (7u64 << 56)
+        | (((8 + UDP_DATAGRAM_MTU as u16).swap_bytes() as u64) << 32)
+        | ((dst_port.swap_bytes() as u64) << 16)
+        | (src_port.swap_bytes() as u64);
+    while payload.len() >= UDP_DATAGRAM_MTU {
+        start_ip_packet(UDP_DATAGRAM_MTU + 8, dst_ip, UDP_IP_PROTO);
+        send_udp_header_and_first_six_bytes(payload, udp_header_start);
+        finish_ip_packet(&payload[6..UDP_DATAGRAM_MTU]);
+        payload = &payload[UDP_DATAGRAM_MTU..];
+    }
+    if !payload.is_empty() {
+        let udp_header_last = (7u64 << 56)
+            | (((8 + payload.len() as u16).swap_bytes() as u64) << 32)
+            | ((dst_port.swap_bytes() as u64) << 16)
+            | (src_port.swap_bytes() as u64);
+        start_ip_packet(payload.len() + 8, dst_ip, UDP_IP_PROTO);
+        if payload.len() > 6 {
+            send_udp_header_and_first_six_bytes(payload, udp_header_last);
+            finish_ip_packet(&payload[6..]);
+        } else {
+            // 7 first bytes of UDP header
+            eth_mmio_tx_data(udp_header_last);
+            // 1 last byte of header (ignored checksum), remaining payload and last flag
+            let last_tx_flag = 0b0100_0000u8;
+            let tx_flags = last_tx_flag | (payload.len() as u8 + 1);
+            let mut buf = [0, 0, 0, 0, 0, 0, 0, tx_flags];
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    payload.as_ptr(),
+                    buf.as_mut_ptr().add(1),
+                    payload.len(),
+                )
+            };
+            eth_mmio_tx_data(u64::from_le_bytes(buf));
+        }
+    }
 }
