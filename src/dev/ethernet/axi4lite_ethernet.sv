@@ -241,7 +241,7 @@ logic [31:0] tx_ip_subnet_mask;
 logic tx_ip_clear_arp_cache;
 
 ip_complete_56 #(
-    .ARP_CACHE_ADDR_WIDTH(9),
+    .ARP_CACHE_ADDR_WIDTH(5),
     .ARP_REQUEST_RETRY_COUNT(2),
     .ARP_REQUEST_RETRY_INTERVAL(32500000*1),
     .ARP_REQUEST_TIMEOUT(32500000*5)
@@ -282,8 +282,8 @@ ip_complete_56 #(
     .s_ip_length(tx_ip_length),
     .s_ip_ttl(tx_ip_ttl),
     .s_ip_protocol(tx_ip_protocol),
-    .s_ip_source_ip(tx_ip_dest_ip),
-    .s_ip_dest_ip(tx_ip_source_ip),
+    .s_ip_source_ip(tx_ip_source_ip),
+    .s_ip_dest_ip(tx_ip_dest_ip),
     .s_ip_payload_axis_tdata(tx_ip_payload_axis_tdata),
     .s_ip_payload_axis_tkeep(tx_ip_payload_axis_tkeep),
     .s_ip_payload_axis_tvalid(tx_ip_payload_axis_tvalid),
@@ -337,21 +337,30 @@ ip_complete_56 #(
 // NOTE: We mask out the three low bits of the address, you cannot do partial accesses at an offset.
 //       *(reg0+3) still addresses *(reg0), while *(reg0+4) snaps to *(reg1). We also completely ignore the wstrb signal.
 //       (and the core doesn't have a notion of non-cached memory regions yet, but the cacheline size *is* 64bits, so it works out!)
-localparam NUM_MMIO_REGS = 8;
+localparam NUM_MMIO_REGS = 11;
 localparam MMIO_REGS_ALEN = $clog2(NUM_MMIO_REGS);
 reg [47:0] mmio_eth_src_mac; // Reg 0: Source MAC to use for writes
-reg [63:0] mmio_eth_ethertype_dst_mac; // Reg 1: Dest MAC and ethertype to use for writes
-wire [15:0] mmio_eth_ethertype = mmio_eth_ethertype_dst_mac[48 +: 16];
-wire [47:0] mmio_eth_dst_mac = mmio_eth_ethertype_dst_mac[0 +: 48];
+reg [63:0] mmio_ip_ttl_proto_len_dst_ip; // Reg 1: Dest IP, tx len, IP proto, TTL
+wire [7:0] mmio_ip_tx_ttl = mmio_ip_ttl_proto_len_dst_ip[56 +: 8];
+wire [7:0] mmio_ip_tx_proto = mmio_ip_ttl_proto_len_dst_ip[48 +: 8];
+wire [15:0] mmio_ip_tx_len = mmio_ip_ttl_proto_len_dst_ip[32 +: 16];
+wire [47:0] mmio_dst_ip = mmio_ip_ttl_proto_len_dst_ip[0 +: 32];
 // Reg 2 (virtual): Sent data 
-reg [47:0] mmio_eth_rx_srx_mac; // Reg 3: Source MAC of the last frame we started receiving
-reg [63:0] mmio_eth_rx_ethertype_dst_mac; // Reg 4: Dest MAC and ethertype of last frame we started receiving
+reg [47:0] mmio_eth_rx_srx_mac; // Reg 3: Source MAC of the last packet we started receiving
+reg [63:0] mmio_eth_rx_ethertype_dst_mac; // Reg 4: Dest MAC and ethertype of last packet we started receiving
 // Reg 5 (virtual): Received data
-// Reg 6: Src & gateway IP
-reg [63:0] mmio_src_ip_gateway_ip;
-wire [31:0] mmio_src_ip = mmio_src_ip_gateway_ip[0 +: 32];
-wire [31:0] mmio_gateway_ip = mmio_src_ip_gateway_ip[32 +: 32];
-reg [31:0] mmio_subnet_mask; // Reg 7: Subnet mask
+// Reg 6: Src IP, misc IP flags
+reg [39:0] mmio_ip_dscp_ecn_src_ip;
+wire [5:0] mmio_ip_tx_dscp = mmio_ip_dscp_ecn_src_ip[34 +: 6];
+wire [1:0] mmio_ip_tx_ecn = mmio_ip_dscp_ecn_src_ip[32 +: 2];
+wire [31:0] mmio_src_ip = mmio_ip_dscp_ecn_src_ip[0 +: 32];
+// Reg 7: Gateway IP, subnet mask
+reg [63:0] mmio_gateway_ip_subnet_mask;
+wire [31:0] mmio_gateway_ip = mmio_gateway_ip_subnet_mask[32 +: 32];
+wire [31:0] mmio_subnet_mask = mmio_gateway_ip_subnet_mask[0 +: 32];
+reg [63:0] mmio_ip_rx_src_ip_dst_ip; // Reg 8: Src/dst IP of last received packet
+reg [63:0] mmio_ip_rx_ttl_proto_id_len_frag; // Reg 9: Misc headers of last received packet
+reg [31:0] mmio_ip_rx_dscp_ecn_ver_ihl_chksum; // Reg 10: Misc headers of last received packet
 
 // Handle reads
 wire [`ALEN-1-3:0] bus_araddr_masked = (bus.araddr & ADDR_MASK) >> 3;
@@ -372,25 +381,24 @@ wire should_update_rdata = !rdata_jam && is_reading;
 wire rvalid_next = is_reading || (bus.rvalid && !r_beat);
 
 // State for MMIO reg 5 reads
-reg eth_rx_reading; // Set when we've acknowledged the first AXIS beat of a received ethernet frame, unset after getting the AXI `last` bit
-logic [2:0] eth_rx_read_size;
-always_comb unique case (rx_eth_payload_axis_tkeep)
-    'b0000000: eth_rx_read_size = 0;
-    'b0000001: eth_rx_read_size = 1;
-    'b0000011: eth_rx_read_size = 2;
-    'b0000111: eth_rx_read_size = 3;
-    'b0001111: eth_rx_read_size = 4;
-    'b0011111: eth_rx_read_size = 5;
-    'b0111111: eth_rx_read_size = 6;
-    'b1111111: eth_rx_read_size = 7;
-    default: eth_rx_read_size = 'x;
+reg ip_rx_reading; // Set when we've acknowledged the first AXIS beat of a received packet, unset after getting the AXI `last` bit
+logic [2:0] ip_rx_read_size;
+always_comb unique casez (rx_ip_payload_axis_tkeep)
+    'bzzzzzz0: ip_rx_read_size = 0;
+    'bzzzzz01: ip_rx_read_size = 1;
+    'bzzzz011: ip_rx_read_size = 2;
+    'bzzz0111: ip_rx_read_size = 3;
+    'bzz01111: ip_rx_read_size = 4;
+    'bz011111: ip_rx_read_size = 5;
+    'b0111111: ip_rx_read_size = 6;
+    'b1111111: ip_rx_read_size = 7;
 endcase
 
 // NOTE: We don't check araddr is valid here to save combinatorial time.
 // If you read an invalid addr that ends like MMIO reg 5, we'll drop a beat of data on the floor.
 wire reading_mmio_reg5 = should_update_rdata && araddr_comb == 'h5;
-//assign rx_eth_hdr_ready = reading_mmio_reg5 && !eth_rx_reading;
-//assign rx_eth_payload_axis_tready = reading_mmio_reg5;
+assign rx_ip_hdr_ready = reading_mmio_reg5 && !ip_rx_reading;
+assign rx_ip_payload_axis_tready = reading_mmio_reg5;
 
 always_ff @(posedge clk) begin
     if (rst) begin
@@ -403,7 +411,7 @@ always_ff @(posedge clk) begin
         pending_araddr <= 'x;
         pending_araddr_bad_bits <= 'x;
         
-        eth_rx_reading <= '0;
+        ip_rx_reading <= '0;
     end else begin
         bus.arready <= !rvalid_next || !has_pending_araddr;
 
@@ -438,29 +446,41 @@ always_ff @(posedge clk) begin
                 unique if (araddr_comb == 'h0) begin
                     bus.rdata <= {16'b0, mmio_eth_src_mac};
                 end else if (araddr_comb == 'h1) begin
-                    bus.rdata <= mmio_eth_ethertype_dst_mac;
+                    bus.rdata <= mmio_ip_ttl_proto_len_dst_ip;
                 end else if (araddr_comb == 'h3) begin
                     bus.rdata <= {16'b0, mmio_eth_rx_srx_mac};
                 end else if (araddr_comb == 'h4) begin
                     bus.rdata <= mmio_eth_rx_ethertype_dst_mac;
                 end else if (araddr_comb == 'h5) begin
                     // Read ethernet frame from AXIS rx, if available
-                    if (!eth_rx_reading && rx_eth_hdr_valid) begin
-                        eth_rx_reading <= !rx_eth_payload_axis_tvalid || !rx_eth_payload_axis_tlast;
-                        mmio_eth_rx_srx_mac <= rx_eth_src_mac;
-                        mmio_eth_rx_ethertype_dst_mac <= {rx_eth_type, rx_eth_dest_mac};
-                        bus.rdata <= {1'b1, rx_eth_payload_axis_tvalid && rx_eth_payload_axis_tlast, 3'b0,
-                                    rx_eth_payload_axis_tvalid ? eth_rx_read_size : 3'b0, rx_eth_payload_axis_tdata};
-                    end else if (eth_rx_reading && rx_eth_payload_axis_tvalid) begin
-                        eth_rx_reading <= !rx_eth_payload_axis_tlast;
-                        bus.rdata <= {1'b1, rx_eth_payload_axis_tlast, 3'b0, eth_rx_read_size, rx_eth_payload_axis_tdata};
+                    if (!ip_rx_reading && rx_ip_hdr_valid) begin
+                        ip_rx_reading <= !rx_ip_payload_axis_tvalid || !rx_ip_payload_axis_tlast;
+                        mmio_eth_rx_srx_mac <= rx_ip_eth_src_mac;
+                        mmio_eth_rx_ethertype_dst_mac <= {rx_ip_eth_type, rx_ip_eth_dest_mac};
+                        mmio_ip_rx_src_ip_dst_ip <= {rx_ip_source_ip, rx_ip_dest_ip};
+                        mmio_ip_rx_ttl_proto_id_len_frag <= {rx_ip_ttl, rx_ip_protocol, rx_ip_identification,
+                                                rx_ip_length, rx_ip_flags, rx_ip_fragment_offset};
+                        mmio_ip_rx_dscp_ecn_ver_ihl_chksum <= {rx_ip_dscp, rx_ip_ecn, rx_ip_version,
+                                                rx_ip_ihl, rx_ip_header_checksum};
+
+                        bus.rdata <= {1'b1, rx_ip_payload_axis_tvalid && rx_ip_payload_axis_tlast, 3'b0,
+                                    rx_ip_payload_axis_tvalid ? ip_rx_read_size : 3'b0, rx_ip_payload_axis_tdata};
+                    end else if (ip_rx_reading && rx_ip_payload_axis_tvalid) begin
+                        ip_rx_reading <= !rx_ip_payload_axis_tlast;
+                        bus.rdata <= {1'b1, rx_ip_payload_axis_tlast, 3'b0, ip_rx_read_size, rx_ip_payload_axis_tdata};
                     end else begin
                         bus.rdata <= '0; // All 0 means not valid, not last, 0 bytes received
                     end
                 end else if (araddr_comb == 'h6) begin
-                    bus.rdata <= mmio_src_ip_gateway_ip;
+                    bus.rdata <= {24'b0, mmio_ip_dscp_ecn_src_ip};
                 end else if (araddr_comb == 'h7) begin
-                    bus.rdata <= {32'b0, mmio_subnet_mask};
+                    bus.rdata <= mmio_gateway_ip_subnet_mask;
+                end else if (araddr_comb == 'h8) begin
+                    bus.rdata <= mmio_ip_rx_src_ip_dst_ip;
+                end else if (araddr_comb == 'h9) begin
+                    bus.rdata <= mmio_ip_rx_ttl_proto_id_len_frag;
+                end else if (araddr_comb == 'hA) begin
+                    bus.rdata <= {31'b0, mmio_ip_rx_dscp_ecn_ver_ihl_chksum};
                 end else begin
                     bus.rresp <= AXI4LITE_RESP_SLVERR;
                 end
@@ -491,58 +511,45 @@ wire waddr_bad_bits = aw_pending ? waddr_bad_bits_buf : bus_waddr_bad_bits;
 wire [63:0] wdata = w_pending ? wdata_buf : bus.wdata;
 
 // State for MMIO reg 2 writes
-reg eth_tx_writing; // Set when we've handshaked the first AXIS beat of a sent ethernet frame, unset after sending the AXI `last` bit
-reg eth_tx_writing_first_data; // Set if've written the header, but the first tx data hasn't been handshaken yet
+reg ip_tx_writing; // Set when we've handshaked the first AXIS beat of a sent packet, unset after sending the AXI `last` bit
+reg ip_tx_writing_first_header; // Set if we're waiting for our header to go out
+reg ip_tx_writing_first_data; // Set if we've written the header, but the first tx data hasn't been handshaken yet
 
-wire eth_tx_last_flag = eth_tx_writing_first_data ? wdata_buf[63-1] : wdata[63-1];
-wire [ETH_AXIS_DATA_WIDTH-1:0] eth_tx_payload_data = eth_tx_writing_first_data ? wdata_buf[ETH_AXIS_DATA_WIDTH-1:0] : wdata[ETH_AXIS_DATA_WIDTH-1:0];
-logic [ETH_AXIS_DATA_WIDTH/8-1:0] eth_tx_read_size;
-always_comb unique case (eth_tx_writing_first_data ? wdata_buf[ETH_AXIS_DATA_WIDTH +: 3] : wdata[ETH_AXIS_DATA_WIDTH +: 3])
-    0: eth_tx_read_size = 'b0000000;
-    1: eth_tx_read_size = 'b0000001;
-    2: eth_tx_read_size = 'b0000011;
-    3: eth_tx_read_size = 'b0000111;
-    4: eth_tx_read_size = 'b0001111;
-    5: eth_tx_read_size = 'b0011111;
-    6: eth_tx_read_size = 'b0111111;
-    7: eth_tx_read_size = 'b1111111;
-    default: eth_tx_read_size = 'x;
+wire ip_tx_last_flag = ip_tx_writing_first_data ? wdata_buf[63-1] : wdata[63-1];
+wire [ETH_AXIS_DATA_WIDTH-1:0] ip_tx_payload_data = ip_tx_writing_first_data ? wdata_buf[ETH_AXIS_DATA_WIDTH-1:0] : wdata[ETH_AXIS_DATA_WIDTH-1:0];
+logic [ETH_AXIS_DATA_WIDTH/8-1:0] ip_tx_write_size;
+always_comb unique case (ip_tx_writing_first_data ? wdata_buf[ETH_AXIS_DATA_WIDTH +: 3] : wdata[ETH_AXIS_DATA_WIDTH +: 3])
+    0: ip_tx_write_size = 'b0000000;
+    1: ip_tx_write_size = 'b0000001;
+    2: ip_tx_write_size = 'b0000011;
+    3: ip_tx_write_size = 'b0000111;
+    4: ip_tx_write_size = 'b0001111;
+    5: ip_tx_write_size = 'b0011111;
+    6: ip_tx_write_size = 'b0111111;
+    7: ip_tx_write_size = 'b1111111;
 endcase
 
-wire eth_tx_write_ready = !eth_tx_writing_first_data &&
-                    ((eth_tx_writing && tx_eth_payload_axis_tready) || (!eth_tx_writing && tx_eth_hdr_ready));
+wire ip_tx_write_ready = !ip_tx_writing_first_data &&
+                    (!ip_tx_writing || tx_ip_payload_axis_tready);
 wire writing_mmio_reg2 = aw_active && w_active && waddr == 'h2;
 
-assign bus.awready = !aw_pending && eth_tx_write_ready;
-assign bus.wready = !w_pending && eth_tx_write_ready && !eth_tx_writing_first_data;
+assign bus.awready = !aw_pending && ip_tx_write_ready;
+assign bus.wready = !w_pending && ip_tx_write_ready && !ip_tx_writing_first_data;
 
 // NOTE: Our valid depends on the ready for the header, which is against the AXI spec, but it should work for this particular device
-//assign tx_eth_hdr_valid = writing_mmio_reg2 && !eth_tx_writing;
-//assign tx_eth_dest_mac = mmio_eth_dst_mac;
-//assign tx_eth_src_mac = mmio_eth_src_mac;
-//assign tx_eth_type = mmio_eth_ethertype;
-//assign tx_eth_payload_axis_tdata = eth_tx_payload_data;
-//assign tx_eth_payload_axis_tkeep = eth_tx_read_size;
-//assign tx_eth_payload_axis_tvalid = writing_mmio_reg2 || eth_tx_writing_first_data;
-//assign tx_eth_payload_axis_tlast = eth_tx_last_flag;
-//assign tx_eth_payload_axis_tuser = '0;
-
-// Echo IP packets...
-assign tx_ip_hdr_valid = rx_ip_hdr_valid;
-assign rx_ip_hdr_ready = tx_ip_hdr_ready;
-assign tx_ip_dscp = rx_ip_dscp;
-assign tx_ip_ecn = rx_ip_ecn;
-assign tx_ip_length = rx_ip_length;
-assign tx_ip_ttl = rx_ip_ttl;
-assign tx_ip_protocol = rx_ip_protocol;
-assign tx_ip_source_ip = rx_ip_source_ip;
-assign tx_ip_dest_ip = rx_ip_dest_ip;
-assign tx_ip_payload_axis_tdata = rx_ip_payload_axis_tdata;
-assign tx_ip_payload_axis_tkeep = rx_ip_payload_axis_tkeep;
-assign tx_ip_payload_axis_tvalid = rx_ip_payload_axis_tvalid;
-assign rx_ip_payload_axis_tready = tx_ip_payload_axis_tready;
-assign tx_ip_payload_axis_tlast = rx_ip_payload_axis_tlast;
-assign tx_ip_payload_axis_tuser = rx_ip_payload_axis_tuser;
+assign tx_ip_hdr_valid = (writing_mmio_reg2 && !ip_tx_writing) || ip_tx_writing_first_header;
+assign tx_ip_dscp = mmio_ip_tx_dscp;
+assign tx_ip_ecn = mmio_ip_tx_ecn;
+assign tx_ip_length = mmio_ip_tx_len;
+assign tx_ip_ttl = mmio_ip_tx_ttl;
+assign tx_ip_protocol = mmio_ip_tx_proto;
+assign tx_ip_source_ip = mmio_src_ip;
+assign tx_ip_dest_ip = mmio_dst_ip;
+assign tx_ip_payload_axis_tdata = ip_tx_payload_data;
+assign tx_ip_payload_axis_tkeep = ip_tx_write_size;
+assign tx_ip_payload_axis_tvalid = writing_mmio_reg2 || ip_tx_writing_first_data;
+assign tx_ip_payload_axis_tlast = ip_tx_last_flag;
+assign tx_ip_payload_axis_tuser = '0;
 
 assign tx_ip_local_mac = mmio_eth_src_mac;
 assign tx_ip_local_ip = mmio_src_ip;
@@ -552,12 +559,16 @@ assign tx_ip_clear_arp_cache = '0;
 
 always_ff @(posedge clk) begin
     if (rst) begin
-        eth_tx_writing_first_data <= '0;
-    end else if (aw_active && w_active && waddr == 'h2 && !eth_tx_writing) begin
-        // NOTE: tx_eth_hdr_ready is implied by aw_active && w_active && !eth_tx_writing
-        eth_tx_writing_first_data <= '1;
-    end else if (tx_eth_payload_axis_tready) begin
-        eth_tx_writing_first_data <= '0;
+        ip_tx_writing_first_header <= '0;
+        ip_tx_writing_first_data <= '0;
+    end else if (writing_mmio_reg2 && !ip_tx_writing) begin
+        ip_tx_writing_first_header <= !tx_ip_hdr_ready;
+        ip_tx_writing_first_data <= '1;
+    end else begin
+        if (tx_ip_hdr_ready)
+            ip_tx_writing_first_header <= '0;
+        if (tx_ip_payload_axis_tready)
+            ip_tx_writing_first_data <= '0;
     end
 end
 
@@ -572,26 +583,26 @@ always_ff @(posedge clk) begin
         wdata_buf <= 'x;
         
         mmio_eth_src_mac <= '0;
-        mmio_eth_ethertype_dst_mac <= '0;
-        mmio_src_ip_gateway_ip <= '0;
-        mmio_subnet_mask <= '0;
+        mmio_ip_ttl_proto_len_dst_ip <= '0;
+        mmio_ip_dscp_ecn_src_ip <= '0;
+        mmio_gateway_ip_subnet_mask <= '0;
     end else if (aw_active && w_active && !(aw_pending && w_pending)) begin
         if (!waddr_bad_bits) begin
             unique if (waddr == 'h0) begin
                 mmio_eth_src_mac <= wdata[47:0];
             end else if (waddr == 'h1) begin
-                mmio_eth_ethertype_dst_mac <= wdata;
+                mmio_ip_ttl_proto_len_dst_ip <= wdata;
             end else if (waddr == 'h2) begin
-                // Write ethernet frame to AXIS tx, if ready
-                if (!eth_tx_writing && tx_eth_hdr_ready) begin
-                    eth_tx_writing <= !eth_tx_last_flag;
-                end else if (eth_tx_writing && tx_eth_payload_axis_tready) begin
-                    eth_tx_writing <= !eth_tx_last_flag;
+                // Write packet to AXIS tx, if ready
+                if (!ip_tx_writing) begin
+                    ip_tx_writing <= !ip_tx_last_flag;
+                end else if (ip_tx_writing && tx_ip_payload_axis_tready) begin
+                    ip_tx_writing <= !ip_tx_last_flag;
                 end
             end else if (waddr == 'h6) begin
-                mmio_src_ip_gateway_ip <= wdata;
+                mmio_ip_dscp_ecn_src_ip <= wdata;
             end else if (waddr == 'h7) begin
-                mmio_subnet_mask <= wdata[31:0];
+                mmio_gateway_ip_subnet_mask <= wdata;
             end else begin
                 // No write
             end
@@ -650,7 +661,7 @@ always @(posedge clk) begin
     assert property (is_reading && !rst |=> bus.rvalid);
     assert property (ar_beat |-> !rdata_jam || !has_pending_araddr);
     assert property (rdata_jam |-> !ar_beat || !has_pending_araddr);
-    assert property (rx_eth_payload_axis_tready |-> eth_rx_reading || (rx_eth_payload_axis_tvalid && rx_eth_hdr_valid));
+    assert property (rx_ip_payload_axis_tready |-> ip_rx_reading || (rx_ip_payload_axis_tvalid && rx_ip_hdr_valid));
 end
 `endif
 

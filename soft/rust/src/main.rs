@@ -39,36 +39,43 @@ unsafe fn main() -> ! {
     let eth_frame_buf: &mut [u8; ETH_FRAME_BUF_SIZE] = &mut *(SRAM_BASE as *mut _);
 
     let mut led_enable = true;
+    let mut led_enable2 = true;
     let mut last_mcycle = register::mcycle::read64();
     loop {
-        if let Some(frame) = eth_recv_frame(eth_frame_buf) {
-            if frame.ethertype() == 0xB007 {
-                // "BOOT" ethertype
-                let expected_hash = frame.dst_mac().to_le_bytes();
-                let payload_hash = xxh64(frame.payload, 0).to_le_bytes();
-                if expected_hash[..6] != payload_hash[..6] {
-                    eth_send_frame(
-                        b"Invalid boot payload hash",
-                        frame.src_mac,
-                        frame.ethertype(),
-                    );
-                    eth_send_frame(&expected_hash[..6], frame.src_mac, frame.ethertype());
-                } else {
-                    eth_send_frame(b"Booting payload", frame.src_mac, frame.ethertype());
-                    let copy_and_exec_ptr = register::mscratch::read() as *const ();
-                    let copy_and_exec_fn: fn(&[u8]) -> ! = transmute(copy_and_exec_ptr);
-                    copy_and_exec_fn(frame.payload);
-                }
-            } else {
-                eth_send_frame(frame.payload, frame.src_mac, frame.ethertype());
-            }
+        if let Some(packet) = ip_recv_packet(eth_frame_buf) {
+            let rx_led = (GPIO_BASE + 1) as *mut u8;
+            core::ptr::write_volatile(rx_led, led_enable2 as u8);
+            led_enable2 = !led_enable2;
+
+            //     if frame.ethertype() == 0xB007 {
+            //         // "BOOT" ethertype
+            //         let expected_hash = frame.dst_mac().to_le_bytes();
+            //         let payload_hash = xxh64(frame.payload, 0).to_le_bytes();
+            //         if expected_hash[..6] != payload_hash[..6] {
+            //             send_ip_packet(
+            //                 b"Invalid boot payload hash",
+            //                 frame.src_mac,
+            //                 frame.ethertype(),
+            //             );
+            //             send_ip_packet(&expected_hash[..6], frame.src_mac, frame.ethertype());
+            //         } else {
+            //             send_ip_packet(b"Booting payload", frame.src_mac, frame.ethertype());
+            //             let copy_and_exec_ptr = register::mscratch::read() as *const ();
+            //             let copy_and_exec_fn: fn(&[u8]) -> ! = transmute(copy_and_exec_ptr);
+            //             copy_and_exec_fn(frame.payload);
+            //         }
+            //     } else {
+            //         send_ip_packet(frame.payload, frame.src_mac, frame.ethertype());
+            //     }
         }
 
         let mcycle = register::mcycle::read64();
-        if mcycle - last_mcycle > 30_000_000 {
+        if mcycle - last_mcycle > 15_000_000 {
             last_mcycle = mcycle;
             led_enable = !led_enable;
             set_led(led_enable);
+
+            send_ip_packet(b"Test", u32::from_be_bytes([192, 168, 1, 45]), 0);
         }
     }
 }
@@ -86,11 +93,8 @@ unsafe extern "C" fn _start() -> ! {
     register::mtvec::write(panic as usize, TrapMode::Direct);
 
     eth_mmio_set_tx_src_mac(BOARD_MAC_ADDR);
-    eth_mmio_set_src_ip_gateway_ip(
-        u32::from_be_bytes([192, 168, 1, 110]),
-        u32::from_be_bytes([192, 168, 1, 254]),
-    );
-    eth_mmio_set_netmask(0xFF_FF_FF_00);
+    eth_mmio_set_ip_dscp_ecn_src_ip(0, u32::from_be_bytes([192, 168, 1, 110]));
+    eth_mmio_set_gateway_ip_netmask(u32::from_be_bytes([192, 168, 1, 254]), 0xFF_FF_FF_00);
 
     main()
 }
