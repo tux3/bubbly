@@ -135,7 +135,7 @@ assign sram_axi.aclk = clk;
 assign sram_axi.aresetn = !rst;
 axi4lite_sram #(
     .ADDR_MASK({4'b0000, {(`ALEN-4){1'b1}}}),
-    .SIZE_KB(8)
+    .SIZE_KB(32)
 ) axi4lite_sram (
     .bus(sram_axi)
 );

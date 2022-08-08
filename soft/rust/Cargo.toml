@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 riscv = "0.8.0"
 xxhash-rust = { version = "0.8.5", features = ["xxh64"], default-features = false }
+tinyvec = { version = "1.6.0", features = ["rustc_1_57"], default-features = false }
 
 [profile.release]
 panic = "abort"
