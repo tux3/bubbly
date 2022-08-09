@@ -84,7 +84,7 @@ eth_mac_mii_fifo #(
     .MIN_FRAME_LENGTH(64),
     .TX_FIFO_DEPTH(2048),
     .TX_FRAME_FIFO(1),
-    .RX_FIFO_DEPTH(2048),
+    .RX_FIFO_DEPTH(8192),
     .RX_FRAME_FIFO(1)
 )
 eth_mac_inst (
