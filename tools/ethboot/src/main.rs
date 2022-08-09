@@ -1,17 +1,16 @@
-use std::mem;
-use std::path::PathBuf;
+use anyhow::Result;
 use clap::Parser;
-use anyhow::{anyhow, Result};
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use libc::{sockaddr_storage, sockaddr_ll, socklen_t, c_int, ETH_ALEN, c_uchar};
+use std::net::ToSocketAddrs;
+use std::net::UdpSocket;
+use std::path::PathBuf;
 use xxhash_rust::xxh64::xxh64;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the interface
-    #[clap(short, long, default_value = "eth0")]
-    iface: String,
+    /// IP address of the target
+    #[clap(short, long, default_value = "192.168.1.110")]
+    target: String,
 
     /// Payload to boot
     #[clap(short, long)]
@@ -21,40 +20,49 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let mut payload = std::fs::read(&args.payload)?;
-    println!("Sending boot payload {} on interface {}", args.payload.display(), &args.iface);
+    let payload = std::fs::read(&args.payload)?;
+    println!(
+        "Sending boot payload {} to {}",
+        args.payload.display(),
+        &args.target
+    );
 
-    let mut if_idx = None;
-    let mut mac_addr = None;
-    for iface in default_net::interface::get_interfaces() {
-        if iface.name == args.iface {
-            if_idx = Some(iface.index);
-            mac_addr = iface.mac_addr;
-        }
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    let target_addr = (args.target.as_str(), 0xB007)
+        .to_socket_addrs()?
+        .next()
+        .unwrap();
+
+    let hash = xxh64(&payload, 0).to_le_bytes();
+    let mut header = Vec::new();
+    header.extend_from_slice(&payload.len().to_le_bytes()[..3]);
+    header.extend_from_slice(&hash);
+    socket.send_to(&header, &target_addr)?;
+    let mut total_sent = header.len();
+    wait_for_ack(&socket, total_sent);
+
+    let mtu = 1500 - 20 - 8;
+    let mut payload = &payload[..];
+    while payload.len() > mtu {
+        socket.send_to(&payload[..mtu], &target_addr)?;
+        total_sent += mtu;
+        wait_for_ack(&socket, total_sent);
+        payload = &payload[mtu..];
     }
-    let if_idx = if_idx.ok_or_else(|| anyhow!("Couldn't find interface {}", args.iface))?;
-    let mac_addr = mac_addr.ok_or_else(|| anyhow!("Couldn't get MAC address for interface {}", args.iface))?;
-    let ipproto_raw = Protocol::from(255);
-    let sock = Socket::new(Domain::PACKET, Type::RAW, Some(ipproto_raw))?;
-
-    let dst_mac = &[0u8; 6];
-    let addr = unsafe {
-        let mut addr_storage: sockaddr_storage = mem::zeroed();
-        let addr = mem::transmute::<&mut sockaddr_storage, &mut sockaddr_ll>(&mut addr_storage);
-        addr.sll_ifindex = if_idx as c_int;
-        addr.sll_halen = ETH_ALEN as c_uchar;
-        addr.sll_addr[0..6].copy_from_slice(dst_mac);
-        SockAddr::new(addr_storage, mem::size_of::<sockaddr_ll>() as socklen_t)
-    };
-
-    let hash: Vec<u8> = xxh64(&payload, 0).to_le_bytes()[0..6].iter().rev().copied().collect();
-    let mut eth_payload = Vec::new();
-    eth_payload.extend_from_slice(&hash); // Dest MAC
-    eth_payload.extend_from_slice(&mac_addr.octets()); // Src MAC
-    eth_payload.extend_from_slice(&[0xB0, 0x07]); // Ethertype ("BOOT" ethertype)
-    eth_payload.append(&mut payload);
-
-    sock.send_to(&eth_payload, &addr)?;
+    socket.send_to(payload, &target_addr)?;
 
     Ok(())
+}
+
+fn wait_for_ack(sock: &UdpSocket, total_sent: usize) {
+    let mut recv_buf = [0u8; 4];
+    sock.recv(&mut recv_buf)
+        .expect("Did not receive expected ACK from device");
+    let acked_size = u32::from_le_bytes(recv_buf);
+    if acked_size as usize != total_sent {
+        panic!(
+            "Device ACKed {} bytes received, but we sent {}",
+            acked_size, total_sent
+        );
+    }
 }

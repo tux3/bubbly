@@ -50,6 +50,12 @@ impl<'s, const NSOCKS: usize> MmioInterface<'s, NSOCKS> {
             None => return false,
             Some(r) => r,
         };
+        if partial_read.header.is_fragmented() {
+            log_msg_udp("Received fragmented IP packet, discarding");
+            ip_discard_recv_packet();
+            return false;
+        }
+
         let local_mac = eth_mmio_get_tx_src_mac();
         if partial_read.header.dst_mac() != local_mac
             && partial_read.header.dst_mac() != 0xFFFF_FFFF_FFFF

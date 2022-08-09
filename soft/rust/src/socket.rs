@@ -7,6 +7,8 @@ pub enum Socket<'b> {
 pub trait ReadableSocket {
     fn peek_recv_buf(&self) -> &[u8];
     fn clear_recv_buf(&mut self);
+    fn peer_ip(&self) -> u32;
+    fn peer_port(&self) -> u16;
 }
 
 impl ReadableSocket for Socket<'_> {
@@ -21,6 +23,18 @@ impl ReadableSocket for Socket<'_> {
             Socket::Udp(s) => s.clear_recv_buf(),
         }
     }
+
+    fn peer_ip(&self) -> u32 {
+        match self {
+            Socket::Udp(s) => s.peer_ip(),
+        }
+    }
+
+    fn peer_port(&self) -> u16 {
+        match self {
+            Socket::Udp(s) => s.peer_port(),
+        }
+    }
 }
 
 pub struct UdpSocket<'b> {
@@ -31,6 +45,9 @@ pub struct UdpSocket<'b> {
     dst_ip: u32,
     src_port: u16,
     dst_port: u16,
+
+    peer_ip: u32,
+    peer_port: u16,
 }
 
 impl<'b> UdpSocket<'b> {
@@ -40,6 +57,16 @@ impl<'b> UdpSocket<'b> {
     pub fn new(rx_buf: &'b mut [u8], dst_ip: u32, dst_port: u16) -> Self {
         let src_ip = eth_mmio_get_ip_dscp_ecn_src_ip() as u32;
         Self::new_with_src(rx_buf, src_ip, 0, dst_ip, dst_port)
+    }
+
+    pub fn new_with_src_port(
+        rx_buf: &'b mut [u8],
+        src_port: u16,
+        dst_ip: u32,
+        dst_port: u16,
+    ) -> Self {
+        let src_ip = eth_mmio_get_ip_dscp_ecn_src_ip() as u32;
+        Self::new_with_src(rx_buf, src_ip, src_port, dst_ip, dst_port)
     }
 
     pub fn new_with_src(
@@ -56,10 +83,12 @@ impl<'b> UdpSocket<'b> {
             dst_ip,
             src_port,
             dst_port,
+            peer_ip: 0,
+            peer_port: 0,
         }
     }
 
-    pub fn should_receive_packet(&self, header: &RxIpHeader, payload_start: &[u8]) -> bool {
+    pub fn should_receive_packet(&mut self, header: &RxIpHeader, payload_start: &[u8]) -> bool {
         if (header.dst_ip != self.src_ip && self.src_ip != 0)
             || (header.src_ip != self.dst_ip && self.dst_ip != 0xFFFF_FFFF)
             || header.proto() != Self::IP_PROTO
@@ -80,7 +109,13 @@ impl<'b> UdpSocket<'b> {
             return false;
         }
 
-        src_port == self.dst_port && dst_port == self.src_port
+        if (src_port != self.dst_port && self.dst_port != 0) || dst_port != self.src_port {
+            return false;
+        }
+
+        self.peer_ip = header.src_ip;
+        self.peer_port = src_port;
+        true
     }
 
     pub fn writable_rx_buf(&mut self) -> &mut [u8] {
@@ -99,5 +134,13 @@ impl ReadableSocket for UdpSocket<'_> {
 
     fn clear_recv_buf(&mut self) {
         self.rx_len = 0;
+    }
+
+    fn peer_ip(&self) -> u32 {
+        self.peer_ip
+    }
+
+    fn peer_port(&self) -> u16 {
+        self.peer_port
     }
 }

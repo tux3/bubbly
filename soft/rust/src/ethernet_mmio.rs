@@ -138,6 +138,10 @@ impl RxIpHeader {
     pub fn ttl(&self) -> u8 {
         (self.ttl_proto_id_len_frag >> 56) as u8
     }
+
+    pub fn is_fragmented(&self) -> bool {
+        self.fragment_offset() != 0 || self.fragment_flags() & 0b001 != 0
+    }
 }
 
 pub struct RxIpPartialRead {
@@ -204,6 +208,7 @@ pub fn ip_discard_recv_packet() {
     }
 }
 
+#[allow(dead_code)]
 pub fn ip_recv_packet(buf: &mut [u8]) -> Option<RxIpPacket> {
     let partial_read = match ip_start_recv_packet() {
         None => return None,
@@ -239,6 +244,7 @@ pub fn finish_ip_packet(mut payload: &[u8]) {
     eth_mmio_tx_data(u64::from_le_bytes(data_buf));
 }
 
+#[allow(dead_code)]
 pub fn send_ip_packet(payload: &[u8], dst_ip: u32, proto: u8) {
     start_ip_packet(payload.len(), dst_ip, proto);
     finish_ip_packet(payload)

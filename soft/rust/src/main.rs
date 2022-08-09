@@ -13,17 +13,18 @@ mod socket;
 
 use crate::dhcp::get_ethernet_dhcp_lease;
 use crate::iface::MmioInterface;
-use crate::socket::{Socket, UdpSocket};
+use crate::socket::{ReadableSocket, Socket, UdpSocket};
 use core::arch::asm;
 use core::mem::transmute;
 use riscv::register;
 use riscv::register::mtvec::TrapMode;
+use xxhash_rust::xxh64::xxh64;
 
 const SRAM_BASE: usize = 0x08000000000;
 const GPIO_BASE: usize = 0x20000000000;
 
 const BOARD_MAC_ADDR: u64 = 0x00183e035117;
-const RX_BUF_SIZE: usize = 1500;
+const RX_BUF_SIZE: usize = 16 * 1024;
 
 fn set_led(on: bool) {
     let led_ptr = GPIO_BASE as *mut u8;
@@ -35,7 +36,7 @@ fn set_led(on: bool) {
 unsafe fn copy_and_exec(payload: &[u8]) -> ! {
     // SAFETY: None of this is safe!
     unsafe {
-        let dst_ptr = (SRAM_BASE + 4096) as *mut u8;
+        let dst_ptr = SRAM_BASE as *mut u8;
         core::ptr::copy_nonoverlapping(payload.as_ptr(), dst_ptr, payload.len());
         let dst_ptr = dst_ptr as *const ();
         let dst_fn: unsafe extern "C" fn() -> ! = transmute(dst_ptr);
@@ -47,8 +48,11 @@ pub fn log_msg_udp(msg: impl AsRef<[u8]>) {
     send_udp(msg.as_ref(), 0xFFFF_FFFF, 0, 4444);
 }
 
-fn configure_dhcp<'b>(rx_buf: &'b mut [u8], iface: &mut MmioInterface<'b>) {
-    if let Ok(lease) = get_ethernet_dhcp_lease(iface, rx_buf) {
+fn configure_dhcp<'b>() {
+    let mut dhcp_rx_buf = [0u8; 500];
+    let mut iface = MmioInterface::new();
+
+    if let Ok(lease) = get_ethernet_dhcp_lease(&mut iface, &mut dhcp_rx_buf) {
         log_msg_udp("Received DHCP lease, configuring interface");
         eth_mmio_set_ip_dscp_ecn_src_ip(0, lease.ip);
         eth_mmio_set_gateway_ip_netmask(lease.router, lease.subnet_mask);
@@ -59,23 +63,73 @@ fn configure_dhcp<'b>(rx_buf: &'b mut [u8], iface: &mut MmioInterface<'b>) {
     }
 }
 
+fn handle_boot_request(sock: &mut dyn ReadableSocket) {
+    let payload = sock.peek_recv_buf();
+    if payload.len() < 3 + 8 {
+        // If we get a datagram shorter than the header, this is 100% junk
+        sock.clear_recv_buf();
+        return;
+    }
+
+    let full_len =
+        ((payload[2] as usize) << 16) | ((payload[1] as usize) << 8) | payload[0] as usize;
+
+    if full_len + 8 + 3 > RX_BUF_SIZE {
+        log_msg_udp("Boot payload longer than RX buffer! Discarding");
+        sock.clear_recv_buf();
+        return;
+    }
+
+    if payload.len() < 3 + 8 + full_len {
+        // Don't clear recv buffer, and tell peer we're ready for more (our hardware rx buffer is smol)
+        send_udp(
+            &(payload.len() as u32).to_le_bytes(),
+            sock.peer_ip(),
+            0xB007,
+            sock.peer_port(),
+        );
+        return;
+    } else if payload.len() > 3 + 8 + full_len {
+        log_msg_udp("Boot payload longer than header length");
+        sock.clear_recv_buf();
+        return;
+    }
+
+    let expected_hash = &payload[3..11];
+    let payload_hash = xxh64(&payload[3 + 8..], 0).to_le_bytes();
+    if expected_hash != payload_hash {
+        log_msg_udp(b"Invalid boot payload hash");
+        log_msg_udp(&expected_hash);
+        log_msg_udp(&payload_hash);
+        sock.clear_recv_buf();
+    } else {
+        log_msg_udp(b"Booting payload");
+        let copy_and_exec_ptr = register::mscratch::read() as *const ();
+        let copy_and_exec_fn: fn(&[u8]) -> ! = unsafe { transmute(copy_and_exec_ptr) };
+        copy_and_exec_fn(&payload[3 + 8..]);
+    }
+}
+
 fn main() -> ! {
     set_led(true);
 
-    let rx_buf = &mut [0u8; RX_BUF_SIZE];
-    let mut iface = MmioInterface::new();
-    configure_dhcp(rx_buf, &mut iface);
+    configure_dhcp();
     log_msg_udp(b"Rust server started");
+
+    let mut rx_buf = [0u8; RX_BUF_SIZE];
+    let mut iface = MmioInterface::<'_, 1>::new();
+    let sock = UdpSocket::new_with_src_port(&mut rx_buf, 0xB007, 0xFFFF_FFFF, 0);
+    let sock_token = iface.add_socket(Socket::Udp(sock));
 
     let mut led_enable = true;
     let mut last_mcycle = register::mcycle::read64();
     loop {
-        if let Some(frame) = ip_recv_packet(rx_buf) {
-            send_ip_packet(frame.payload, frame.header.src_ip, frame.header.proto());
+        if iface.poll() {
+            handle_boot_request(iface.get_socket(&sock_token));
         }
 
         let mcycle = register::mcycle::read64();
-        if mcycle - last_mcycle > 15_000_000 {
+        if mcycle - last_mcycle > 30_000_000 {
             last_mcycle = mcycle;
             led_enable = !led_enable;
             set_led(led_enable);
@@ -87,13 +141,15 @@ fn main() -> ! {
 #[no_mangle]
 unsafe extern "C" fn _start() -> ! {
     unsafe {
-        const STACK_PTR: usize = SRAM_BASE + 4096 - 8;
+        const STACK_PTR: usize = SRAM_BASE + 1024 * 32;
         asm!(
         "add sp, {sp}, 0",
         sp = in(reg) STACK_PTR,
         );
 
-        register::mscratch::write(copy_and_exec as usize);
+        if register::mscratch::read() == 0 {
+            register::mscratch::write(copy_and_exec as usize);
+        }
         register::mtvec::write(panic as usize, TrapMode::Direct);
     }
 
