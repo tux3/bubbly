@@ -4,7 +4,7 @@ MEMORY
   RAM : ORIGIN =   0x18000000000, LENGTH = 4K
 }
 
-ENTRY(_start);
+ENTRY(start);
 
 SECTIONS
 {

@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(const_mut_refs)]
 #![feature(split_array)]
 #![feature(panic_info_message)]
 #![warn(unsafe_op_in_unsafe_fn)]
@@ -9,17 +8,12 @@ mod ethernet_mmio;
 use crate::ethernet_mmio::*;
 mod dhcp;
 mod iface;
+mod netboot;
 mod socket;
 
-use crate::dhcp::get_ethernet_dhcp_lease;
 use crate::iface::MmioInterface;
 use crate::socket::{ReadableSocket, Socket, UdpSocket};
-use core::arch::asm;
-use core::mem::transmute;
-use lzss::{Lzss, SliceReader, SliceWriter};
-use riscv::register;
-use riscv::register::mtvec::TrapMode;
-use xxhash_rust::xxh64::xxh64;
+use riscv::register::{self, mtvec::TrapMode};
 
 const SRAM_BASE: usize = 0x08000000000;
 const GPIO_BASE: usize = 0x20000000000;
@@ -36,92 +30,14 @@ fn set_led(on: bool) {
     }
 }
 
-unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
-    // SAFETY: None of this is safe!
-    unsafe {
-        let dst_ptr = SRAM_BASE as *mut u8;
-        let dst_slice = core::slice::from_raw_parts_mut(dst_ptr, CODE_FREE_SPACE);
-
-        type BootLzss = Lzss<11, 4, 0x00, { 1 << 11 }, { 2 << 11 }>;
-        BootLzss::decompress(SliceReader::new(payload), SliceWriter::new(dst_slice))
-            .expect("Failed to unzip exec payload");
-
-        let dst_ptr = dst_ptr as *const ();
-        let dst_fn: unsafe extern "C" fn() -> ! = transmute(dst_ptr);
-        dst_fn();
-    }
-}
-
 pub fn log_msg_udp(msg: impl AsRef<[u8]>) {
     send_udp(msg.as_ref(), 0xFFFF_FFFF, 0, 4444);
-}
-
-fn configure_dhcp<'b>() {
-    let mut dhcp_rx_buf = [0u8; 500];
-    let mut iface = MmioInterface::new();
-
-    if let Ok(lease) = get_ethernet_dhcp_lease(&mut iface, &mut dhcp_rx_buf) {
-        log_msg_udp("Received DHCP lease, configuring interface");
-        eth_mmio_set_ip_dscp_ecn_src_ip(0, lease.ip);
-        eth_mmio_set_gateway_ip_netmask(lease.router, lease.subnet_mask);
-    } else {
-        log_msg_udp("Failed to get DHCP lease, setting static IP");
-        eth_mmio_set_ip_dscp_ecn_src_ip(0, u32::from_be_bytes([192, 168, 1, 110]));
-        eth_mmio_set_gateway_ip_netmask(u32::from_be_bytes([192, 168, 1, 254]), 0xFF_FF_FF_00);
-    }
-}
-
-fn handle_boot_request(sock: &mut dyn ReadableSocket) {
-    let payload = sock.peek_recv_buf();
-    if payload.len() < 3 + 8 {
-        // If we get a datagram shorter than the header, this is 100% junk
-        sock.clear_recv_buf();
-        return;
-    }
-
-    let full_len =
-        ((payload[2] as usize) << 16) | ((payload[1] as usize) << 8) | payload[0] as usize;
-
-    if full_len + 8 + 3 > RX_BUF_SIZE {
-        log_msg_udp("Boot payload longer than RX buffer! Discarding");
-        sock.clear_recv_buf();
-        return;
-    }
-
-    if payload.len() < 3 + 8 + full_len {
-        // Don't clear recv buffer, and tell peer we're ready for more (our hardware rx buffer is smol)
-        send_udp(
-            &(payload.len() as u32).to_le_bytes(),
-            sock.peer_ip(),
-            0xB007,
-            sock.peer_port(),
-        );
-        return;
-    } else if payload.len() > 3 + 8 + full_len {
-        log_msg_udp("Boot payload longer than header length");
-        sock.clear_recv_buf();
-        return;
-    }
-
-    let expected_hash = &payload[3..11];
-    let payload_hash = xxh64(&payload[3 + 8..], 0).to_le_bytes();
-    if expected_hash != payload_hash {
-        log_msg_udp(b"Invalid boot payload hash");
-        log_msg_udp(&expected_hash);
-        log_msg_udp(&payload_hash);
-        sock.clear_recv_buf();
-    } else {
-        log_msg_udp(b"Booting payload");
-        let unzip_and_exec_ptr = register::mscratch::read() as *const ();
-        let unzip_and_exec_fn: fn(&[u8]) -> ! = unsafe { transmute(unzip_and_exec_ptr) };
-        unzip_and_exec_fn(&payload[3 + 8..]);
-    }
 }
 
 fn main() -> ! {
     set_led(true);
 
-    configure_dhcp();
+    dhcp::configure_dhcp();
     log_msg_udp(b"Rust server started");
 
     let mut rx_buf = [0u8; RX_BUF_SIZE];
@@ -133,7 +49,7 @@ fn main() -> ! {
     let mut last_mcycle = register::mcycle::read64();
     loop {
         if iface.poll() {
-            handle_boot_request(iface.get_socket(&sock_token));
+            netboot::handle_boot_request(iface.get_socket(&sock_token));
         }
 
         let mcycle = register::mcycle::read64();
@@ -147,16 +63,16 @@ fn main() -> ! {
 
 #[link_section = ".start"]
 #[no_mangle]
-unsafe extern "C" fn _start() -> ! {
+unsafe extern "C" fn start() -> ! {
     unsafe {
         const STACK_PTR: usize = SRAM_BASE + SRAM_SIZE;
-        asm!(
+        core::arch::asm!(
         "add sp, {sp}, 0",
         sp = in(reg) STACK_PTR,
         );
 
         if register::mscratch::read() == 0 {
-            register::mscratch::write(unzip_and_exec as usize);
+            register::mscratch::write(netboot::unzip_and_exec as usize);
         }
         register::mtvec::write(panic as usize, TrapMode::Direct);
     }
@@ -169,7 +85,7 @@ unsafe extern "C" fn _start() -> ! {
 #[panic_handler]
 unsafe fn panic(panic: &core::panic::PanicInfo<'_>) -> ! {
     let panic_led = (GPIO_BASE + 2) as *mut u8;
-    unsafe { *panic_led = 1 };
+    unsafe { core::ptr::write_volatile(panic_led, 1) };
 
     if let Some(fmt_args) = panic.message() {
         if let Some(msg) = fmt_args.as_str() {

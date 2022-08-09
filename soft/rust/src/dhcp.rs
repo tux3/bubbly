@@ -1,8 +1,6 @@
+use crate::ethernet_mmio::*;
 use crate::iface::SocketToken;
-use crate::{
-    eth_mmio_get_tx_src_mac, eth_mmio_set_ip_dscp_ecn_src_ip, log_msg_udp, send_udp, MmioInterface,
-    Socket, UdpSocket,
-};
+use crate::{log_msg_udp, send_udp, MmioInterface, Socket, UdpSocket};
 use riscv::register::mcycle;
 
 const DHCP_MAGIC: [u8; 4] = [0x63, 0x82, 0x53, 0x63];
@@ -335,4 +333,19 @@ pub fn get_ethernet_dhcp_lease<'b>(
         subnet_mask: lease.subnet_mask,
         router: lease.router,
     })
+}
+
+pub fn configure_dhcp<'b>() {
+    let mut dhcp_rx_buf = [0u8; 500];
+    let mut iface = MmioInterface::new();
+
+    if let Ok(lease) = get_ethernet_dhcp_lease(&mut iface, &mut dhcp_rx_buf) {
+        log_msg_udp("Received DHCP lease, configuring interface");
+        eth_mmio_set_ip_dscp_ecn_src_ip(0, lease.ip);
+        eth_mmio_set_gateway_ip_netmask(lease.router, lease.subnet_mask);
+    } else {
+        log_msg_udp("Failed to get DHCP lease, setting static IP");
+        eth_mmio_set_ip_dscp_ecn_src_ip(0, u32::from_be_bytes([192, 168, 1, 110]));
+        eth_mmio_set_gateway_ip_netmask(u32::from_be_bytes([192, 168, 1, 254]), 0xFF_FF_FF_00);
+    }
 }
