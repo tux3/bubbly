@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use lzss::{Lzss, SliceReader, VecWriter};
 use std::net::ToSocketAddrs;
 use std::net::UdpSocket;
 use std::path::PathBuf;
@@ -20,7 +21,20 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let payload = std::fs::read(&args.payload)?;
+    let payload_raw = std::fs::read(&args.payload)?;
+    type BootLzss = Lzss<11, 4, 0x00, { 1 << 11 }, { 2 << 11 }>;
+    let payload = BootLzss::compress(
+        SliceReader::new(&payload_raw),
+        VecWriter::with_capacity(payload_raw.len()),
+    )?;
+
+    println!(
+        "Compressed payload {} -> {} ({:.1}%)",
+        payload_raw.len(),
+        payload.len(),
+        payload.len() as f32 / payload_raw.len() as f32 * 100.
+    );
+
     println!(
         "Sending boot payload {} to {}",
         args.payload.display(),

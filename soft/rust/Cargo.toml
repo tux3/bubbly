@@ -7,9 +7,12 @@ edition = "2021"
 riscv = "0.8.0"
 xxhash-rust = { version = "0.8.5", features = ["xxh64"], default-features = false }
 tinyvec = { version = "1.6.0", features = ["rustc_1_57"], default-features = false }
+lzss = { version = "0.8.2", default-features = false}
 
 [profile.release]
 panic = "abort"
 debug = 2
 lto = true
+codegen-units = 1
+opt-level = "s"
 overflow-checks = false

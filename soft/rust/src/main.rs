@@ -16,6 +16,7 @@ use crate::iface::MmioInterface;
 use crate::socket::{ReadableSocket, Socket, UdpSocket};
 use core::arch::asm;
 use core::mem::transmute;
+use lzss::{Lzss, SliceReader, SliceWriter};
 use riscv::register;
 use riscv::register::mtvec::TrapMode;
 use xxhash_rust::xxh64::xxh64;
@@ -24,7 +25,9 @@ const SRAM_BASE: usize = 0x08000000000;
 const GPIO_BASE: usize = 0x20000000000;
 
 const BOARD_MAC_ADDR: u64 = 0x00183e035117;
-const RX_BUF_SIZE: usize = 16 * 1024;
+const SRAM_SIZE: usize = 32 * 1024;
+const RX_BUF_SIZE: usize = 12 * 1024;
+const CODE_FREE_SPACE: usize = SRAM_SIZE - RX_BUF_SIZE;
 
 fn set_led(on: bool) {
     let led_ptr = GPIO_BASE as *mut u8;
@@ -33,11 +36,16 @@ fn set_led(on: bool) {
     }
 }
 
-unsafe fn copy_and_exec(payload: &[u8]) -> ! {
+unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
     // SAFETY: None of this is safe!
     unsafe {
         let dst_ptr = SRAM_BASE as *mut u8;
-        core::ptr::copy_nonoverlapping(payload.as_ptr(), dst_ptr, payload.len());
+        let dst_slice = core::slice::from_raw_parts_mut(dst_ptr, CODE_FREE_SPACE);
+
+        type BootLzss = Lzss<11, 4, 0x00, { 1 << 11 }, { 2 << 11 }>;
+        BootLzss::decompress(SliceReader::new(payload), SliceWriter::new(dst_slice))
+            .expect("Failed to unzip exec payload");
+
         let dst_ptr = dst_ptr as *const ();
         let dst_fn: unsafe extern "C" fn() -> ! = transmute(dst_ptr);
         dst_fn();
@@ -104,9 +112,9 @@ fn handle_boot_request(sock: &mut dyn ReadableSocket) {
         sock.clear_recv_buf();
     } else {
         log_msg_udp(b"Booting payload");
-        let copy_and_exec_ptr = register::mscratch::read() as *const ();
-        let copy_and_exec_fn: fn(&[u8]) -> ! = unsafe { transmute(copy_and_exec_ptr) };
-        copy_and_exec_fn(&payload[3 + 8..]);
+        let unzip_and_exec_ptr = register::mscratch::read() as *const ();
+        let unzip_and_exec_fn: fn(&[u8]) -> ! = unsafe { transmute(unzip_and_exec_ptr) };
+        unzip_and_exec_fn(&payload[3 + 8..]);
     }
 }
 
@@ -129,7 +137,7 @@ fn main() -> ! {
         }
 
         let mcycle = register::mcycle::read64();
-        if mcycle - last_mcycle > 30_000_000 {
+        if mcycle - last_mcycle > 15_000_000 {
             last_mcycle = mcycle;
             led_enable = !led_enable;
             set_led(led_enable);
@@ -141,14 +149,14 @@ fn main() -> ! {
 #[no_mangle]
 unsafe extern "C" fn _start() -> ! {
     unsafe {
-        const STACK_PTR: usize = SRAM_BASE + 1024 * 32;
+        const STACK_PTR: usize = SRAM_BASE + SRAM_SIZE;
         asm!(
         "add sp, {sp}, 0",
         sp = in(reg) STACK_PTR,
         );
 
         if register::mscratch::read() == 0 {
-            register::mscratch::write(copy_and_exec as usize);
+            register::mscratch::write(unzip_and_exec as usize);
         }
         register::mtvec::write(panic as usize, TrapMode::Direct);
     }

@@ -7,3 +7,4 @@ edition = "2021"
 clap = { version = "3.2.16", features = ["derive"] }
 anyhow = "1.0.59"
 xxhash-rust = { version = "0.8.5", features = ["xxh64"], default-features = false }
+lzss = { version = "0.8" }
