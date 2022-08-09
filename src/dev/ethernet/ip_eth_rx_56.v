@@ -147,6 +147,7 @@ reg [16:0] hdr_sum0_high_partial_reg = 17'd0;
 reg [16:0] hdr_sum1_low_reg = 17'd0;
 reg [16:0] hdr_sum1_high_partial_reg = 17'd0;
 reg [16:0] hdr_sum2_low_reg = 17'd0;
+reg [19:0] hdr_sum_late;
 reg [19:0] hdr_sum_temp;
 reg [19:0] hdr_sum_reg = 20'd0, hdr_sum_next;
 reg check_hdr_reg = 1'b0, check_hdr_next;
@@ -298,6 +299,7 @@ always @* begin
     hdr_ptr_next = hdr_ptr_reg;
     word_count_next = word_count_reg;
 
+    hdr_sum_late = 20'd0;
     hdr_sum_temp = 32'd0;
     hdr_sum_next = hdr_sum_reg;
     check_hdr_next = check_hdr_reg;
@@ -436,7 +438,8 @@ always @* begin
             if (check_hdr_reg) begin
                 check_hdr_next = 1'b0;
 
-                hdr_sum_temp = hdr_sum_reg[15:0] + hdr_sum_reg[19:16] + hdr_sum2_low_reg;
+                hdr_sum_late = hdr_sum_reg + hdr_sum2_low_reg;
+                hdr_sum_temp = hdr_sum_late[15:0] + hdr_sum_late[19:16];
 
                 if (hdr_sum_temp != 19'h0ffff && hdr_sum_temp != 19'h1fffe) begin
                     // bad checksum
