@@ -1,6 +1,7 @@
 use crate::ethernet_mmio::*;
 use crate::iface::SocketToken;
-use crate::{log_msg_udp, send_udp, MmioInterface, Socket, UdpSocket};
+use crate::socket::{send_udp, Socket, UdpSocket};
+use crate::{log_msg_udp, MmioInterface};
 use riscv::register::mcycle;
 
 const DHCP_MAGIC: [u8; 4] = [0x63, 0x82, 0x53, 0x63];
@@ -255,13 +256,11 @@ fn get_dhcp_offer(iface: &mut MmioInterface, sock_token: &SocketToken) -> Result
         }
 
         if iface.poll() {
-            let sock = iface.get_socket(&sock_token);
-            let maybe_reply = parse_dhcp_reply(sock.peek_recv_buf());
+            let sock = iface.get_socket(sock_token);
+            let maybe_reply = sock.peek_recv_buf().and_then(parse_dhcp_reply);
             sock.clear_recv_buf();
-            if let Some(reply) = maybe_reply && reply.kind == MsgType::Offer {
-                if reply.xid == last_send_time as u32 {
-                    return Ok(reply);
-                }
+            if let Some(reply) = maybe_reply && reply.kind == MsgType::Offer && reply.xid == last_send_time as u32 {
+                return Ok(reply);
             }
         }
 
@@ -290,19 +289,15 @@ fn get_dhcp_ack_or_nack(
         }
 
         if iface.poll() {
-            let sock = iface.get_socket(&sock_token);
-            let maybe_reply = parse_dhcp_reply(sock.peek_recv_buf());
+            let sock = iface.get_socket(sock_token);
+            let maybe_reply = sock.peek_recv_buf().and_then(parse_dhcp_reply);
             sock.clear_recv_buf();
             match maybe_reply {
-                Some(reply) if reply.kind == MsgType::Ack => {
-                    if reply.xid == offer.xid as u32 {
-                        return Ok(reply);
-                    }
+                Some(reply) if reply.kind == MsgType::Ack && reply.xid == offer.xid => {
+                    return Ok(reply);
                 }
-                Some(reply) if reply.kind == MsgType::Nack => {
-                    if reply.xid == offer.xid as u32 {
-                        return Err(Some(reply));
-                    }
+                Some(reply) if reply.kind == MsgType::Nack && reply.xid == offer.xid => {
+                    return Err(Some(reply));
                 }
                 _ => {}
             }
@@ -335,7 +330,7 @@ pub fn get_ethernet_dhcp_lease<'b>(
     })
 }
 
-pub fn configure_dhcp<'b>() {
+pub fn configure_dhcp() {
     let mut dhcp_rx_buf = [0u8; 500];
     let mut iface = MmioInterface::new();
 

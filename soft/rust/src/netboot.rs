@@ -1,4 +1,5 @@
-use crate::{log_msg_udp, send_udp, ReadableSocket, CODE_FREE_SPACE, RX_BUF_SIZE, SRAM_BASE};
+use crate::socket::{send_udp, ReadableSocket};
+use crate::{eth_mmio_reset_state, log_msg_udp, CODE_FREE_SPACE, RX_BUF_SIZE, SRAM_BASE};
 use core::mem::transmute;
 use lzss::{Lzss, SliceReader, SliceWriter};
 use riscv::register;
@@ -14,6 +15,8 @@ pub unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
         BootLzss::decompress(SliceReader::new(payload), SliceWriter::new(dst_slice))
             .expect("Failed to unzip exec payload");
 
+        eth_mmio_reset_state();
+
         let dst_ptr = dst_ptr as *const ();
         let dst_fn: unsafe extern "C" fn() -> ! = transmute(dst_ptr);
         dst_fn();
@@ -21,7 +24,10 @@ pub unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
 }
 
 pub fn handle_boot_request(sock: &mut dyn ReadableSocket) {
-    let payload = sock.peek_recv_buf();
+    let payload = match sock.peek_recv_buf() {
+        None => return,
+        Some(p) => p,
+    };
     if payload.len() < 3 + 8 {
         // If we get a datagram shorter than the header, this is 100% junk
         sock.clear_recv_buf();
@@ -46,7 +52,8 @@ pub fn handle_boot_request(sock: &mut dyn ReadableSocket) {
             sock.peer_port(),
         );
         return;
-    } else if payload.len() > 3 + 8 + full_len {
+    }
+    if payload.len() > 3 + 8 + full_len {
         log_msg_udp("Boot payload longer than header length");
         sock.clear_recv_buf();
         return;
