@@ -74,6 +74,7 @@ impl<'s, const NSOCKS: usize> MmioInterface<'s, NSOCKS> {
         let local_mac = eth_mmio_get_tx_src_mac();
         if partial_read.header.dst_mac() != local_mac
             && partial_read.header.dst_mac() != 0xFFFF_FFFF_FFFF
+            && !partial_read.header.is_ipv4_multicast()
         {
             log_msg_udp("Received packet for wrong MAC address, we are not a switch!");
             ip_discard_recv_packet(partial_read);

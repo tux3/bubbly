@@ -63,7 +63,7 @@ impl<'b> UdpSocket<'b> {
     pub fn should_receive_packet(&mut self, header: &RxIpHeader, payload_start: &[u8]) -> bool {
         if (header.proto() != Self::IP_PROTO
             || header.dst_ip != self.src_ip && self.src_ip != 0)
-            || (header.src_ip != self.dst_ip && self.dst_ip != 0xFFFF_FFFF)
+            || (header.src_ip != self.dst_ip && self.dst_ip != 0xFFFF_FFFF && (self.dst_ip >> 8) != (224u32 << 16) )
             || (header.ip_payload_len() as usize) < 8 // UDP header
             || header.ip_payload_len() as usize - 8 > (self.rx_buf.len() - self.rx_len())
         {

@@ -154,6 +154,11 @@ impl RxIpHeader {
     pub fn is_fragmented(&self) -> bool {
         self.fragment_offset() != 0 || self.fragment_flags() & 0b001 != 0
     }
+
+    pub fn is_ipv4_multicast(&self) -> bool {
+        (self.dst_mac() >> 8) == 0x0100_5E00_00
+            && self.dst_ip == u32::from_be_bytes([224, 0, 0, self.dst_mac() as u8])
+    }
 }
 
 pub struct RxIpPartialRead {
@@ -261,7 +266,7 @@ pub fn ip_recv_packet(buf: &mut [u8]) -> Option<RxIpPacket> {
 
 pub fn start_ip_packet(payload_len: usize, dst_ip: u32, proto: u8) {
     assert!(payload_len <= u16::MAX as usize - 20);
-    eth_mmio_set_tx_ttl_proto_len_dst_ip(64, proto, (payload_len + 20) as u16, dst_ip);
+    eth_mmio_set_tx_ttl_proto_len_dst_ip(255, proto, (payload_len + 20) as u16, dst_ip);
 }
 
 pub fn finish_ip_packet(mut payload: &[u8]) {
