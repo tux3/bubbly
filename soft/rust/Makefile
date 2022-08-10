@@ -10,7 +10,7 @@ rust.bin: target/riscv64imac-unknown-none-elf/release/rust
 	llvm-objcopy -O binary $^ $@
 
 target/riscv64imac-unknown-none-elf/release/rust: always-build
-	cargo build --release -Z build-std=core,panic_abort -Z build-std-features=panic_immediate_abort
+	cargo build --release
 
 always-build:
 

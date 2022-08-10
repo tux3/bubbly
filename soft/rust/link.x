@@ -13,6 +13,11 @@ SECTIONS
     KEEP(*(.start));
   } > FLASH
 
+  .trap_handler : ALIGN(4)
+  {
+    *(.trap_handler .trap_handler.*);
+  } > FLASH
+
   .text :
   {
     *(.text .text.*);

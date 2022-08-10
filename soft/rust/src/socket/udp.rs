@@ -1,8 +1,9 @@
-use crate::socket::*;
-use crate::{
-    eth_mmio_get_ip_dscp_ecn_src_ip, eth_mmio_tx_data, finish_ip_packet, log_msg_udp,
-    start_ip_packet, RxIpHeader, IP_MTU,
+use crate::ethernet_mmio::{
+    eth_mmio_get_ip_dscp_ecn_src_ip, eth_mmio_tx_data, finish_ip_packet, start_ip_packet,
+    RxIpHeader, IP_MTU,
 };
+use crate::log_msg_udp;
+use crate::socket::*;
 
 pub struct UdpSocket<'b> {
     rx_buf: &'b mut [u8],

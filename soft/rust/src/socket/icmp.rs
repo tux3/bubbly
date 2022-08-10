@@ -1,5 +1,6 @@
-use crate::socket::ReadableSocket;
-use crate::{log_msg_udp, send_ip_packet, RxIpHeader, Socket, IP_MTU};
+use crate::ethernet_mmio::{send_ip_packet, RxIpHeader, IP_MTU};
+use crate::log_msg_udp;
+use crate::socket::{ReadableSocket, Socket};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]

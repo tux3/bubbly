@@ -1,8 +1,8 @@
-use crate::socket::{ReadableSocket, Socket};
-use crate::{
+use crate::ethernet_mmio::{
     eth_mmio_get_tx_src_mac, ip_discard_recv_packet, ip_finish_recv_packet, ip_start_recv_packet,
-    log_msg_udp, IcmpSocket, UdpSocket,
 };
+use crate::socket::{ReadableSocket, Socket};
+use crate::{log_msg_udp, IcmpSocket, UdpSocket};
 use core::any::TypeId;
 use tinyvec::ArrayVec;
 
