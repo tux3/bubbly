@@ -230,7 +230,8 @@ end
 always_ff @(posedge clk) begin
     exec_mem_exception <= '0;
     exec_mem_trap_cause <= 'x;
-    exec_mem_fault_addr <= memory_addr_comb;
+    if (input_valid && input_is_mem)
+        exec_mem_fault_addr <= memory_addr_comb;
 
     if (!lsu_stall_next && waiting_amo_op_load) begin
         exec_mem_result <= loaded_data;
