@@ -412,6 +412,12 @@ always_ff @(posedge clk) begin
         pending_araddr_bad_bits <= 'x;
         
         ip_rx_reading <= '0;
+        
+        mmio_eth_rx_srx_mac <= 'x;
+        mmio_eth_rx_ethertype_dst_mac <= 'x;
+        mmio_ip_rx_src_ip_dst_ip <= 'x;
+        mmio_ip_rx_ttl_proto_id_len_frag <= 'x;
+        mmio_ip_rx_dscp_ecn_ver_ihl_chksum <= 'x;
     end else begin
         bus.arready <= !rvalid_next || !has_pending_araddr;
 
@@ -534,7 +540,7 @@ wire ip_tx_write_ready = !ip_tx_writing_first_data &&
 wire writing_mmio_reg2 = aw_active && w_active && waddr == 'h2;
 
 assign bus.awready = !aw_pending && ip_tx_write_ready;
-assign bus.wready = !w_pending && ip_tx_write_ready && !ip_tx_writing_first_data;
+assign bus.wready = !w_pending && ip_tx_write_ready;
 
 // NOTE: Our valid depends on the ready for the header, which is against the AXI spec, but it should work for this particular device
 assign tx_ip_hdr_valid = (writing_mmio_reg2 && !ip_tx_writing) || ip_tx_writing_first_header;
@@ -581,6 +587,8 @@ always_ff @(posedge clk) begin
         waddr_buf <= 'x;
         waddr_bad_bits_buf <= 'x;
         wdata_buf <= 'x;
+        
+        ip_tx_writing <= '0;
         
         mmio_eth_src_mac <= '0;
         mmio_ip_ttl_proto_len_dst_ip <= '0;
