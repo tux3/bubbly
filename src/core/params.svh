@@ -9,6 +9,8 @@
 `define XLEN 64
 // Maximum instruction size
 `define ILEN 32
+// Number of interrupt bits
+`define INTR_LEN 20
 
 `define RESET_PC '0
 

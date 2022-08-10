@@ -20,7 +20,7 @@ module top(
     inout FLASH_MISO,
     inout FLASH_WP,
     inout FLASH_HOLD,
-    
+
     input ETH_COL,
     input ETH_CRS,
     output ETH_REF_CLK,
@@ -33,45 +33,12 @@ module top(
     output ETH_TX_EN,
     output [3:0] ETH_TXD,
 
+    input [3:0] BTN,
     input [3:0] SWITCH,
     output [9:0] PROBE,
     output PROBE_GND_34,
     output reg [3:0] LED
 );
-
-//assign PROBE[0] = FLASH_CS;
-//assign PROBE[1] = flash_capture_clk_gated;
-//assign PROBE[2] = FLASH_MOSI;
-//assign PROBE[3] = FLASH_MISO;
-//assign PROBE[4] = FLASH_WP;
-//assign PROBE[5] = FLASH_HOLD;
-//assign PROBE[6] = FLASH_CLK;
-//assign PROBE[7] = rst;
-
-//assign PROBE[0] = gated_core_clk;
-//assign PROBE[1] = eth_soc.core.ifetch_stall_next;
-//assign PROBE[2] = eth_soc.core.ifetch_exception;
-//assign PROBE[3] = eth_soc.core.decode_stall_next;
-//assign PROBE[4] = eth_soc.core.decode_next_stalled;
-//assign PROBE[5] = eth_soc.core.decode_exception;
-//assign PROBE[6] = eth_soc.core.exec_stall_next;
-//assign PROBE[7] = eth_soc.core.exec_exception;
-//assign PROBE[8] = eth_soc.core.exec_is_reg_write;
-//assign PROBE[9] = eth_soc.core.exec_is_trap;
-
-//assign PROBE[0] = rst;
-//assign PROBE[1] = eth_soc.core.exec.decode_instruction_addr[1];
-//assign PROBE[2] = eth_soc.core.exec.decode_instruction_addr[2];
-//assign PROBE[3] = eth_soc.core.exec.decode_instruction_addr[3];
-//assign PROBE[4] = eth_soc.core.exec.decode_instruction_addr[4];
-//assign PROBE[5] = eth_soc.core.exec.decode_instruction_addr[5];
-//assign PROBE[6] = eth_soc.core.exec.decode_instruction_addr[6];
-//assign PROBE[7] = eth_soc.core.exec.decode_instruction_addr[7];
-//assign PROBE[8] = eth_soc.core.exec.decode_instruction_addr[8];
-//assign PROBE[9] = eth_soc.core.exec.decode_instruction_addr[9];
-
-assign PROBE = '0;
-assign PROBE_GND_34 = '0;
 
 wire clk, rst;
 wire flash_capture_clk;
@@ -88,9 +55,24 @@ pll pll(
 
 reg [$bits(SWITCH)-1:0] switch_sync1;
 reg [$bits(SWITCH)-1:0] switch_reg;
-always_ff @(posedge flash_capture_clk) begin
+always_ff @(posedge clk) begin
     switch_sync1 <= SWITCH;
     switch_reg <= switch_sync1;
+end
+
+localparam BTN_SYNC_STAGES = 16;
+reg [BTN_SYNC_STAGES * $bits(BTN)-1:0] btn_sync;
+reg [$bits(BTN)-1:0] btn_rise;
+always_ff @(posedge clk) begin
+    if (rst) begin
+        btn_sync <= '0;
+        btn_rise <= '0;
+    end else begin
+        for (integer i = 0; i<$bits(BTN); i += 1) begin
+            btn_sync[i * BTN_SYNC_STAGES +: BTN_SYNC_STAGES] <= {btn_sync[i * BTN_SYNC_STAGES +: BTN_SYNC_STAGES], BTN[i]};
+            btn_rise[i] <= btn_sync[i * BTN_SYNC_STAGES +: BTN_SYNC_STAGES] == {1'b0, {BTN_SYNC_STAGES-1{1'b1}}};
+        end
+    end
 end
 
 eth_soc #(
@@ -99,6 +81,8 @@ eth_soc #(
 ) eth_soc (
     .clk,
     .rst,
+
+    .int_platform(btn_rise),
 
     .cs(FLASH_CS),
     .sclk(FLASH_CLK),
@@ -131,5 +115,40 @@ always_ff @(posedge clk) begin
     else
         counter <= counter + 1;
 end
+
+//assign PROBE[0] = FLASH_CS;
+//assign PROBE[1] = flash_capture_clk_gated;
+//assign PROBE[2] = FLASH_MOSI;
+//assign PROBE[3] = FLASH_MISO;
+//assign PROBE[4] = FLASH_WP;
+//assign PROBE[5] = FLASH_HOLD;
+//assign PROBE[6] = FLASH_CLK;
+//assign PROBE[7] = rst;
+
+//assign PROBE[0] = clk;
+//assign PROBE[1] = eth_soc.core.ifetch_stall_next;
+//assign PROBE[2] = eth_soc.core.ifetch_exception;
+//assign PROBE[3] = eth_soc.core.decode_stall_next;
+//assign PROBE[4] = eth_soc.core.decode_next_stalled;
+//assign PROBE[5] = eth_soc.core.decode_exception;
+//assign PROBE[6] = eth_soc.core.exec_stall_next;
+//assign PROBE[7] = eth_soc.core.exec_exception;
+//assign PROBE[8] = eth_soc.core.exec_is_reg_write;
+//assign PROBE[9] = eth_soc.core.exec_is_trap;
+
+//assign PROBE[0] = rst;
+//assign PROBE[1] = eth_soc.core.exec.decode_instruction_addr[1];
+//assign PROBE[2] = eth_soc.core.exec.decode_instruction_addr[2];
+//assign PROBE[3] = eth_soc.core.exec.decode_instruction_addr[3];
+//assign PROBE[4] = eth_soc.core.exec.decode_instruction_addr[4];
+//assign PROBE[5] = eth_soc.core.exec.decode_instruction_addr[5];
+//assign PROBE[6] = eth_soc.core.exec.decode_instruction_addr[6];
+//assign PROBE[7] = eth_soc.core.exec.decode_instruction_addr[7];
+//assign PROBE[8] = eth_soc.core.exec.decode_instruction_addr[8];
+//assign PROBE[9] = eth_soc.core.exec.decode_instruction_addr[9];
+
+assign PROBE = '0;
+assign PROBE_GND_34 = '0;
+assign SPI_MISO = '0;
 
 endmodule

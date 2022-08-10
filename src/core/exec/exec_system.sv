@@ -102,11 +102,14 @@ always_ff @(posedge clk) begin
                     exec_system_trap_cause <= trap_causes::EXC_BREAKPOINT;
                 end
                 {7'b00??000, 5'b00010}: begin // {U,S,M}RET
+                    // NOTE: We can set is_xret even if we're about to raise an exception,
+                    //       because traps have priority over following the xRET
                     exec_system_is_xret <= '1;
+                    exec_system_result <= mepc; // NOTE: Safe because mepc's guarantted to be aligned
 
                     if (xret_level == priv_levels::MACHINE) begin
                         exec_system_exception <= privilege_mode != priv_levels::MACHINE;
-                        exec_system_result <= mepc; // NOTE: Safe because mepc's guarantted to be aligned
+                        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                     end else begin
                         exec_system_exception <= '1;
                         exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
@@ -132,20 +135,22 @@ always_comb begin
     exec_system_new_mstatus_comb = 'x;
     exec_system_new_privilege_mode_comb = 'x;
 
-    // Update CSRs on xRET instruction
-    if (funct3 == '0 && rd == '0 && rs1 == '0 && rs2 == 5'b00010 && funct7[6:5] == '0 && funct7[2:0] == '0) begin
-        if (xret_level == priv_levels::MACHINE) begin
-            exec_system_update_mstatus_comb = input_valid && input_is_system && privilege_mode == priv_levels::MACHINE;
-            exec_system_new_privilege_mode_comb = mstatus[12:11];
-            exec_system_new_mstatus_comb = {
-                mstatus[`XLEN-1:13],
-                priv_levels::MACHINE,   // New MPP
-                mstatus[10:8],
-                1'b1,                   // New MPIE
-                mstatus[6:4],
-                mstatus[7],             // New MIE
-                mstatus[2:0]
-            };
+    if (input_valid && input_is_system) begin
+        // Update CSRs on xRET instruction
+        if (funct3 == '0 && rd == '0 && rs1 == '0 && rs2 == 5'b00010 && funct7[6:5] == '0 && funct7[2:0] == '0) begin
+            if (xret_level == priv_levels::MACHINE) begin
+                exec_system_update_mstatus_comb = privilege_mode == priv_levels::MACHINE;
+                exec_system_new_privilege_mode_comb = mstatus[12:11]; // MPP
+                exec_system_new_mstatus_comb = {
+                    mstatus[`XLEN-1:13],
+                    priv_levels::MACHINE,   // MPP set to smallest supported (M)
+                    mstatus[10:8],
+                    1'b1,                   // MPIE set to 1
+                    mstatus[6:4],
+                    mstatus[7],             // MIE set to MPIE
+                    mstatus[2:0]
+                };
+            end
         end
     end
 end

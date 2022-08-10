@@ -1,13 +1,16 @@
 `include "../params.svh"
 
 module exec #(
-    parameter UNCACHEABLE_ADDR_MASK
+    parameter UNCACHEABLE_ADDR_MASK = '0
 ) (
     input clk,
     input rst,
     input prev_stalled,
     output wire stall_prev,
     output reg stall_next,
+
+    // Interrupt lines
+    input [3:0] int_platform,
 
     input decode_exception,
     input [3:0] decode_trap_cause,
@@ -33,6 +36,7 @@ module exec #(
     input [20:1] j_imm,
 
     output logic exec_exception,
+    output logic exec_interrupt,
     output logic [`ALEN-1:0] exec_trap_target,
     output logic exec_is_taken_branch,
     output logic exec_is_reg_write,
@@ -49,6 +53,10 @@ module exec #(
 
     axi4lite.master data_bus
 );
+
+logic [3:0] last_output_type;
+logic [3:0] valid_outputs;
+wire no_output_valid = valid_outputs == '0;
 
 // The decoder's bypass inputs are registered, so they can't bypass directly from an exec cycle to the next
 wire [`XLEN-1:0] rs1_data = (exec_is_reg_write && exec_reg_write_sel == rs1) ? exec_result : decode_rs1_data;
@@ -97,6 +105,7 @@ wire exec_mem_exception;
 wire [3:0] exec_mem_trap_cause;
 wire [`ALEN-1:0] exec_mem_fault_addr;
 wire [`XLEN-1:0] exec_mem_result;
+wire [`ALEN-1:0] last_branch_target_or_next;
 exec_mem exec_mem(
     .*
 );
@@ -127,6 +136,7 @@ load_store #(
     .data_bus(data_bus)
 );
 
+logic exec_trap;
 logic [3:0] exec_trap_cause;
 logic [`ALEN-1:0] decode_trap_mepc_buf;
 logic [`ILEN-1:0] decode_original_instr_buf;
@@ -142,33 +152,44 @@ wire [3:0] exec_csr_trap_cause;
 wire [`XLEN-1:0] exec_csr_result;
 wire [1:0] privilege_mode;
 wire [`XLEN-1:0] mstatus;
+wire [`INTR_LEN-1:0] mie;
+wire [`INTR_LEN-1:0] mip;
 wire [`XLEN-1:0] mepc;
 wire [`XLEN-1:0] mtvec;
+
+wire trap_take_m_int;
+wire [`INTR_LEN-1:0] trap_int_cause;
+wire [`ALEN-1:0] trap_mepc;
+wire [`XLEN-1:0] trap_mtval;
+
 csrs csrs(
-    .inst_retired(!stall_next && !exec_exception),
-    .trap_do_update(exec_exception),
-    .trap_mcause(exec_trap_cause),
-    .trap_mepc(decode_trap_mepc_buf),
+    .inst_retired(!stall_next && !exec_trap),
+    .trap_do_update(exec_trap),
+    .trap_mcause(trap_take_m_int ? (64'h8000_0000_0000_0000 | trap_int_cause) : exec_trap_cause),
+    .trap_mepc,
     .trap_mtval,
     .xret_do_update(exec_system_update_mstatus_comb),
+    .xret_completing(exec_is_xret && !exec_exception),
     .xret_new_mstatus(exec_system_new_mstatus_comb),
     .xret_new_privilege_mode(exec_system_new_privilege_mode_comb),
     .*
 );
 
-wire [`XLEN-1:0] trap_mtval;
 trap trap(
-    .exec_trap_valid(exec_exception),
     .exec_trap_cause(exec_trap_cause),
     .exec_trap_instr_addr(decode_trap_mepc_buf),
     .exec_trap_instr(decode_original_instr_buf),
     .exec_branch_target,
     .exec_trap_target,
+    .int_cause(trap_int_cause),
+    .take_m_int(trap_take_m_int),
+
+    .trap_mepc,
     .trap_mtval,
     .*
 );
 
-assign stall_prev = busy && stall_next;
+assign stall_prev = busy && no_output_valid;
 
 always_ff @(posedge clk) begin
     if (rst) begin
@@ -206,6 +227,11 @@ always @(posedge clk) begin
         decode_trap_cause_buf <= decode_trap_cause;
         decode_trap_mepc_buf <= decode_instruction_addr;
         decode_original_instr_buf <= decode_original_instruction;
+    end else begin
+        decode_valid_exception_buf <= '0;
+        decode_trap_cause_buf <= 'x;
+        decode_trap_mepc_buf <= 'x;
+        decode_original_instr_buf <= 'x;
     end
 end
 
@@ -219,7 +245,6 @@ enum {
     MEM_OUTPUT_VALID =      'b0001
 } valid_output_types;
 
-logic [3:0] last_output_type;
 always_ff @(posedge clk) begin
     if (rst) begin
         last_output_type <= NO_OUTPUT_VALID;
@@ -263,9 +288,10 @@ always_comb unique case (last_output_type)
     end
 endcase
 
-always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid})
+assign valid_outputs = {exec_branch_output_valid, exec_int_output_valid, exec_system_output_valid, exec_mem_output_valid};
+always_comb unique case (valid_outputs)
     NO_OUTPUT_VALID: begin
-        stall_next = !exec_exception;
+        stall_next = !exec_trap;
     end
     BRANCH_OUTPUT_VALID: begin
         stall_next = '0;
@@ -285,9 +311,12 @@ always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_
     end
 endcase
 
+// These two don't account for when the instr raised an exception and shouldn't actually be followed
 assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
 assign exec_is_xret = exec_system_output_valid && exec_system_is_xret;
 
-assign exec_pipeline_flush = exec_mispredict_detected || exec_exception || exec_is_xret;
+assign exec_interrupt = trap_take_m_int;
+assign exec_trap = exec_exception || trap_take_m_int;
+assign exec_pipeline_flush = exec_mispredict_detected || exec_trap || exec_is_xret;
 
 endmodule

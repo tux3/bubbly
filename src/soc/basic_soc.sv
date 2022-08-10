@@ -97,6 +97,8 @@ core #(
     .ifetch_port(ifetch_axi),
     .data_port(data_axi),
 
+    .int_platform('0),
+
     .fetch_instr,
     .reg_pc,
     .reg_read_sel,

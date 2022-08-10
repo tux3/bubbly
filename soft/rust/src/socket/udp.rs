@@ -76,7 +76,7 @@ impl<'b> UdpSocket<'b> {
         let dst_port = u16::from_be_bytes([hdr_ports[2], hdr_ports[3]]);
         let udp_len = u16::from_be_bytes([hdr_ports[4], hdr_ports[5]]);
 
-        if udp_len != header.ip_full_len() - 20 {
+        if udp_len != header.ip_payload_len() {
             log_msg_udp("Received UDP message len doesn't match IP hdr len");
             return false;
         }

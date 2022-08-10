@@ -5,7 +5,7 @@
 // In other words, do not try to start load/stores in parallel.
 // In exchange we can move buffers internally, users can forward to comb inputs directly since we never stall_prev
 module load_store #(
-    parameter UNCACHEABLE_ADDR_MASK
+    parameter UNCACHEABLE_ADDR_MASK = '0
 ) (
     input clk, rst,
 	input prev_stalled,

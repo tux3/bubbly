@@ -8,6 +8,9 @@ module eth_soc #(
     input clk,
     input rst,
 
+    // Interrupt lines
+    input [3:0] int_platform,
+
     // ROM flash interface
     output cs,
     output sclk,
@@ -16,7 +19,7 @@ module eth_soc #(
     inout so,
     inout wp,
     inout hold,
-    
+
     // Ethernet
     input        eth_rx_clk,
     input  [3:0] eth_rxd,
@@ -108,6 +111,8 @@ core #(
 
     .ifetch_port(ifetch_axi),
     .data_port(data_axi),
+
+    .int_platform(int_platform),
 
     .fetch_instr,
     .reg_pc,

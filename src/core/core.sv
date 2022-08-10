@@ -9,6 +9,9 @@ module core#(
     axi4lite.master ifetch_port,
     axi4lite.master data_port,
 
+    // Interrupt lines
+    input [3:0] int_platform,
+
     // State outputs
     input [4:0] reg_read_sel,
     output [`XLEN-1:0] reg_read_data,
@@ -43,6 +46,7 @@ wire [`XLEN-1:0] exec_result;
 wire exec_pipeline_flush;
 wire exec_mispredict_detected;
 wire [`ALEN-1:0] exec_mispredict_next_pc;
+wire exec_interrupt;
 
 wire [4:0] writeback_reg_write_sel;
 wire [`XLEN-1:0] writeback_reg_write_data;
@@ -58,7 +62,10 @@ ifetch ifetch(
     .clk,
     .rst,
     .flush(exec_pipeline_flush || do_clear_regs),
-    .flush_is_mispredict(exec_mispredict_detected),
+    // Mispredict cannot be detected at the same time as a flush from an exception or an xRET,
+    // but we can raise an interrupt at the same time that a branch completes and detects mispredict
+    // In that case, we should follow the interrupt, not go to the branch target.
+    .flush_is_mispredict(exec_mispredict_detected && !exec_interrupt),
     .flush_next_pc(exec_mispredict_next_pc),
     .pc(pc),
     .instruction,
@@ -138,6 +145,7 @@ exec #(
     .prev_stalled(decode_stall_next),
     .stall_prev(decode_next_stalled),
     .stall_next(exec_stall_next),
+    .int_platform(int_platform),
     .data_bus(data_port),
     .*
 );

@@ -26,6 +26,11 @@ unsafe extern "C" fn start() -> ! {
 
     eth_mmio_set_tx_src_mac(BOARD_MAC_ADDR);
 
+    unsafe {
+        core::arch::asm!("csrrw x0, mie, {}", in(reg) 0x000F_0000);
+        register::mstatus::set_mie();
+    }
+
     main()
 }
 
@@ -84,18 +89,41 @@ enum ExceptionCause {
     ECallMMode = 11,
 }
 
+#[derive(Eq, PartialEq, Copy, Clone)]
+#[repr(u8)]
+#[allow(dead_code)]
+enum InterruptCause {
+    Platform0 = 16,
+    Platform1 = 17,
+    Platform2 = 18,
+    Platform3 = 19,
+}
+
 #[link_section = ".trap_handler"]
 #[no_mangle]
 unsafe extern "C" fn trap_handler() {
+    let mcause = register::mcause::read();
+    if mcause.is_interrupt() {
+        if mcause.code() >= InterruptCause::Platform0 as usize
+            && mcause.code() <= InterruptCause::Platform3 as usize
+        {
+            log_msg_udp("Received platform interrupt!");
+            log_msg_udp(register::mepc::read().to_be_bytes());
+        } else {
+            log_msg_udp("Unexpected interrupt, continuing");
+        }
+        log_msg_udp(mcause.bits().to_be_bytes());
+
+        unsafe {
+            core::arch::asm!("csrrc x0, mip, {clear_mask}", clear_mask = in(reg) (1u64 << mcause.code()))
+        };
+        return;
+    }
+
     let trap_led = (GPIO_BASE + 2) as *mut u8;
     unsafe { core::ptr::write_volatile(trap_led, 1) };
 
-    let mcause = register::mcause::read();
-    if mcause.is_interrupt() {
-        log_msg_udp("Unexpected interrupt, continuing");
-        return;
-    }
-    let mcause = mcause.bits();
+    let mcause = mcause.code();
     if mcause == ExceptionCause::ECallMMode as usize {
         log_msg_udp("ECALL received");
         increment_mepc();

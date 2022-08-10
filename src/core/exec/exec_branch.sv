@@ -19,6 +19,7 @@ module exec_branch(
     input input_valid_unless_mispredict, // *We* detect those mispredicts!
     input input_valid,
     input input_is_branch,
+    input exec_trap,
 
     output reg exec_branch_output_valid,
     output reg exec_branch_exception,
@@ -26,6 +27,7 @@ module exec_branch(
     output reg exec_branch_taken,
     output reg [`XLEN-1:0] exec_branch_result,
     output reg [`ALEN-1:0] exec_branch_target,
+    output reg [`ALEN-1:0] last_branch_target_or_next,
 
     output wire exec_mispredict_detected,
     output wire [`ALEN-1:0] exec_mispredict_next_pc
@@ -100,18 +102,20 @@ always_comb begin
     end
 end
 
-always_ff @(posedge clk) begin
+logic exec_branch_exception_comb;
+always @(posedge clk) begin
     if (input_valid && input_is_branch) begin
         if (illegal_instruction_exception) begin
-            exec_branch_exception <= '1;
+            exec_branch_exception_comb = '1;
             exec_branch_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         end else if (exec_branch_target_comb[0]) begin
-            exec_branch_exception <= '1;
+            exec_branch_exception_comb = '1;
             exec_branch_trap_cause <= trap_causes::EXC_INSTR_ADDR_MISALIGNED;
         end else begin
-            exec_branch_exception <= '0;
+            exec_branch_exception_comb = '0;
             exec_branch_trap_cause <= 'x;
         end
+        exec_branch_exception <= exec_branch_exception_comb;
 
         exec_branch_target <= exec_branch_target_comb;
         // Note that this is not the branch target, it's the value JAL/JALR write in rd
@@ -121,23 +125,24 @@ end
 
 // Detect mispredicts by comparing the last taken branch to the next instr's address
 wire last_branch_just_taken = exec_branch_taken;
-reg [`ALEN-1:0] last_branch_target_or_next;
-reg last_instr_was_branch;
+reg last_instr_was_completed_branch;
 
-assign exec_mispredict_detected = input_valid_unless_mispredict && last_instr_was_branch
+assign exec_mispredict_detected = input_valid_unless_mispredict && last_instr_was_completed_branch
                                         && last_branch_target_or_next != decode_instruction_addr;
 assign exec_mispredict_next_pc = last_branch_target_or_next;
 
 always_ff @(posedge clk) begin
     if (rst) begin
-        last_instr_was_branch <= '0;
+        last_instr_was_completed_branch <= '0;
         exec_branch_taken <= '0;
         last_branch_target_or_next <= 'x;
     end else begin
         if (input_valid_unless_mispredict)
             exec_branch_taken <= input_valid && input_is_branch && branch_taken;
-        if (input_valid)
-            last_instr_was_branch <= input_is_branch;
+        if (exec_trap)
+            last_instr_was_completed_branch <= 0; // Control flow is going away from branch target, let it go
+        else if (input_valid)
+            last_instr_was_completed_branch <= input_is_branch && !exec_branch_exception_comb;
         if (input_valid && input_is_branch)
             last_branch_target_or_next <= branch_taken ? exec_branch_target_comb : decode_instruction_next_addr;
         else if (input_valid)

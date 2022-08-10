@@ -6,6 +6,7 @@ module writeback(
     input prev_stalled,
 
     input exec_exception,
+    input exec_interrupt,
     input [`ALEN-1:0] exec_trap_target,
     input exec_is_taken_branch,
     input exec_is_reg_write,
@@ -26,11 +27,12 @@ module writeback(
 always_comb begin
     writeback_update_pc = !prev_stalled;
 
+    // NOTE: In case of interrupt (combinatorial), we still let any reg writeback of the last instr complete 
     writeback_reg_write_enable = exec_is_reg_write && !prev_stalled && !exec_exception && exec_reg_write_sel != '0;
     writeback_reg_write_sel = exec_reg_write_sel;
     writeback_reg_write_data = exec_result;
 
-    if (exec_exception)
+    if (exec_exception || exec_interrupt)
         writeback_next_pc = exec_trap_target;
     else if (exec_is_xret)
         writeback_next_pc = exec_result;

@@ -191,7 +191,7 @@ always @(posedge clk) begin
 		next_cache_line_addr <= flush_next_pc[$bits(flush_next_pc)-1:basic_cache_params::align_bits] + 1;
 	end else if (rst || flush) begin
 		// Input PC is NOT guaranteed to be stable (or even valid) in rst, so of course we need a cycle just to start the read
-		state <= bus_read_pending ? STATE_DISCARD_FLUSHED_READ : STATE_START_1ST_LOOKUP_FROM_PC;
+		state <= (bus_read_pending && !sys_bus.rvalid) ? STATE_DISCARD_FLUSHED_READ : STATE_START_1ST_LOOKUP_FROM_PC;
 		fetch_pc <= 'x;
 		next_cache_line_addr <= 'x;
         instruction_next_addr <= 'x;
@@ -276,8 +276,7 @@ always @(posedge clk) begin
 			state <= STATE_CHECK_1ST_LOOKUP;
 	end
     STATE_DISCARD_FLUSHED_READ: begin
-        if (sys_bus.rvalid
-            || !bus_read_pending) // If we flush during a response cycle, we would miss the rvalid
+        if (sys_bus.rvalid || !bus_read_pending) // If we flush during a response cycle, we would miss the rvalid
             state <= STATE_START_1ST_LOOKUP_FROM_PC;
     end
     STATE_EXCEPTION: begin
