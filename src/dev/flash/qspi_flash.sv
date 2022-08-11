@@ -7,7 +7,7 @@
 // The clock edge order is pos clk, pos capture_clk, neg clk, neg capture clk, pos clk, ...
 
 module qspi_flash #(
-    parameter USE_SB_IO = 1
+    parameter USE_SB_IO = 0
 ) (
     // Logic iface
     input clk,

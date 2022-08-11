@@ -1,7 +1,7 @@
 `include "axi/axi4lite.svh"
 
 module axi4lite_flash #(
-    parameter USE_SB_IO = 1,
+    parameter USE_SB_IO = 0,
     parameter FLASH_SIZE_BITS = 24
 ) (
     axi4lite.slave bus,

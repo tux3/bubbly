@@ -93,10 +93,10 @@ reg bus_read_pending;
 always @(posedge clk) begin
     if (rst)
         bus_read_pending <= '0;
-    else if (sys_bus.arvalid && sys_bus.arready)
-        bus_read_pending <= '1;
     else if (sys_bus.rready && sys_bus.rvalid)
         bus_read_pending <= '0;
+    else if (sys_bus.arvalid && sys_bus.arready)
+        bus_read_pending <= '1;
 end
 
 // Read cache lines

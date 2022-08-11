@@ -9,7 +9,7 @@
 // Scheduling a read when no read is pending starts a new read immediately instead.
 
 module flash_reader #(
-    parameter USE_SB_IO = 1,
+    parameter USE_SB_IO = 0,
     parameter FLASH_SIZE_BITS = 24
 ) (
     // Logic iface

@@ -7,13 +7,16 @@ module pll(
     output flash_capture_clk,
     output eth_ref_clk
 );
-    
-logic [4:0] rstn_buf = '0;
+
+logic [7:0] rstn_buf = '0;
 wire locked;
 wire clkfb;
 
 always_ff @(posedge clk) begin
-    rstn_buf <= {rstn_buf, locked & RSTN};
+    if (!locked || !RSTN)
+        rstn_buf <= '0;
+    else
+        rstn_buf <= {rstn_buf, locked & RSTN};
     rst <= ~&{rstn_buf, locked & RSTN};
 end
 
