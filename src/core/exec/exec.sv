@@ -286,7 +286,7 @@ always_comb unique case ({exec_branch_output_valid, exec_int_output_valid, exec_
 endcase
 
 assign exec_is_taken_branch = exec_branch_output_valid && exec_branch_taken;
-assign exec_is_xret = exec_system_is_xret;
+assign exec_is_xret = exec_system_output_valid && exec_system_is_xret;
 
 assign exec_pipeline_flush = exec_mispredict_detected || exec_exception || exec_is_xret;
 

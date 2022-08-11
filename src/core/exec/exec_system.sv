@@ -57,66 +57,73 @@ assign exec_csr_rs1_data = rs1_data;
 
 wire [1:0] xret_level = funct7[4:3];
 always_ff @(posedge clk) begin
-    exec_system_exception <= '0;
-    exec_system_trap_cause <= 'x;
-    exec_system_is_xret <= '0;
-    exec_system_result <= 'x;
+    if (rst) begin
+        exec_system_exception <= '0;
+        exec_system_trap_cause <= 'x;
+        exec_system_is_xret <= '0;
+        exec_system_result <= 'x;
+    end else begin
+        exec_system_exception <= '0;
+        exec_system_trap_cause <= 'x;
+        exec_system_is_xret <= '0;
+        exec_system_result <= 'x;
 
-    if (funct3 == 3'b100) begin // Hypervisor Load/Store instructions
-        exec_system_exception <= '1;
-        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-    end else if (funct3 != '0) begin // Zicsr
-        exec_system_exception <= exec_csr_exception;
-        exec_system_trap_cause <= exec_csr_trap_cause;
-        exec_system_result <= exec_csr_result;
-    end else if (rd == '0) begin
-        if (funct7 == 'b0001001) begin // SFENCE.VMA
-            // Until we have paging, this is a no-op
-        end else if (rs1 != '0) begin
-            exec_system_exception <= '1; // Unsupported instructions
+        if (funct3 == 3'b100) begin // Hypervisor Load/Store instructions
+            exec_system_exception <= '1;
             exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-        end else unique casez ({funct7, rs2})
-            0: begin // ECALL
-                exec_system_exception <= '1;
-                if (privilege_mode == priv_levels::MACHINE)
-                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_MMODE;
-                else if (privilege_mode == priv_levels::SUPERVISOR)
-                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_SMODE;
-                else if (privilege_mode == priv_levels::USER)
-                    exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_UMODE;
-                else begin
-                    exec_system_trap_cause <= 'x;
-                    `ifndef SYNTHESIS
-                    $error("[%t] Trying to execute ECALL, but current privilege mode is unknown: %h", $time, privilege_mode);
-                    `endif
+        end else if (funct3 != '0) begin // Zicsr
+            exec_system_exception <= exec_csr_exception;
+            exec_system_trap_cause <= exec_csr_trap_cause;
+            exec_system_result <= exec_csr_result;
+        end else if (rd == '0) begin
+            if (funct7 == 'b0001001) begin // SFENCE.VMA
+                // Until we have paging, this is a no-op
+            end else if (rs1 != '0) begin
+                exec_system_exception <= '1; // Unsupported instructions
+                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+            end else unique casez ({funct7, rs2})
+                0: begin // ECALL
+                    exec_system_exception <= '1;
+                    if (privilege_mode == priv_levels::MACHINE)
+                        exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_MMODE;
+                    else if (privilege_mode == priv_levels::SUPERVISOR)
+                        exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_SMODE;
+                    else if (privilege_mode == priv_levels::USER)
+                        exec_system_trap_cause <= trap_causes::EXC_ENV_CALL_UMODE;
+                    else begin
+                        exec_system_trap_cause <= 'x;
+                        `ifndef SYNTHESIS
+                        $error("[%t] Trying to execute ECALL, but current privilege mode is unknown: %h", $time, privilege_mode);
+                        `endif
+                    end
                 end
-            end
-            1: begin // EBREAK
-                exec_system_exception <= '1;
-                exec_system_trap_cause <= trap_causes::EXC_BREAKPOINT;
-            end
-            {7'b00??000, 5'b00010}: begin // {U,S,M}RET
-                exec_system_is_xret <= '1;
+                1: begin // EBREAK
+                    exec_system_exception <= '1;
+                    exec_system_trap_cause <= trap_causes::EXC_BREAKPOINT;
+                end
+                {7'b00??000, 5'b00010}: begin // {U,S,M}RET
+                    exec_system_is_xret <= '1;
 
-                if (xret_level == priv_levels::MACHINE) begin
-                    exec_system_exception <= privilege_mode != priv_levels::MACHINE;
-                    exec_system_result <= mepc; // NOTE: Safe because mepc's guarantted to be aligned
-                end else begin
+                    if (xret_level == priv_levels::MACHINE) begin
+                        exec_system_exception <= privilege_mode != priv_levels::MACHINE;
+                        exec_system_result <= mepc; // NOTE: Safe because mepc's guarantted to be aligned
+                    end else begin
+                        exec_system_exception <= '1;
+                        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                    end
+                end
+                {7'b0001000, 5'b00101}: begin // WFI
+                    // As permitted by the spec, this is just a no-op
+                end
+                default: begin
                     exec_system_exception <= '1;
                     exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 end
-            end
-            {7'b0001000, 5'b00101}: begin // WFI
-                // As permitted by the spec, this is just a no-op
-            end
-            default: begin
-                exec_system_exception <= '1;
-                exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-            end
-        endcase
-    end else begin
-        exec_system_exception <= '1;
-        exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+            endcase
+        end else begin
+            exec_system_exception <= '1;
+            exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end
     end
 end
 
