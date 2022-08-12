@@ -66,6 +66,8 @@ reg busy;
 wire input_valid_unless_mispredict = !prev_stalled && !stall_prev;
 wire input_valid = input_valid_unless_mispredict && !decode_exception && !exec_pipeline_flush;
 
+// Note that xRET is under exec_system, but exec_branch still knows about xRET,
+// so it can consider it a taken branch and share the mispredict/flush detection
 wire input_is_branch = decode_is_jump;
 wire exec_branch_next_output_valid_comb;
 wire exec_branch_output_valid;
@@ -92,7 +94,7 @@ wire exec_system_exception;
 wire [3:0] exec_system_trap_cause;
 wire exec_system_is_xret;
 wire [`XLEN-1:0] exec_system_result;
-wire exec_system_update_mstatus_comb;
+wire exec_system_will_do_xret;
 wire [`XLEN-1:0] exec_system_new_mstatus_comb;
 wire [1:0] exec_system_new_privilege_mode_comb;
 exec_system exec_system(
@@ -168,7 +170,7 @@ csrs csrs(
     .trap_mcause(trap_take_m_int ? (64'h8000_0000_0000_0000 | trap_int_cause) : exec_trap_cause),
     .trap_mepc,
     .trap_mtval,
-    .xret_do_update(exec_system_update_mstatus_comb),
+    .xret_do_update(exec_system_will_do_xret),
     .xret_completing(exec_is_xret && !exec_exception),
     .xret_new_mstatus(exec_system_new_mstatus_comb),
     .xret_new_privilege_mode(exec_system_new_privilege_mode_comb),
@@ -317,6 +319,6 @@ assign exec_is_xret = exec_system_output_valid && exec_system_is_xret;
 
 assign exec_interrupt = trap_take_m_int;
 assign exec_trap = exec_exception || trap_take_m_int;
-assign exec_pipeline_flush = exec_mispredict_detected || exec_trap || exec_is_xret;
+assign exec_pipeline_flush = exec_mispredict_detected || exec_trap;
 
 endmodule

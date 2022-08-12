@@ -20,6 +20,8 @@ module exec_branch(
     input input_valid,
     input input_is_branch,
     input exec_trap,
+    input exec_system_will_do_xret, // Also track mispredicts for xRET
+    input [`ALEN-1:0] mepc,
 
     output reg exec_branch_output_valid,
     output reg exec_branch_exception,
@@ -139,12 +141,22 @@ always_ff @(posedge clk) begin
     end else begin
         if (input_valid_unless_mispredict)
             exec_branch_taken <= input_valid && input_is_branch && branch_taken;
-        if (exec_trap)
+
+        if (exec_trap) begin
             last_instr_was_completed_branch <= 0; // Control flow is going away from branch target, let it go
-        else if (input_valid)
-            last_instr_was_completed_branch <= input_is_branch && !exec_branch_exception_comb;
+        end else if (input_valid) begin
+            if (input_is_branch)
+                last_instr_was_completed_branch <= !exec_branch_exception_comb;
+            else if (exec_system_will_do_xret)
+                last_instr_was_completed_branch <= '1;
+            else
+                last_instr_was_completed_branch <= '0;
+        end
+
         if (input_valid && input_is_branch)
             last_branch_target_or_next <= branch_taken ? exec_branch_target_comb : decode_instruction_next_addr;
+        else if (exec_system_will_do_xret)
+            last_branch_target_or_next <= mepc;
         else if (input_valid)
             last_branch_target_or_next <= 'x;
     end

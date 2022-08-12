@@ -30,7 +30,7 @@ module exec_system(
     input [3:0] exec_csr_trap_cause,
     input [`XLEN-1:0] exec_csr_result,
 
-    output logic exec_system_update_mstatus_comb,
+    output logic exec_system_will_do_xret,
     output logic [`XLEN-1:0] exec_system_new_mstatus_comb,
     output logic [1:0] exec_system_new_privilege_mode_comb,
 
@@ -131,7 +131,7 @@ always_ff @(posedge clk) begin
 end
 
 always_comb begin
-    exec_system_update_mstatus_comb = '0;
+    exec_system_will_do_xret = '0;
     exec_system_new_mstatus_comb = 'x;
     exec_system_new_privilege_mode_comb = 'x;
 
@@ -139,7 +139,7 @@ always_comb begin
         // Update CSRs on xRET instruction
         if (funct3 == '0 && rd == '0 && rs1 == '0 && rs2 == 5'b00010 && funct7[6:5] == '0 && funct7[2:0] == '0) begin
             if (xret_level == priv_levels::MACHINE) begin
-                exec_system_update_mstatus_comb = privilege_mode == priv_levels::MACHINE;
+                exec_system_will_do_xret = privilege_mode == priv_levels::MACHINE;
                 exec_system_new_privilege_mode_comb = mstatus[12:11]; // MPP
                 exec_system_new_mstatus_comb = {
                     mstatus[`XLEN-1:13],

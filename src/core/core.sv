@@ -62,7 +62,7 @@ ifetch ifetch(
     .clk,
     .rst,
     .flush(exec_pipeline_flush || do_clear_regs),
-    // Mispredict cannot be detected at the same time as a flush from an exception or an xRET,
+    // Mispredict cannot be detected at the same time as a flush from an exception,
     // but we can raise an interrupt at the same time that a branch completes and detects mispredict
     // In that case, we should follow the interrupt, not go to the branch target.
     .flush_is_mispredict(exec_mispredict_detected && !exec_interrupt),
