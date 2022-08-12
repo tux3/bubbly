@@ -139,8 +139,7 @@ module ip_56
     /*
      * Configuration
      */
-    input  wire [47:0] local_mac,
-    input  wire [31:0] local_ip
+    input  wire [47:0] local_mac
 );
 
 localparam [1:0]

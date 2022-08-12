@@ -82,11 +82,11 @@ module arp_eth_tx #
     output wire                   busy
 );
 
-parameter CYCLE_COUNT = (28+KEEP_WIDTH-1)/KEEP_WIDTH;
+localparam CYCLE_COUNT = (28+KEEP_WIDTH-1)/KEEP_WIDTH;
 
-parameter PTR_WIDTH = $clog2(CYCLE_COUNT);
+localparam PTR_WIDTH = $clog2(CYCLE_COUNT);
 
-parameter OFFSET = 28 % KEEP_WIDTH;
+localparam OFFSET = 28 % KEEP_WIDTH;
 
 // bus width assertions
 initial begin
@@ -140,7 +140,7 @@ reg [47:0] m_eth_dest_mac_reg = 48'd0;
 reg [47:0] m_eth_src_mac_reg = 48'd0;
 reg [15:0] m_eth_type_reg = 16'd0;
 
-reg busy_reg = 1'b0;
+reg busy_reg_suppress_8_6014 = 1'b0;
 
 // internal datapath
 reg [DATA_WIDTH-1:0] m_eth_payload_axis_tdata_int;
@@ -158,7 +158,7 @@ assign m_eth_dest_mac = m_eth_dest_mac_reg;
 assign m_eth_src_mac = m_eth_src_mac_reg;
 assign m_eth_type = m_eth_type_reg;
 
-assign busy = busy_reg;
+assign busy = busy_reg_suppress_8_6014;
 
 always @* begin
     send_arp_header_next = send_arp_header_reg;
@@ -248,7 +248,7 @@ always @(posedge clk) begin
 
     m_eth_hdr_valid_reg <= m_eth_hdr_valid_next;
 
-    busy_reg <= send_arp_header_next;
+    busy_reg_suppress_8_6014 <= send_arp_header_next;
 
     if (store_frame) begin
         m_eth_dest_mac_reg <= s_eth_dest_mac;
@@ -268,7 +268,7 @@ always @(posedge clk) begin
         ptr_reg <= 0;
         s_frame_ready_reg <= 1'b0;
         m_eth_hdr_valid_reg <= 1'b0;
-        busy_reg <= 1'b0;
+        busy_reg_suppress_8_6014 <= 1'b0;
     end
 end
 

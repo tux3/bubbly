@@ -42,12 +42,10 @@ wire [basic_cache_params::bram_blocks-1:0] write_mask = {basic_cache_params::bra
 logic [basic_cache_params::bram_addr_width-1:0] line_waddr;
 logic [basic_cache_params::entry_size-1:0] line_wdata;
 logic [basic_cache_params::bram_addr_width-1:0] line_raddr;
-logic [basic_cache_params::entry_size-1:0] line_rdata;
 
 logic [(1<<basic_cache_params::bram_addr_width)-1:0] valid_bits;
 
 logic [basic_cache_params::tag_size-1:0] cur_raddr_tag;
-wire [basic_cache_params::tag_size-1:0] entry_tag = line_rdata[basic_cache_params::data_size +: basic_cache_params::tag_size];
 
 always_comb begin: bram_io
 	logic [basic_cache_params::tag_size-1:0] cur_waddr_tag;
@@ -57,14 +55,13 @@ always_comb begin: bram_io
 
 	cur_raddr_tag = raddr[$size(raddr)-1 -: basic_cache_params::tag_size];
 	line_raddr = raddr[0 +: basic_cache_params::bram_addr_width];
-	rdata = line_rdata[0 +: basic_cache_params::data_size];
 end
 
 logic [basic_cache_params::entry_size-1:0] mem [(1<<basic_cache_params::bram_addr_width-1):0];
-logic [basic_cache_params::entry_size-1:0] mem_read_buf;
 
 generate
 if (CHECK_TAG_EARLY) begin
+    logic [basic_cache_params::data_size-1:0] mem_read_buf;
     logic [basic_cache_params::entry_size-1:0] mem_read_comb;
     logic tag_matches_comb;
     logic valid_buf_comb;
@@ -73,7 +70,7 @@ if (CHECK_TAG_EARLY) begin
         mem_read_comb = (write_enable && line_raddr == line_waddr) ? line_wdata : mem[line_raddr];
         valid_buf_comb = (write_enable && line_raddr == line_waddr) ? '1 : valid_bits[line_raddr];
         tag_matches_comb = cur_raddr_tag == mem_read_comb[basic_cache_params::data_size +: basic_cache_params::tag_size];
-        line_rdata = mem_read_buf;
+        rdata = mem_read_buf[0 +: basic_cache_params::data_size];
     end
     
     always_ff @(posedge clk) begin
@@ -81,17 +78,22 @@ if (CHECK_TAG_EARLY) begin
         lookup_valid <= valid_buf_comb && tag_matches_comb;
     end
 end else begin
+    logic [basic_cache_params::entry_size-1:0] mem_read_buf;
     logic [basic_cache_params::entry_size-1:0] line_wdata_buf;
     logic [basic_cache_params::tag_size-1:0] last_raddr_tag;
     logic [basic_cache_params::bram_addr_width-1:0] valid_raddr;
     logic read_from_write;
+    logic [basic_cache_params::tag_size-1:0] entry_tag;
     wire entry_valid = valid_bits[valid_raddr];
 
     always_comb begin
-        if (read_from_write)
-            line_rdata = line_wdata_buf;
-        else
-            line_rdata = mem_read_buf;
+        if (read_from_write) begin
+            rdata = line_wdata_buf[0 +: basic_cache_params::data_size];
+            entry_tag = line_wdata_buf[basic_cache_params::data_size +: basic_cache_params::tag_size];
+        end else begin
+            rdata = mem_read_buf[0 +: basic_cache_params::data_size];
+            entry_tag = mem_read_buf[basic_cache_params::data_size +: basic_cache_params::tag_size];
+        end
         lookup_valid = entry_valid && last_raddr_tag == entry_tag;
     end
 

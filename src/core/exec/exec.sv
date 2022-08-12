@@ -158,7 +158,7 @@ wire [1:0] privilege_mode;
 wire [`XLEN-1:0] mstatus;
 wire [`INTR_LEN-1:0] mie;
 wire [`INTR_LEN-1:0] mip;
-wire [`XLEN-1:0] mepc;
+wire [`ALEN-1:0] mepc;
 wire [`XLEN-1:0] mtvec;
 
 wire trap_take_m_int;

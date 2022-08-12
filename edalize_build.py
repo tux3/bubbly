@@ -36,6 +36,7 @@ files += test_files
 
 files += scan_files('board/arty/*.sv', 'systemVerilogSource')
 files += scan_files('board/arty/*.xdc', 'xdc')
+files += scan_files('board/arty/msg_config.tcl', 'tclSource')
 constr_files = scan_files('src/**/*.tcl', 'xdc') # TCL constraints
 files += constr_files
 

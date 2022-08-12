@@ -34,7 +34,7 @@ module csrs(
     output [`INTR_LEN-1:0] mie,
     output [`INTR_LEN-1:0] mip,
     output [`XLEN-1:0] mtvec,
-    output [`XLEN-1:0] mepc
+    output [`ALEN-1:0] mepc
 );
 
 enum {
@@ -74,7 +74,7 @@ wire [CSR_SIZE_XLEN-1:0] mstatus_ormask = {
     `X(mie,         'h304,  `INTR_LEN,      '0,             ~`INTR_LEN'hFFFF,   '0) \
     `X(mtvec,       'h305,  CSR_SIZE_XLEN,  '0,             ~64'b10,            '0) \
     `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
-    `X(mepc,        'h341,  CSR_SIZE_XLEN,  '0,             ~64'b1,             '0) \
+    `X(mepc,        'h341,  `ALEN        ,  '0,             ~64'b1,             '0) \
     `X(mcause,      'h342,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(mtval,       'h343,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(mip,         'h344,  `INTR_LEN,      '0,             ~`INTR_LEN'hFFFF,   mip_ormask) \

@@ -365,7 +365,7 @@ end
 parameter STYLE_INT = (STYLE == "AUTO") ? "REDUCTION" : STYLE;
 `else
 // "AUTO" style is "LOOP" for better synthesis result
-parameter STYLE_INT = (STYLE == "AUTO") ? "LOOP" : STYLE;
+localparam STYLE_INT = (STYLE == "AUTO") ? "LOOP" : STYLE;
 `endif
 
 genvar n;

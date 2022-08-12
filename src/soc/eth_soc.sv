@@ -32,11 +32,6 @@ module eth_soc #(
     input        eth_crs,
     output       eth_reset_n,
 
-    // Core debug
-    output [`ALEN+`ILEN-1:0] fetch_instr,
-    output [`XLEN-1:0] reg_pc,
-    input [4:0] reg_read_sel,
-    output [`XLEN-1:0] reg_read_data,
     output [GPIO_OUTPUTS-1:0] gpio_outputs
 );
 
@@ -114,10 +109,10 @@ core #(
 
     .int_platform(int_platform),
 
-    .fetch_instr,
-    .reg_pc,
-    .reg_read_sel,
-    .reg_read_data
+    .fetch_instr(),
+    .reg_pc(),
+    .reg_read_sel(),
+    .reg_read_data()
 );
 
 axi4lite flash_axi();

@@ -290,8 +290,8 @@ eth_arb_mux_inst (
     .s_eth_payload_axis_tvalid({ip_tx_eth_payload_axis_tvalid, arp_tx_eth_payload_axis_tvalid}),
     .s_eth_payload_axis_tready({ip_tx_eth_payload_axis_tready, arp_tx_eth_payload_axis_tready}),
     .s_eth_payload_axis_tlast({ip_tx_eth_payload_axis_tlast, arp_tx_eth_payload_axis_tlast}),
-    .s_eth_payload_axis_tid(0),
-    .s_eth_payload_axis_tdest(0),
+    .s_eth_payload_axis_tid(16'b0),
+    .s_eth_payload_axis_tdest(16'b0),
     .s_eth_payload_axis_tuser({ip_tx_eth_payload_axis_tuser, arp_tx_eth_payload_axis_tuser}),
     // Ethernet frame output
     .m_eth_hdr_valid(m_eth_hdr_valid),
@@ -399,8 +399,7 @@ ip_inst (
     .tx_error_payload_early_termination(tx_error_payload_early_termination),
     .tx_error_arp_failed(tx_error_arp_failed),
     // Configuration
-    .local_mac(local_mac),
-    .local_ip(local_ip)
+    .local_mac(local_mac)
 );
 
 /*

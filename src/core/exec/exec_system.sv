@@ -18,7 +18,7 @@ module exec_system(
 
     input [1:0] privilege_mode,
     input [`XLEN-1:0] mstatus,
-    input [`XLEN-1:0] mepc,
+    input [`ALEN-1:0] mepc,
 
     output exec_csr_instr_valid,
     output [11:0] exec_csr_addr,

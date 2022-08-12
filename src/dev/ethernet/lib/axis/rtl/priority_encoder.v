@@ -44,11 +44,11 @@ module priority_encoder #
     output wire [WIDTH-1:0]         output_unencoded
 );
 
-parameter LEVELS = WIDTH > 2 ? $clog2(WIDTH) : 1;
-parameter W = 2**LEVELS;
+localparam LEVELS = WIDTH > 2 ? $clog2(WIDTH) : 1;
+localparam W = 2**LEVELS;
 
 // pad input to even power of two
-wire [W-1:0] input_padded = {{W-WIDTH{1'b0}}, input_unencoded};
+wire [W-1:0] input_padded = {{1 + W-WIDTH{1'b0}}, input_unencoded};
 
 wire [W/2-1:0] stage_valid[LEVELS-1:0];
 wire [W/2-1:0] stage_enc[LEVELS-1:0];

@@ -50,6 +50,10 @@ assign cs = cs_reg;
 assign sclk = clk; // We set cs on negedge, there'll be enough CS high setup time before the next sclk posedge that we don't need to mask it
 assign setup_done = !(|setup_counter);
 
+logic capture_rst;
+always @(negedge capture_clk)
+    capture_rst <= rst;
+
 generate
 if (!USE_SB_IO) begin
 	assign si = !cs && !is_dummy_byte ? (setup_counter == '0 && supports_quad_mode ? sliding_send_buf[3] : sliding_send_buf[0]) : 1'bz;
@@ -229,10 +233,6 @@ begin
         cs_reg <= !do_read || cs_cooldown != 0;
     end
 end
-
-logic capture_rst;
-always @(negedge capture_clk)
-    capture_rst <= rst;
 
 // Receive data
 always @(posedge capture_clk)

@@ -97,7 +97,7 @@ module eth_mac_mii #
 wire [3:0]  mac_mii_rxd;
 wire        mac_mii_rx_dv;
 wire        mac_mii_rx_er;
-wire [3:0]  mac_mii_txd;
+wire [7:0]  mac_mii_txd;
 wire        mac_mii_tx_en;
 wire        mac_mii_tx_er;
 
@@ -115,7 +115,7 @@ mii_phy_if_inst (
     .mac_mii_rx_er(mac_mii_rx_er),
     .mac_mii_tx_clk(tx_clk),
     .mac_mii_tx_rst(tx_rst),
-    .mac_mii_txd(mac_mii_txd),
+    .mac_mii_txd(mac_mii_txd[3:0]),
     .mac_mii_tx_en(mac_mii_tx_en),
     .mac_mii_tx_er(mac_mii_tx_er),
 
@@ -153,6 +153,11 @@ eth_mac_1g_inst (
     .gmii_txd(mac_mii_txd),
     .gmii_tx_en(mac_mii_tx_en),
     .gmii_tx_er(mac_mii_tx_er),
+    .tx_ptp_ts(),
+    .rx_ptp_ts(),
+    .tx_axis_ptp_ts(),
+    .tx_axis_ptp_ts_tag(),
+    .tx_axis_ptp_ts_valid(),
     .rx_clk_enable(1'b1),
     .tx_clk_enable(1'b1),
     .rx_mii_select(1'b1),

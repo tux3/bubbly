@@ -110,63 +110,11 @@ integer mask_idx;
 logic [`XLEN-1:0] store_data;
 logic [(`XLEN/8)-1:0] store_mask;
 
-always_comb begin
-    if (amo_op_store_cycle)
-        lsu_prev_stalled = '0;
-    else if (is_access_misaligned || (is_amo && amo_is_sc && !amo_has_reservation))
-        lsu_prev_stalled = '1;
-    else
-        lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store);
-end
 assign lsu_addr = amo_op_store_cycle ? cache_line_addr : cache_line_addr_comb;
 assign lsu_do_load = !store_bit;
 assign lsu_do_store = store_bit;
 assign lsu_store_data = store_data;
 assign lsu_store_mask = store_mask;
-
-always_comb begin
-    mask_idx = 'x;
-    unique case (amo_op_store_cycle ? access_size : access_size_comb)
-        SIZE_BYTE: for (mask_idx=0; mask_idx*8<`XLEN; mask_idx+=1) begin
-                       store_data[mask_idx*8 +: 8] = rs2_data[7:0];
-                       store_mask[mask_idx*1 +: 1] = {1{cache_line_offset_comb[2:0] == mask_idx}};
-                   end
-        SIZE_HALF: for (mask_idx=0; mask_idx*16<`XLEN; mask_idx+=1) begin
-                       store_data[mask_idx*16 +: 16] = rs2_data[15:0];
-                       store_mask[mask_idx*2 +: 2] = {2{cache_line_offset_comb[2:1] == mask_idx}};
-                   end
-        SIZE_WORD: for (mask_idx=0; mask_idx*32<`XLEN; mask_idx+=1) begin
-                       if (amo_op_store_cycle) begin
-                           store_data[mask_idx*32 +: 32] = amo_op_store_data[31:0];
-                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset[2] == mask_idx}};
-                       end else begin
-                           store_data[mask_idx*32 +: 32] = rs2_data[31:0];
-                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset_comb[2] == mask_idx}};
-                       end
-                   end
-        SIZE_DWORD: begin
-            if (amo_op_store_cycle) begin
-                store_data = amo_op_store_data;
-            end else begin
-                store_data = rs2_data;
-            end
-            store_mask = {8{1'b1}};
-        end
-        default: store_mask = 'x;
-    endcase
-end
-
-reg amo_has_reservation;
-always_ff @(posedge clk) begin
-    if (rst)
-        amo_has_reservation <= '0;
-    else if (input_valid && input_is_mem) begin
-        if (store_bit)
-            amo_has_reservation <= '0;
-        else if (is_amo && amo_is_lr)
-            amo_has_reservation <= !is_access_misaligned;
-    end
-end
 
 reg had_amo_write; // Non LR AMO ops end with a write, so we can't just return loaded_data (that's 'x for a store!)
 reg waiting_amo_op_load;
@@ -214,6 +162,59 @@ always_ff @(posedge clk) begin
             default: amo_op_store_data <= 'x;
         endcase
     end
+end
+
+always_comb begin
+    mask_idx = 'x;
+    unique case (amo_op_store_cycle ? access_size : access_size_comb)
+        SIZE_BYTE: for (mask_idx=0; mask_idx*8<`XLEN; mask_idx+=1) begin
+                       store_data[mask_idx*8 +: 8] = rs2_data[7:0];
+                       store_mask[mask_idx*1 +: 1] = {1{cache_line_offset_comb[2:0] == mask_idx}};
+                   end
+        SIZE_HALF: for (mask_idx=0; mask_idx*16<`XLEN; mask_idx+=1) begin
+                       store_data[mask_idx*16 +: 16] = rs2_data[15:0];
+                       store_mask[mask_idx*2 +: 2] = {2{cache_line_offset_comb[2:1] == mask_idx}};
+                   end
+        SIZE_WORD: for (mask_idx=0; mask_idx*32<`XLEN; mask_idx+=1) begin
+                       if (amo_op_store_cycle) begin
+                           store_data[mask_idx*32 +: 32] = amo_op_store_data[31:0];
+                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset[2] == mask_idx}};
+                       end else begin
+                           store_data[mask_idx*32 +: 32] = rs2_data[31:0];
+                           store_mask[mask_idx*4 +: 4] = {4{cache_line_offset_comb[2] == mask_idx}};
+                       end
+                   end
+        SIZE_DWORD: begin
+            if (amo_op_store_cycle) begin
+                store_data = amo_op_store_data;
+            end else begin
+                store_data = rs2_data;
+            end
+            store_mask = {8{1'b1}};
+        end
+        default: store_mask = 'x;
+    endcase
+end
+
+reg amo_has_reservation;
+always_ff @(posedge clk) begin
+    if (rst)
+        amo_has_reservation <= '0;
+    else if (input_valid && input_is_mem) begin
+        if (store_bit)
+            amo_has_reservation <= '0;
+        else if (is_amo && amo_is_lr)
+            amo_has_reservation <= !is_access_misaligned;
+    end
+end
+
+always_comb begin
+    if (amo_op_store_cycle)
+        lsu_prev_stalled = '0;
+    else if (is_access_misaligned || (is_amo && amo_is_sc && !amo_has_reservation))
+        lsu_prev_stalled = '1;
+    else
+        lsu_prev_stalled = !(input_valid && input_is_mem && is_load_store);
 end
 
 always_ff @(posedge clk) begin

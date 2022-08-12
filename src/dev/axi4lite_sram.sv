@@ -123,14 +123,14 @@ logic wpending;
 wire awhandshaked = (bus.awvalid && bus.awready) || awpending;
 wire whandshaked = (bus.wvalid && bus.wready) || wpending;
 
-reg [`ALEN-1:0] waddr_buf;
+reg [`ALEN-per_bram_full_addr_width-1:0] waddr_buf;
 reg [data_width-1:0] wdata_buf;
 reg [data_width/8-1:0] wstrb_buf;
-wire [`ALEN-1:0] waddr = (awpending ? waddr_buf : bus.awaddr) & ADDR_MASK;
+wire [`ALEN-per_bram_full_addr_width-1:0] waddr = (awpending ? waddr_buf : bus.awaddr) & ADDR_MASK;
 wire [data_width-1:0] wdata = wpending ? wdata_buf : bus.wdata;
 wire [data_width/8-1:0] wstrb = wpending ? wstrb_buf : bus.wstrb;
 
-wire [(`ALEN-per_bram_full_addr_width)-1:0] bram_write_index = waddr[`ALEN-1:per_bram_full_addr_width];
+wire [(`ALEN-per_bram_full_addr_width)-1:0] bram_write_index = waddr[`ALEN-per_bram_full_addr_width-1:per_bram_full_addr_width];
 wire [bram_addr_width-1:0] bram_write_addr = waddr[per_bram_full_addr_width-1:$clog2(data_width/8)];
 
 wire invalid_write_index = bram_write_index >= total_bram_count;

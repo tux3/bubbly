@@ -36,15 +36,29 @@ module exec_div(
     input input_valid,
     output logic output_valid
 );
+    logic [5:0] counter;
+    wire [5:0] counter_max = do_rem ? 'h1F : 'h1D;
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            counter <= '0;
+        end else if (input_valid) begin
+            counter <= 1;
+        end else if (counter == counter_max) begin
+            counter <= 0;
+        end else if (|counter) begin
+            counter <= counter + 1;
+        end
+    end
+
     logic [65:0] mult_a;
     logic [127:0] mult_b;
     wire [127:0] mult_r;
     fixp_mult mult(.clk, .a(mult_a), .b(mult_b), .r(mult_r));
 
-    wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b);
     logic [127:0] a;
     logic [127:0] b;
     logic [63:0] b_in_buf;
+    wire [$clog2(`XLEN):0] b_log2 = exec_div_log2(b);
     always_ff @(posedge clk) begin
         if (rst) begin
             a <= 'x;
@@ -88,20 +102,6 @@ module exec_div(
         end else begin
             mult_a <= x;
             mult_b <= 'h10000000000000000 - mult_r;
-        end
-    end
-
-    logic [5:0] counter;
-    wire [5:0] counter_max = do_rem ? 'h1F : 'h1D;
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            counter <= '0;
-        end else if (input_valid) begin
-            counter <= 1;
-        end else if (counter == counter_max) begin
-            counter <= 0;
-        end else if (|counter) begin
-            counter <= counter + 1;
         end
     end
 

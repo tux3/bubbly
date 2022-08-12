@@ -86,11 +86,11 @@ module arp_eth_rx #
     output wire                   error_invalid_header
 );
 
-parameter CYCLE_COUNT = (28+KEEP_WIDTH-1)/KEEP_WIDTH;
+localparam CYCLE_COUNT = (28+KEEP_WIDTH-1)/KEEP_WIDTH;
 
-parameter PTR_WIDTH = $clog2(CYCLE_COUNT);
+localparam PTR_WIDTH = $clog2(CYCLE_COUNT);
 
-parameter OFFSET = 28 % KEEP_WIDTH;
+localparam OFFSET = 28 % KEEP_WIDTH;
 
 // bus width assertions
 initial begin
@@ -148,7 +148,7 @@ reg [31:0] m_arp_spa_reg = 32'd0, m_arp_spa_next;
 reg [47:0] m_arp_tha_reg = 48'd0, m_arp_tha_next;
 reg [31:0] m_arp_tpa_reg = 32'd0, m_arp_tpa_next;
 
-reg busy_reg = 1'b0;
+reg busy_reg_suppress_8_6014 = 1'b0;
 reg error_header_early_termination_reg = 1'b0, error_header_early_termination_next;
 reg error_invalid_header_reg = 1'b0, error_invalid_header_next;
 
@@ -169,7 +169,7 @@ assign m_arp_spa = m_arp_spa_reg;
 assign m_arp_tha = m_arp_tha_reg;
 assign m_arp_tpa = m_arp_tpa_reg;
 
-assign busy = busy_reg;
+assign busy = busy_reg_suppress_8_6014;
 assign error_header_early_termination = error_header_early_termination_reg;
 assign error_invalid_header = error_invalid_header_reg;
 
@@ -301,7 +301,7 @@ always @(posedge clk) begin
     error_header_early_termination_reg <= error_header_early_termination_next;
     error_invalid_header_reg <= error_invalid_header_next;
 
-    busy_reg <= read_arp_header_next;
+    busy_reg_suppress_8_6014 <= read_arp_header_next;
 
     // datapath
     if (store_eth_hdr) begin
@@ -316,7 +316,7 @@ always @(posedge clk) begin
         ptr_reg <= 0;
         s_eth_payload_axis_tready_reg <= 1'b0;
         m_frame_valid_reg <= 1'b0;
-        busy_reg <= 1'b0;
+        busy_reg_suppress_8_6014 <= 1'b0;
         error_header_early_termination_reg <= 1'b0;
         error_invalid_header_reg <= 1'b0;
     end 

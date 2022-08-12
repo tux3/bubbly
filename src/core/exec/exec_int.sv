@@ -44,21 +44,6 @@ wire is_muldiv = (opcode == opcodes::OP || opcode == opcodes::OP_32) && funct7 =
 wire is_muldiv_mul = !funct3[2];
 wire is_muldiv_div = funct3[2];
 
-always_ff @(posedge clk) begin
-    if (rst) begin
-        mul_pending <= '0;
-        exec_int_output_valid <= '0;
-    end else begin
-        if (input_valid && input_is_int) begin
-            mul_pending <= is_muldiv && is_muldiv_mul;
-            exec_int_output_valid <= !is_muldiv;
-        end else begin
-            mul_pending <= '0;
-            exec_int_output_valid <= mul_pending || div_output_valid;
-        end
-    end
-end
-
 logic [`XLEN-1:0] div_a;
 logic [`XLEN-1:0] div_b;
 logic [`XLEN-1:0] div_q;
@@ -74,6 +59,21 @@ exec_div exec_div(
     .input_valid(div_input_valid),
     .output_valid(div_output_valid)
 );
+
+always_ff @(posedge clk) begin
+    if (rst) begin
+        mul_pending <= '0;
+        exec_int_output_valid <= '0;
+    end else begin
+        if (input_valid && input_is_int) begin
+            mul_pending <= is_muldiv && is_muldiv_mul;
+            exec_int_output_valid <= !is_muldiv;
+        end else begin
+            mul_pending <= '0;
+            exec_int_output_valid <= mul_pending || div_output_valid;
+        end
+    end
+end
 
 logic [`XLEN-1:0] dividend_buf;
 logic [`XLEN-1:0] abs_dividend_buf;
@@ -320,7 +320,7 @@ always_ff @(posedge clk) begin
                     if (div_was_by_zero)
                         exec_int_result <= '1;
                     else if (div_was_signed_overflow)
-                        exec_int_result <= $signed({ 'h8000_0000 });
+                        exec_int_result <= $signed({ 32'h8000_0000 });
                     else
                         exec_int_result <= $signed({ div_had_sign_mismatch ? -div_q[31:0] : div_q[31:0] });
                 end

@@ -68,9 +68,11 @@ basic_soc basic_soc(
     .wp(),
     .hold(),
 
+    .fetch_instr(),
     .reg_pc,
     .reg_read_sel(recv_data[4:0]),
-    .reg_read_data(core_reg_read_data)
+    .reg_read_data(core_reg_read_data),
+    .gpio_outputs()
 );
 
 reg [23:0] flash_addr;
