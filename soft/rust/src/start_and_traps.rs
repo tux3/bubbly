@@ -34,6 +34,22 @@ unsafe extern "C" fn start() -> ! {
     main()
 }
 
+// Return previous state of mstatus.MIE
+pub fn disable_interrupts() -> bool {
+    let mut prev_mstatus: u64;
+    const MIE_MASK: u64 = 0b1000;
+    unsafe { core::arch::asm!("csrrc {}, mie, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
+    prev_mstatus & MIE_MASK != 0
+}
+
+// Return previous state of mstatus.MIE
+pub fn enable_interrupts() -> bool {
+    let mut prev_mstatus: u64;
+    const MIE_MASK: u64 = 0b1000;
+    unsafe { core::arch::asm!("csrrs {}, mie, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
+    prev_mstatus & MIE_MASK != 0
+}
+
 #[link_section = ".trap_handler"]
 #[no_mangle]
 #[naked]

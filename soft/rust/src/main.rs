@@ -14,7 +14,7 @@ mod mdns;
 mod netboot;
 mod ping;
 mod socket;
-mod start_and_trap_vectors;
+mod start_and_traps;
 
 use crate::iface::MmioInterface;
 use crate::mdns::{MDNS_IP, MDNS_PORT};

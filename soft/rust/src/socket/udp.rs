@@ -4,6 +4,7 @@ use crate::ethernet_mmio::{
 };
 use crate::log_msg_udp;
 use crate::socket::*;
+use crate::start_and_traps::{disable_interrupts, enable_interrupts};
 
 pub struct UdpSocket<'b> {
     rx_buf: &'b mut [u8],
@@ -136,6 +137,8 @@ fn send_udp_header_and_first_six_bytes(payload: &[u8], header_start: u64) {
 pub fn send_udp(mut payload: &[u8], dst_ip: u32, src_port: u16, dst_port: u16) {
     const UDP_DATAGRAM_MTU: usize = IP_MTU - 8;
 
+    let prev_mie = disable_interrupts(); // Interrupt handlers may want to send packets
+
     let udp_header_start = (7u64 << 56)
         | (((8 + UDP_DATAGRAM_MTU as u16).swap_bytes() as u64) << 32)
         | ((dst_port.swap_bytes() as u64) << 16)
@@ -171,5 +174,9 @@ pub fn send_udp(mut payload: &[u8], dst_ip: u32, src_port: u16, dst_port: u16) {
             };
             eth_mmio_tx_data(u64::from_le_bytes(buf));
         }
+    }
+
+    if prev_mie {
+        enable_interrupts();
     }
 }

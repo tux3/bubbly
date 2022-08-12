@@ -1,3 +1,5 @@
+use crate::start_and_traps::{disable_interrupts, enable_interrupts};
+
 const ETHERNET_MMIO_BASE: usize = 0x30000000000;
 pub const ETH_MTU: usize = 1500;
 pub const IP_MTU: usize = ETH_MTU - 20;
@@ -287,6 +289,12 @@ pub fn finish_ip_packet(mut payload: &[u8]) {
 
 #[allow(dead_code)]
 pub fn send_ip_packet(payload: &[u8], dst_ip: u32, proto: u8) {
+    let prev_mie = disable_interrupts(); // Interrupt handlers may want to send packets
+
     start_ip_packet(payload.len(), dst_ip, proto);
-    finish_ip_packet(payload)
+    finish_ip_packet(payload);
+
+    if prev_mie {
+        enable_interrupts();
+    }
 }
