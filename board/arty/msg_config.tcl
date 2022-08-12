@@ -2,7 +2,8 @@
 #       If we only do -new_severity INFO instead of suppressing, and we don't increase the limit, this could hide real warnings
 
 ## Global allow
-
+# Cannot add Board Part, board_part file not available
+set_msg_config -id {[Board 49-26]} -suppress
 # Design top has port driven by constant 0
 set_msg_config -id {[Synth 8-3917]} -suppress
 # Parallel synthesis criteria not met
