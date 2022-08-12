@@ -7,6 +7,7 @@ module ifetch(
     input flush_is_mispredict,
     input [`ALEN-1:0] flush_next_pc,
     input [`XLEN-1:0] pc,
+    input [`ALEN-1:0] mepc, // May not be up to date, can be used to predict xRET
 	input next_stalled,
     output reg stall_next,
     output reg ifetch_exception,
@@ -84,6 +85,8 @@ follow_branch follow_branch(
     .instr_valid(!stall_next_comb),
     .instruction(next_instruction),
     .instruction_addr(fetch_pc),
+    
+    .mepc,
 
     .should_follow_branch,
     .branch_target

@@ -8,13 +8,18 @@ module follow_branch(
     input [`ILEN-1:0] instruction,
     input [`ALEN-1:0] instruction_addr,
     
+    input [`ALEN-1:0] mepc,
+    
     output should_follow_branch,
-    output [`ALEN-1:0] branch_target
+    output logic [`ALEN-1:0] branch_target
 );
 
 wire is_compressed = instruction[1:0] != 2'b11;
 wire [4:0] c_op = {instruction[15:13], instruction[1:0]};
 wire [4:0] op = instruction[6:2];
+wire [11:0] funct12 = instruction[31:20];
+wire is_xret = op == opcodes::SYSTEM && instruction[19:7] == '0
+                && funct12 ==? 12'b00x1000_00010;
 
 logic is_predictable_branch;
 logic is_unconditional_branch;
@@ -29,8 +34,9 @@ always_comb begin
         jumps_backward = instruction[12];
     end else begin
         is_predictable_branch = op == opcodes::BRANCH
-                             || op == opcodes::JAL;
-        is_unconditional_branch = op == opcodes::JAL;
+                             || op == opcodes::JAL
+                             || is_xret;
+        is_unconditional_branch = op == opcodes::JAL || is_xret;
         jumps_backward = instruction[31];
     end
 end
@@ -57,7 +63,12 @@ always_comb begin
 end
 
 logic [`ALEN-1:0] branch_adder_op;
-assign branch_target = branch_adder_op + instruction_addr;
+always_comb begin
+    if (is_xret)
+        branch_target = mepc;
+    else
+        branch_target = branch_adder_op + instruction_addr;
+end
 
 always_comb begin
     if (is_compressed) begin

@@ -47,6 +47,7 @@ wire exec_pipeline_flush;
 wire exec_mispredict_detected;
 wire [`ALEN-1:0] exec_mispredict_next_pc;
 wire exec_interrupt;
+wire [`ALEN-1:0] exec_mepc_approximate;
 
 wire [4:0] writeback_reg_write_sel;
 wire [`XLEN-1:0] writeback_reg_write_data;
@@ -68,6 +69,7 @@ ifetch ifetch(
     .flush_is_mispredict(exec_mispredict_detected && !exec_interrupt),
     .flush_next_pc(exec_mispredict_next_pc),
     .pc(pc),
+    .mepc(exec_mepc_approximate),
     .instruction,
     .instruction_addr,
     .instruction_next_addr,

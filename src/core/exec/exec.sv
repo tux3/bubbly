@@ -34,6 +34,8 @@ module exec #(
     input [12:1] b_imm,
     input [31:12] u_imm,
     input [20:1] j_imm,
+    
+    output logic [`ALEN-1:0] exec_mepc_approximate, // Note guaranteed to be up to date, used to predict xRET
 
     output logic exec_exception,
     output logic exec_interrupt,
@@ -190,6 +192,8 @@ trap trap(
     .trap_mtval,
     .*
 );
+
+assign exec_mepc_approximate = mepc;
 
 assign stall_prev = busy && no_output_valid;
 
