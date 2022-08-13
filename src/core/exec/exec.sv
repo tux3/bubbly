@@ -97,6 +97,8 @@ wire exec_system_exception;
 wire [3:0] exec_system_trap_cause;
 wire exec_system_is_xret;
 wire [`XLEN-1:0] exec_system_result;
+wire exec_system_would_do_wfi;
+wire exec_system_blocked_on_wfi;
 wire exec_system_will_do_xret;
 wire [`XLEN-1:0] exec_system_new_mstatus_comb;
 wire [1:0] exec_system_new_privilege_mode_comb;
@@ -232,7 +234,7 @@ always @(posedge clk) begin
     end else if (input_valid_unless_mispredict) begin
         decode_valid_exception_buf <= decode_exception && !exec_pipeline_flush;
         decode_trap_cause_buf <= decode_trap_cause;
-        decode_trap_mepc_buf <= decode_instruction_addr;
+        decode_trap_mepc_buf <= exec_system_would_do_wfi ? decode_instruction_next_addr : decode_instruction_addr;
         decode_original_instr_buf <= decode_original_instruction;
     end else begin
         decode_valid_exception_buf <= '0;

@@ -14,7 +14,9 @@ module exec_system(
     input [6:0] funct7,
 
     input input_valid,
+    input input_valid_unless_mispredict,
     input input_is_system,
+    input exec_interrupt,
 
     input [1:0] privilege_mode,
     input [`XLEN-1:0] mstatus,
@@ -30,6 +32,8 @@ module exec_system(
     input [3:0] exec_csr_trap_cause,
     input [`XLEN-1:0] exec_csr_result,
 
+    output logic exec_system_would_do_wfi,
+    output logic exec_system_blocked_on_wfi,
     output logic exec_system_will_do_xret,
     output logic [`XLEN-1:0] exec_system_new_mstatus_comb,
     output logic [1:0] exec_system_new_privilege_mode_comb,
@@ -41,13 +45,6 @@ module exec_system(
     output reg [`XLEN-1:0] exec_system_result
 );
 
-always_ff @(posedge clk) begin
-    if (rst)
-        exec_system_output_valid <= '0;
-    else
-        exec_system_output_valid <= input_valid && input_is_system;
-end
-
 assign exec_csr_instr_valid = input_valid && input_is_system && funct3 != 3'b100 && funct3 != '0;
 assign exec_csr_addr = i_imm;
 assign exec_csr_funct3 = funct3;
@@ -55,8 +52,23 @@ assign exec_csr_rd = rd;
 assign exec_csr_rs1_uimm = rs1;
 assign exec_csr_rs1_data = rs1_data;
 
-wire [1:0] xret_level = funct7[4:3];
+wire input_is_wfi = funct7 == 7'b0001000 && rs2 == 5'b00101 && {rs1, funct3, rd} == '0;
+assign exec_system_would_do_wfi = input_valid_unless_mispredict && input_is_system && input_is_wfi;
 always_ff @(posedge clk) begin
+    if (rst) begin
+        exec_system_output_valid <= '0;
+        exec_system_blocked_on_wfi <= 0;
+    end else begin
+        exec_system_output_valid <= input_valid && input_is_system && !input_is_wfi;
+        if (input_valid)
+            exec_system_blocked_on_wfi <= input_is_system && input_is_wfi;
+        else if (exec_interrupt)
+            exec_system_blocked_on_wfi <= 0;
+    end
+end
+
+wire [1:0] xret_level = funct7[4:3];
+always @(posedge clk) begin
     if (rst) begin
         exec_system_exception <= '0;
         exec_system_trap_cause <= 'x;
@@ -116,7 +128,8 @@ always_ff @(posedge clk) begin
                     end
                 end
                 {7'b0001000, 5'b00101}: begin // WFI
-                    // As permitted by the spec, this is just a no-op
+                    // Stall instruction until interrupted.
+                    // No timeout/maximum wait duration! Better enable the timer interrupt :)
                 end
                 default: begin
                     exec_system_exception <= '1;
@@ -126,6 +139,14 @@ always_ff @(posedge clk) begin
         end else begin
             exec_system_exception <= '1;
             exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+        end
+        
+        // We do a stupid trick where all of this process's variables don't depend on input_valid
+        // That works great because everything else is single-cycle. Execpt WFI, where we'd output garbage for subsequent cycles.
+        if (exec_system_blocked_on_wfi) begin
+            exec_system_exception <= '0;
+            exec_system_trap_cause <= 'x;
+            exec_system_result <= 'x;
         end
     end
 end

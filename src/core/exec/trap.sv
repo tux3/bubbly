@@ -56,6 +56,7 @@ module trap(
     input exec_branch_output_valid,
     input [`ALEN-1:0] last_branch_target_or_next,
     input exec_is_xret,
+    input exec_system_blocked_on_wfi,
 
     input [3:0] exec_trap_cause,
     input [`ALEN-1:0] exec_trap_instr_addr,
@@ -104,6 +105,9 @@ always_comb begin
         // We're about to return to trap_mepc and immediately take an interrupt again
         // The csr module knows not to update mecp if we interrupt behind a completed xret
         trap_mepc = 'x;
+        int_instr_addr_known = '1;
+    end else if (exec_system_blocked_on_wfi) begin
+        trap_mepc = decode_trap_mepc_buf; // Set to next addr past WFI, per spec
         int_instr_addr_known = '1;
     end else if (input_valid_unless_mispredict && !decode_exception) begin
         trap_mepc = decode_instruction_addr;
