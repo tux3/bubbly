@@ -255,7 +255,7 @@ fn get_dhcp_offer(iface: &mut MmioInterface, sock_token: &SocketToken) -> Result
             retry_interval *= 2;
         }
 
-        if iface.poll() {
+        if iface.poll_wait() {
             let sock = iface.get_socket(sock_token);
             let maybe_reply = sock.peek_recv_buf().and_then(parse_dhcp_reply);
             sock.clear_recv_buf();
@@ -288,7 +288,7 @@ fn get_dhcp_ack_or_nack(
             retry_interval *= 2;
         }
 
-        if iface.poll() {
+        if iface.poll_wait() {
             let sock = iface.get_socket(sock_token);
             let maybe_reply = sock.peek_recv_buf().and_then(parse_dhcp_reply);
             sock.clear_recv_buf();

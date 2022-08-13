@@ -79,15 +79,15 @@ module axi4lite_ethernet_tb;
 
     task axi4_read_expect_data(input [`ALEN-1:0] addr, input [64-1:0] data);
         assert(soc.data_axi.arvalid == '0); // Otherwise, this is going to get messy!
-        soc.data_axi.rready = '0;
-        soc.data_axi.araddr = addr;
-        soc.data_axi.arvalid = '1;
+        force soc.data_axi.rready = '0;
+        force soc.data_axi.araddr = addr;
+        force soc.data_axi.arvalid = '1;
 
         forever @(posedge clk) begin
             if (soc.data_axi.arready) begin
-                soc.data_axi.rready = '1;
-                soc.data_axi.arvalid = '0;
-                soc.data_axi.araddr = 'x;
+                force soc.data_axi.rready = '1;
+                force soc.data_axi.arvalid = '0;
+                force soc.data_axi.araddr = 'x;
                 break;
             end
         end
@@ -98,7 +98,7 @@ module axi4lite_ethernet_tb;
         assert(soc.data_axi.rvalid && soc.data_axi.rready) else $error("[%t] ????", $time);
         assert(soc.data_axi.rresp == AXI4LITE_RESP_OKAY) else $error("[%t] Expected rresp OKAY for read at %h, but got %h", $time, addr, soc.data_axi.rresp);
         assert(soc.data_axi.rdata == data) else $error("[%t] Expected to read %h at %h, but got %h", $time, data, addr, soc.data_axi.rdata);
-        soc.data_axi.rready = '0;
+        force soc.data_axi.rready = '0;
     endtask
 
     initial begin

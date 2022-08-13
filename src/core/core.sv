@@ -11,7 +11,7 @@ module core#(
 
     // Interrupt lines
     input mtime_int,
-    input [3:0] platform_ints,
+    input [`PLATFORM_INTR_LEN-1:0] platform_ints,
 
     // State outputs
     input [4:0] reg_read_sel,

@@ -9,7 +9,7 @@ module eth_soc #(
     input rst,
 
     // Interrupt lines
-    input [3:0] platform_ints,
+    input [`PLATFORM_INTR_LEN-1-1:0] platform_ints, // Minus 1 used for ethernet rx
 
     // ROM flash interface
     output cs,
@@ -99,6 +99,7 @@ axilxbar #(
 axi4lite ifetch_axi();
 axi4lite data_axi();
 wire mtime_int;
+wire eth_rx_interrupt;
 core #(
     .RESET_PC(RESET_PC),
     .UNCACHEABLE_ADDR_MASK({3'b111, {(`ALEN-3){1'b0}}})
@@ -110,7 +111,7 @@ core #(
     .data_port(data_axi),
 
     .mtime_int,
-    .platform_ints(platform_ints),
+    .platform_ints({platform_ints, eth_rx_interrupt}),
 
     .fetch_instr(),
     .reg_pc(),
@@ -165,6 +166,7 @@ axi4lite_ethernet #(
     .ADDR_MASK({3'b000, {(`ALEN-3){1'b1}}})
 ) axi4lite_ethernet (
     .bus(eth_axi),
+    .eth_rx_interrupt(eth_rx_interrupt),
     .phy_rx_clk(eth_rx_clk),
     .phy_rxd(eth_rxd),
     .phy_rx_dv(eth_rx_dv),

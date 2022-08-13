@@ -18,7 +18,7 @@ module csrs(
 
     // Interrupt lines
     input mtime_int,
-    input [3:0] platform_ints,
+    input [`PLATFORM_INTR_LEN-1:0] platform_ints,
 
     input trap_do_update,
     input [`XLEN-1:0] trap_mcause,
@@ -45,7 +45,7 @@ enum {
 
 // Buffer incoming interrupts (gain some slack)
 reg mtime_int_buf;
-reg [3:0] platform_ints_buf;
+reg [`PLATFORM_INTR_LEN-1:0] platform_ints_buf;
 always @(posedge clk) begin
     mtime_int_buf <= mtime_int;
     platform_ints_buf <= platform_ints;

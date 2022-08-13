@@ -7,6 +7,8 @@ module axi4lite_ethernet #(
 ) (
     axi4lite.slave bus,
 
+    output eth_rx_interrupt,
+
     input  wire       phy_rx_clk,
     input  wire [3:0] phy_rxd,
     input  wire       phy_rx_dv,
@@ -363,6 +365,8 @@ reg [63:0] mmio_ip_rx_ttl_proto_id_len_frag; // Reg 9: Misc headers of last rece
 reg [31:0] mmio_ip_rx_dscp_ecn_ver_ihl_chksum; // Reg 10: Misc headers of last received packet
 
 // Handle reads
+assign eth_rx_interrupt = rx_ip_hdr_valid || rx_ip_payload_axis_tvalid;
+
 wire [`ALEN-1-3:0] bus_araddr_masked = (bus.araddr & ADDR_MASK) >> 3;
 wire bus_araddr_bad_bits = bus_araddr_masked[`ALEN-1-3:MMIO_REGS_ALEN] != '0;
 
@@ -392,6 +396,7 @@ always_comb unique casez (rx_ip_payload_axis_tkeep)
     'bz011111: ip_rx_read_size = 5;
     'b0111111: ip_rx_read_size = 6;
     'b1111111: ip_rx_read_size = 7;
+    default: ip_rx_read_size = 'x;
 endcase
 
 // NOTE: We don't check araddr is valid here to save combinatorial time.
@@ -533,6 +538,7 @@ always_comb unique case (ip_tx_writing_first_data ? wdata_buf[ETH_AXIS_DATA_WIDT
     5: ip_tx_write_size = 'b0011111;
     6: ip_tx_write_size = 'b0111111;
     7: ip_tx_write_size = 'b1111111;
+    default: ip_tx_write_size = 'x;
 endcase
 
 wire ip_tx_write_ready = !ip_tx_writing_first_data &&

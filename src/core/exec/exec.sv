@@ -11,7 +11,7 @@ module exec #(
 
     // Interrupt lines
     input mtime_int,
-    input [3:0] platform_ints,
+    input [`PLATFORM_INTR_LEN-1:0] platform_ints,
 
     input decode_exception,
     input [3:0] decode_trap_cause,

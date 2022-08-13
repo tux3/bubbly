@@ -7,7 +7,8 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use riscv::register::{self, mtvec::TrapMode};
 
 pub const TIMER_INT_MASK: u64 = 0x80;
-pub const PLATFORM_INTS_MASK: u64 = 0x000F_0000;
+pub const ETHERNET_RX_MASK: u64 = 0x0001_0000;
+pub const BUTTONS_INTS_MASK: u64 = 0x001E_0000;
 
 const BOARD_MAC_ADDR: u64 = 0x00183e035117;
 const TIMER_INTERVAL_MS: u64 = 250;
@@ -35,10 +36,18 @@ unsafe extern "C" fn start() -> ! {
     write_mtime(0);
     write_mtimecmp(0);
 
-    unmask_interrupts(PLATFORM_INTS_MASK);
+    unmask_interrupts(BUTTONS_INTS_MASK | ETHERNET_RX_MASK | TIMER_INT_MASK);
     enable_interrupts();
 
     main()
+}
+
+pub fn clear_pending_interrupts(mask: u64) {
+    unsafe { core::arch::asm!("csrrc x0, mip, {}", in(reg) mask) };
+}
+
+pub fn mask_interrupts(mask: u64) {
+    unsafe { core::arch::asm!("csrrc x0, mie, {}", in(reg) mask) };
 }
 
 pub fn unmask_interrupts(mask: u64) {
@@ -121,10 +130,11 @@ enum ExceptionCause {
 #[allow(dead_code)]
 enum InterruptCause {
     Timer = 7,
-    Platform0 = 16,
+    EthernetRx = 16,
     Platform1 = 17,
     Platform2 = 18,
     Platform3 = 19,
+    Platform4 = 20,
 }
 
 #[link_section = ".trap_handler"]
@@ -141,8 +151,14 @@ unsafe extern "C" fn trap_handler() {
                 next_mtimecmp += msecs_to_mtime(TIMER_INTERVAL_MS);
             }
             write_mtimecmp(next_mtimecmp);
-        } else if mcause.code() >= InterruptCause::Platform0 as usize
-            && mcause.code() <= InterruptCause::Platform3 as usize
+        } else if mcause.code() == InterruptCause::EthernetRx as usize {
+            // For now we we just use this interrupt as a WFI wakeup, and we rx outside the handler
+            // We can't clear it here, because it will just trigger again if not handled
+            // That means we have to mask it until regular code has it handled and can clear it
+            mask_interrupts(ETHERNET_RX_MASK);
+            return;
+        } else if mcause.code() >= InterruptCause::Platform1 as usize
+            && mcause.code() <= InterruptCause::Platform4 as usize
         {
             log_msg_udp("Received platform interrupt!");
             log_msg_udp(register::mepc::read().to_be_bytes());
@@ -168,6 +184,9 @@ unsafe extern "C" fn trap_handler() {
     set_led(LED::Panic, true);
     if HAS_FAULTED.swap(true, Ordering::AcqRel) {
         log_msg_udp("NESTED TRAP");
+        log_msg_udp(mcause.to_be_bytes());
+        log_msg_udp(register::mepc::read().to_be_bytes());
+        log_msg_udp(register::mtval::read().to_be_bytes());
     } else {
         if mcause == ExceptionCause::IllegalInstr as usize {
             // This is what panic!() does since we build with panic_immediate_abort

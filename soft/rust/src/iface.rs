@@ -2,7 +2,8 @@ use crate::ethernet_mmio::{
     eth_mmio_get_tx_src_mac, ip_discard_recv_packet, ip_finish_recv_packet, ip_start_recv_packet,
 };
 use crate::socket::{ReadableSocket, Socket};
-use crate::{log_msg_udp, IcmpSocket, UdpSocket};
+use crate::start_and_traps::clear_pending_interrupts;
+use crate::{log_msg_udp, unmask_interrupts, IcmpSocket, UdpSocket, ETHERNET_RX_MASK};
 use core::any::TypeId;
 use tinyvec::ArrayVec;
 
@@ -55,6 +56,25 @@ impl<'s, const NSOCKS: usize> MmioInterface<'s, NSOCKS> {
 
     pub fn remove_socket(&mut self, token: SocketToken) {
         self.sockets[token.idx] = None;
+    }
+
+    // Like poll(), but sleep until the next interrupt if no packet is immediately ready
+    // Returns true iff we did get a packet. Only gets one packet at a time.
+    pub fn poll_wait(&mut self) -> bool {
+        if self.poll() {
+            return true;
+        } else {
+            unsafe { riscv::asm::wfi() };
+
+            let r = self.poll();
+
+            // We handled the pending eth interrupt (if any), and the interrupt handler
+            // masked it for us (so we can handle it), but it still doesn't clear itself
+            clear_pending_interrupts(ETHERNET_RX_MASK);
+            unmask_interrupts(ETHERNET_RX_MASK);
+
+            r
+        }
     }
 
     // Returns true if at least one registered socket has received data

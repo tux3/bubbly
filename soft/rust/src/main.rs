@@ -24,7 +24,7 @@ use crate::leds::{set_led, LED};
 use crate::mdns::{MDNS_IP, MDNS_PORT};
 use crate::ping::handle_ping;
 use crate::socket::{send_udp, IcmpSocket, IcmpType, ReadableSocket, UdpSocket};
-use crate::start_and_traps::{unmask_interrupts, TIMER_INT_MASK};
+use crate::start_and_traps::{unmask_interrupts, ETHERNET_RX_MASK, TIMER_INT_MASK};
 
 const SRAM_BASE: usize = 0x08000000000;
 const PLATFORM_BASE: usize = 0x20000000000;
@@ -40,11 +40,10 @@ fn main() -> ! {
     set_led(LED::Led0, true);
 
     dhcp::configure_dhcp();
-    unmask_interrupts(TIMER_INT_MASK);
     log_msg_udp(b"Rust server started");
 
     let rx_buf = &mut [0u8; RX_BUF_SIZE];
-    let rx_ping = &mut [0u8; 128]; // We don't have tons of RAM, can drop huge pings
+    let rx_ping = &mut [0u8; 128]; // We don't have tons of RAM, just drop huge pings
     let rx_mdns = &mut [0u8; 128];
     let mut iface = MmioInterface::<'_, 3>::new();
     let boot_sock = UdpSocket::new_with_src_port(rx_buf, 0xB007, 0xFFFF_FFFF, 0);
@@ -54,7 +53,7 @@ fn main() -> ! {
     let icmp_sock_token = iface.add_socket(IcmpSocket::new(rx_ping));
 
     loop {
-        if iface.poll() {
+        if iface.poll_wait() {
             netboot::handle_boot_request(iface.get_socket(&boot_sock_token));
             mdns::handle_request(iface.get_socket(&mdns_sock_token));
             handle_ping(iface.get_typed_socket(&icmp_sock_token));

@@ -1,6 +1,6 @@
 use crate::ethernet_mmio::eth_mmio_reset_state;
 use crate::socket::{send_udp, ReadableSocket};
-use crate::start_and_traps::disable_interrupts;
+use crate::start_and_traps::{clear_pending_interrupts, disable_interrupts, mask_interrupts};
 use crate::{log_msg_udp, set_led, LED, RX_BUF_SIZE, SRAM_BASE, SRAM_SIZE};
 use core::mem::transmute;
 use lzss::{Lzss, SliceReader, SliceWriter};
@@ -14,8 +14,8 @@ const CODE_FREE_SPACE: usize = SRAM_SIZE - RX_BUF_SIZE - 2048;
 
 // Not an exhaustive reset, but we can clean up a few things before rebooting
 fn reset_platform_state() {
-    disable_interrupts();
-    unsafe { core::arch::asm!("csrrw x0, mie, x0") };
+    mask_interrupts(u64::MAX);
+    clear_pending_interrupts(u64::MAX);
 
     eth_mmio_reset_state();
     set_led(LED::Led0, false);
@@ -28,6 +28,8 @@ pub unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
 
     // SAFETY: None of this is safe!
     unsafe {
+        disable_interrupts();
+
         let dst_ptr = SRAM_BASE as *mut u8;
         let dst_slice = core::slice::from_raw_parts_mut(dst_ptr, CODE_FREE_SPACE);
 
