@@ -3,7 +3,7 @@ use crate::PLATFORM_BASE;
 const MTIME_PTR: *mut u64 = PLATFORM_BASE as _;
 const MTIMECMP_PTR: *mut u64 = (PLATFORM_BASE + 0x8) as _;
 
-const MTIME_HZ: u64 = 65_000_000;
+const MTIME_HZ: u64 = 1_000_000;
 
 #[allow(dead_code)]
 pub const fn mtime_to_usecs(mtime: u64) -> u64 {

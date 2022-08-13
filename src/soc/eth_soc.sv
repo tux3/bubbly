@@ -32,6 +32,7 @@ module eth_soc #(
     input        eth_crs,
     output       eth_reset_n,
 
+    input mtime_clk,
     output [GPIO_OUTPUTS-1:0] gpio_outputs
 );
 
@@ -151,6 +152,7 @@ axi4lite_platform #(
     .NUM_OUTPUTS(GPIO_OUTPUTS)
 ) axi4lite_platform (
     .bus(platform_axi),
+    .mtime_clk,
     .mtime_int,
     .outputs(gpio_outputs)
 );

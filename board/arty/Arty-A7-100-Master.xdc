@@ -15,8 +15,11 @@ set_property CONFIG_MODE SPIx4 [current_design]
 ## Clock signals
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports CLK100MHZ]
 create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_ports CLK100MHZ]
-create_generated_clock -name sys_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT0]
-create_generated_clock -name flash_capture_clk -source [get_pins pll/MMCME2_BASE_inst/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/MMCME2_BASE_inst/CLKOUT1]
+create_generated_clock -name sys_clk -source [get_pins pll/pll_fast/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/pll_fast/CLKOUT0]
+create_generated_clock -name flash_capture_clk -source [get_pins pll/pll_fast/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/pll_fast/CLKOUT1]
+create_generated_clock -name eth_ref_clk -source [get_pins pll/mmcm_slow/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/mmcm_slow/CLKOUT0]
+create_generated_clock -name mtime_clk_raw -source [get_pins pll/mmcm_slow/CLKIN1] -master_clock [get_clocks sys_clk_pin] [get_pins pll/mmcm_slow/CLKOUT1]
+create_generated_clock -name mtime_clk -source [get_pins pll/mtime_bufr/I] -master_clock [get_clocks mtime_clk_raw] [get_pins pll/mtime_bufr/O]
 
 ## Switches
 set_property -dict { PACKAGE_PIN A8    IOSTANDARD LVCMOS33 } [get_ports { SWITCH[0] }]; #IO_L12N_T1_MRCC_16 Sch=sw[0]

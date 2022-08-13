@@ -8,6 +8,7 @@ module axi4lite_platform #(
     parameter ADDR_MASK = {`ALEN{1'b1}}
 ) (
     axi4lite.slave bus,
+    input mtime_clk,
     output logic mtime_int,
     output [NUM_OUTPUTS-1:0] outputs
 );
@@ -24,14 +25,25 @@ module axi4lite_platform #(
             $error("Cannot address more outputs than fit into ADDR_MASK");
     endgenerate
 
+    wire rst = !bus.aresetn;
+
     reg [63:0] mtime;
     reg [63:0] mtimecmp;
     assign mtime_int = mtime >= mtimecmp;
 
+    reg [3:0] mtime_tick_sync;
+    always @(posedge bus.aclk) begin
+        if (rst)
+            mtime_tick_sync <= '0;
+        else
+            mtime_tick_sync <= {mtime_tick_sync, mtime_clk};
+    end
+    wire increment_mtime =  !mtime_tick_sync[$bits(mtime_tick_sync)-1]
+                          && mtime_tick_sync[$bits(mtime_tick_sync)-2]
+                          && mtime_tick_sync[$bits(mtime_tick_sync)-3];
+
     reg [OUTPUT_REG_SIZE-1:0] outputs_reg;
     assign outputs = outputs_reg[0 +: NUM_OUTPUTS];
-
-    wire rst = !bus.aresetn;
 
     wire [`ALEN-1:0] araddr_comb = bus.araddr & ADDR_MASK;
     wire [ADDR_GOOD_BITS-1:0] araddr_gpio_off_comb = araddr_comb[ADDR_GOOD_BITS-1:0] - GPIO_ADDR_BASE_OFFSET;
@@ -93,11 +105,11 @@ module axi4lite_platform #(
             wdata <= 'x;
             wstrb <= 'x;
 
-            outputs_reg <= '0;
             mtime <= '0;
             mtimecmp <= '0;
         end else begin
-            mtime <= mtime + 1;
+            if (increment_mtime)
+                mtime <= mtime + 1;
 
             bus.awready <= bus.awvalid && bus.wvalid && !bus.awready;
             bus.wready <= bus.awvalid && bus.wvalid && !bus.wready;

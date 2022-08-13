@@ -43,6 +43,7 @@ module top(
 wire clk, rst;
 wire flash_capture_clk;
 wire eth_ref_clk;
+wire mtime_clk;
 assign ETH_REF_CLK = eth_ref_clk;
 pll pll(
     .CLK100MHZ,
@@ -50,7 +51,8 @@ pll pll(
     .clk,
     .rst,
     .flash_capture_clk,
-    .eth_ref_clk
+    .eth_ref_clk,
+    .mtime_clk
 );
 
 reg [$bits(SWITCH)-1:0] switch_sync1;
@@ -103,6 +105,7 @@ eth_soc #(
     .eth_crs(ETH_CRS),
     .eth_reset_n(ETH_RSTN),
 
+    .mtime_clk,
     .gpio_outputs(LED[3:1])
 );
 
