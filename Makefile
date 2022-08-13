@@ -57,7 +57,7 @@ ${BINDIR}/${PRJ}.xpr: edalize_build.py
 vivado: ${BINDIR}/${PRJ}.xpr
 	
 
-${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit: ${BINDIR}/${PRJ}.xpr
+${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit: ${BINDIR}/${PRJ}.xpr ${SRCFILES_UNORDERED}
 	./tools/build_bitstream.tcl ${BINDIR}/${PRJ}.xpr ${IMPL_RUN}
 
 bitstream: ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit

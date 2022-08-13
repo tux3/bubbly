@@ -1,12 +1,31 @@
 use crate::ethernet_mmio::eth_mmio_reset_state;
 use crate::socket::{send_udp, ReadableSocket};
-use crate::{log_msg_udp, CODE_FREE_SPACE, RX_BUF_SIZE, SRAM_BASE};
+use crate::start_and_traps::disable_interrupts;
+use crate::{log_msg_udp, set_led, LED, RX_BUF_SIZE, SRAM_BASE, SRAM_SIZE};
 use core::mem::transmute;
 use lzss::{Lzss, SliceReader, SliceWriter};
 use riscv::register;
 use xxhash_rust::xxh64::xxh64;
 
+// Enforce we leave a bit of free stack space so it doesn't stack clash on next boot...
+// Much rather deal with this check failing too eagerly than stack overwriting code :)
+// Isn't it fun, not having any paging or memory protection?
+const CODE_FREE_SPACE: usize = SRAM_SIZE - RX_BUF_SIZE - 2048;
+
+// Not an exhaustive reset, but we can clean up a few things before rebooting
+fn reset_platform_state() {
+    disable_interrupts();
+    unsafe { core::arch::asm!("csrrw x0, mie, x0") };
+
+    eth_mmio_reset_state();
+    set_led(LED::Led0, false);
+    set_led(LED::Led1, false);
+    set_led(LED::Panic, false);
+}
+
 pub unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
+    assert!(payload.len() <= CODE_FREE_SPACE);
+
     // SAFETY: None of this is safe!
     unsafe {
         let dst_ptr = SRAM_BASE as *mut u8;
@@ -16,7 +35,7 @@ pub unsafe fn unzip_and_exec(payload: &[u8]) -> ! {
         BootLzss::decompress(SliceReader::new(payload), SliceWriter::new(dst_slice))
             .expect("Failed to unzip exec payload");
 
-        eth_mmio_reset_state();
+        reset_platform_state();
 
         let dst_ptr = dst_ptr as *const ();
         let dst_fn: unsafe extern "C" fn() -> ! = transmute(dst_ptr);

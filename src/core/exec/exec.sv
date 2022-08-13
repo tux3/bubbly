@@ -10,7 +10,8 @@ module exec #(
     output reg stall_next,
 
     // Interrupt lines
-    input [3:0] int_platform,
+    input mtime_int,
+    input [3:0] platform_ints,
 
     input decode_exception,
     input [3:0] decode_trap_cause,

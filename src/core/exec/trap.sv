@@ -63,8 +63,6 @@ module trap(
     input [`ALEN-1:0] exec_mem_fault_addr,
     input [`ILEN-1:0] exec_trap_instr,
 
-    input [3:0] int_platform,
-
     input [1:0] privilege_mode,
     input [`XLEN-1:0] mstatus,
     input [`INTR_LEN-1:0] mie,
@@ -81,8 +79,11 @@ module trap(
 wire st_mie = mstatus[3];
 wire [`INTR_LEN-1:0] active_ints = mip & mie;
 always_comb begin
-    // Gives priority to highest interrupt number
     int_cause = 'x;
+    // Standard M-mode interrupt priority (high to low): MEI, MSI, MTI, SEI, SSI, STI
+    if (active_ints[trap_causes::INT_M_TIMER])
+        int_cause = trap_causes::INT_M_TIMER;
+    // Gives priority to highest platform-defined interrupt number
     for (integer i = 16; i < `INTR_LEN; i = i + 1) begin
         if (active_ints[i])
             int_cause = i;

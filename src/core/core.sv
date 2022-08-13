@@ -10,7 +10,8 @@ module core#(
     axi4lite.master data_port,
 
     // Interrupt lines
-    input [3:0] int_platform,
+    input mtime_int,
+    input [3:0] platform_ints,
 
     // State outputs
     input [4:0] reg_read_sel,
@@ -147,7 +148,7 @@ exec #(
     .prev_stalled(decode_stall_next),
     .stall_prev(decode_next_stalled),
     .stall_next(exec_stall_next),
-    .int_platform(int_platform),
+    .platform_ints(platform_ints),
     .data_bus(data_port),
     .*
 );

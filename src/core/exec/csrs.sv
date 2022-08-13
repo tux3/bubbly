@@ -17,7 +17,8 @@ module csrs(
     output logic [`XLEN-1:0] exec_csr_result,
 
     // Interrupt lines
-    input [3:0] int_platform,
+    input mtime_int,
+    input [3:0] platform_ints,
 
     input trap_do_update,
     input [`XLEN-1:0] trap_mcause,
@@ -43,14 +44,24 @@ enum {
 } csr_size_e;
 
 // Buffer incoming interrupts (gain some slack)
-reg [3:0] int_platform_buf;
+reg mtime_int_buf;
+reg [3:0] platform_ints_buf;
 always @(posedge clk) begin
-    int_platform_buf <= int_platform;
+    mtime_int_buf <= mtime_int;
+    platform_ints_buf <= platform_ints;
 end
 
+wire [`INTR_LEN-1:0] int_andmask = {
+//   `INTR_LEN-1  Platform-defined interrupts
+                  {`PLATFORM_INTR_LEN{1'b1}},
+//            15        MEI/SEI  MTI/STI  MSI/SSI
+                 4'b0, 4'b0000, 4'b1000, 4'b0000
+};
 // mip is special, if a user writes to it at the same time that an interrupt is coming,
 // we can't discard the user's write, but we also can't discard the new interrupt, so merge both
-wire [`INTR_LEN-1:0] mip_ormask = {int_platform_buf, 16'b0};
+wire [`INTR_LEN-1:0] mip_ormask = {platform_ints_buf, 8'b0, mtime_int_buf, 7'b0};
+// The timer interrupt is special, because it clear itself via mtimecmp, not by writing mip
+wire [`INTR_LEN-1:0] mip_keepmask = {int_andmask[`INTR_LEN-1:8], mtime_int_buf, int_andmask[6:0]};
 
 //                                64             A C     I   M
 wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b10100000100010000000000000};
@@ -71,13 +82,13 @@ wire [CSR_SIZE_XLEN-1:0] mstatus_ormask = {
 `define CSR_X_REG_LIST \
     `X(mstatus,     'h300,  CSR_SIZE_XLEN,  mstatus_ormask, mstatus_andmask,    mstatus_ormask) \
     `X(misa,        'h301,  CSR_SIZE_XLEN,  misa_value,     '0,                 misa_value) \
-    `X(mie,         'h304,  `INTR_LEN,      '0,             ~`INTR_LEN'hFFFF,   '0) \
+    `X(mie,         'h304,  `INTR_LEN,      '0,             int_andmask,        '0) \
     `X(mtvec,       'h305,  CSR_SIZE_XLEN,  '0,             ~64'b10,            '0) \
     `X(mscratch,    'h340,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(mepc,        'h341,  `ALEN        ,  '0,             ~64'b1,             '0) \
     `X(mcause,      'h342,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(mtval,       'h343,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
-    `X(mip,         'h344,  `INTR_LEN,      '0,             ~`INTR_LEN'hFFFF,   mip_ormask) \
+    `X(mip,         'h344,  `INTR_LEN,      '0,             int_andmask,        mip_ormask) \
     `X(mcycle,      'hB00,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(minstret,    'hB02,  CSR_SIZE_XLEN,  '0,             '1,                 '0) \
     `X(mvendorid,   'hF11,  CSR_SIZE_32,    `MVENDORID,     '0,                 `MVENDORID) \
@@ -172,7 +183,7 @@ always @(posedge clk) begin
         if (inst_retired)
             csr_minstret <= csr_minstret + 1;
 
-        csr_mip <= csr_mip | mip_ormask; // Apply new pending interrupts
+        csr_mip <= (csr_mip & mip_keepmask) | mip_ormask; // Apply new pending interrupts
 
         if (exec_csr_instr_valid && is_write_instr && !is_readonly_csr) begin
             `define X(name, addr, size, init, andmask, ormask) \

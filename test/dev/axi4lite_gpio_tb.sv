@@ -10,7 +10,8 @@ module axi4lite_gpio_tb;
 
     logic [6:0] outputs;
 
-    bit [64-1:0] gpio_addr = {{64-`ALEN{1'b0}}, 3'b010, {`ALEN-3{1'b0}}};
+    localparam GPIO_REGS_OFFSET = 'h10; // Past mtime/mtimecmp
+    bit [64-1:0] gpio_addr = {{64-`ALEN{1'b0}}, 3'b010, {`ALEN-3{1'b0}}} + GPIO_REGS_OFFSET;
     const logic [14*32-1:0] code_buf = {<<32{
         'b000000110000_00000_000_00001_0010011, // ADDI r1, r0, gpio_ptr_ptr
         'b000000000000_00001_011_00001_0000011, // LD r1, r1, 0

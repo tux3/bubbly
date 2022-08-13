@@ -82,7 +82,7 @@ eth_soc #(
     .clk,
     .rst,
 
-    .int_platform(btn_rise),
+    .platform_ints(btn_rise),
 
     .cs(FLASH_CS),
     .sclk(FLASH_CLK),

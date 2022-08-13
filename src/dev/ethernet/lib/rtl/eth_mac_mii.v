@@ -94,7 +94,7 @@ module eth_mac_mii #
     input  wire [7:0]  ifg_delay
 );
 
-wire [3:0]  mac_mii_rxd;
+wire [7:0]  mac_mii_rxd;
 wire        mac_mii_rx_dv;
 wire        mac_mii_rx_er;
 wire [7:0]  mac_mii_txd;
@@ -110,7 +110,7 @@ mii_phy_if_inst (
 
     .mac_mii_rx_clk(rx_clk),
     .mac_mii_rx_rst(rx_rst),
-    .mac_mii_rxd(mac_mii_rxd),
+    .mac_mii_rxd(mac_mii_rxd[3:0]),
     .mac_mii_rx_dv(mac_mii_rx_dv),
     .mac_mii_rx_er(mac_mii_rx_er),
     .mac_mii_tx_clk(tx_clk),

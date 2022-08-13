@@ -1,10 +1,16 @@
 use crate::ethernet_mmio::eth_mmio_set_tx_src_mac;
-use crate::{log_msg_udp, main, netboot, GPIO_BASE, SRAM_BASE, SRAM_SIZE};
+use crate::leds::{toggle_led, LED};
+use crate::mtime::{msecs_to_mtime, read_mtime, write_mtime, write_mtimecmp};
+use crate::{log_msg_udp, main, netboot, set_led, SRAM_BASE, SRAM_SIZE};
 use core::hint::unreachable_unchecked;
 use core::sync::atomic::{AtomicBool, Ordering};
 use riscv::register::{self, mtvec::TrapMode};
 
+pub const TIMER_INT_MASK: u64 = 0x80;
+pub const PLATFORM_INTS_MASK: u64 = 0x000F_0000;
+
 const BOARD_MAC_ADDR: u64 = 0x00183e035117;
+const TIMER_INTERVAL_MS: u64 = 250;
 static HAS_FAULTED: AtomicBool = AtomicBool::new(false);
 
 #[link_section = ".start"]
@@ -26,19 +32,24 @@ unsafe extern "C" fn start() -> ! {
 
     eth_mmio_set_tx_src_mac(BOARD_MAC_ADDR);
 
-    unsafe {
-        core::arch::asm!("csrrw x0, mie, {}", in(reg) 0x000F_0000);
-        register::mstatus::set_mie();
-    }
+    write_mtime(0);
+    write_mtimecmp(0);
+
+    unmask_interrupts(PLATFORM_INTS_MASK);
+    enable_interrupts();
 
     main()
+}
+
+pub fn unmask_interrupts(mask: u64) {
+    unsafe { core::arch::asm!("csrrs x0, mie, {}", in(reg) mask) };
 }
 
 // Return previous state of mstatus.MIE
 pub fn disable_interrupts() -> bool {
     let mut prev_mstatus: u64;
     const MIE_MASK: u64 = 0b1000;
-    unsafe { core::arch::asm!("csrrc {}, mie, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
+    unsafe { core::arch::asm!("csrrc {}, mstatus, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
     prev_mstatus & MIE_MASK != 0
 }
 
@@ -46,7 +57,7 @@ pub fn disable_interrupts() -> bool {
 pub fn enable_interrupts() -> bool {
     let mut prev_mstatus: u64;
     const MIE_MASK: u64 = 0b1000;
-    unsafe { core::arch::asm!("csrrs {}, mie, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
+    unsafe { core::arch::asm!("csrrs {}, mstatus, {}", out(reg) prev_mstatus, in(reg) MIE_MASK) };
     prev_mstatus & MIE_MASK != 0
 }
 
@@ -109,6 +120,7 @@ enum ExceptionCause {
 #[repr(u8)]
 #[allow(dead_code)]
 enum InterruptCause {
+    Timer = 7,
     Platform0 = 16,
     Platform1 = 17,
     Platform2 = 18,
@@ -120,24 +132,31 @@ enum InterruptCause {
 unsafe extern "C" fn trap_handler() {
     let mcause = register::mcause::read();
     if mcause.is_interrupt() {
-        if mcause.code() >= InterruptCause::Platform0 as usize
+        if mcause.code() == InterruptCause::Timer as usize {
+            toggle_led(LED::Led0);
+
+            let mtime = read_mtime();
+            let mut next_mtimecmp = mtime + msecs_to_mtime(TIMER_INTERVAL_MS);
+            while next_mtimecmp < mtime {
+                next_mtimecmp += msecs_to_mtime(TIMER_INTERVAL_MS);
+            }
+            write_mtimecmp(next_mtimecmp);
+        } else if mcause.code() >= InterruptCause::Platform0 as usize
             && mcause.code() <= InterruptCause::Platform3 as usize
         {
             log_msg_udp("Received platform interrupt!");
             log_msg_udp(register::mepc::read().to_be_bytes());
+            log_msg_udp(mcause.bits().to_be_bytes());
         } else {
             log_msg_udp("Unexpected interrupt, continuing");
+            log_msg_udp(mcause.bits().to_be_bytes());
         }
-        log_msg_udp(mcause.bits().to_be_bytes());
 
         unsafe {
             core::arch::asm!("csrrc x0, mip, {clear_mask}", clear_mask = in(reg) (1u64 << mcause.code()))
         };
         return;
     }
-
-    let trap_led = (GPIO_BASE + 2) as *mut u8;
-    unsafe { core::ptr::write_volatile(trap_led, 1) };
 
     let mcause = mcause.code();
     if mcause == ExceptionCause::ECallMMode as usize {
@@ -146,6 +165,7 @@ unsafe extern "C" fn trap_handler() {
         return;
     }
 
+    set_led(LED::Panic, true);
     if HAS_FAULTED.swap(true, Ordering::AcqRel) {
         log_msg_udp("NESTED TRAP");
     } else {

@@ -10,7 +10,8 @@
 // Maximum instruction size
 `define ILEN 32
 // Number of interrupt bits
-`define INTR_LEN 20
+`define PLATFORM_INTR_LEN 4
+`define INTR_LEN 16 + `PLATFORM_INTR_LEN
 
 `define RESET_PC '0
 
