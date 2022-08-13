@@ -35,8 +35,8 @@ module axi4lite_ethernet_tb;
         'b00000000000000001011001100000011, // ld x6, 0(x1)
         'b00000000100000001011001110000011, // ld x7, 8(x1) 
 
+        'b00000000000000000000_00000_0010011,  // Pad/align
         'b11111111110111111111_00000_1101111,    // Inf. loop
-        'b11111111110111111111_00000_1101111,    // Align
          eth_addr[31:0], eth_addr[63:32]         // mmio ptr
     }};
 
@@ -78,46 +78,45 @@ module axi4lite_ethernet_tb;
         #0.5 clk = !clk;
 
     task axi4_read_expect_data(input [`ALEN-1:0] addr, input [64-1:0] data);
-        @(posedge clk);
-        @(posedge clk) begin
-            assert(soc.data_axi.arvalid == '0); // Otherwise, this is going to get messy!
-            force soc.data_axi.araddr = addr;
-            force soc.data_axi.arvalid = '1;
-        end
+        assert(soc.data_axi.arvalid == '0); // Otherwise, this is going to get messy!
+        soc.data_axi.rready = '0;
+        soc.data_axi.araddr = addr;
+        soc.data_axi.arvalid = '1;
 
         forever @(posedge clk) begin
             if (soc.data_axi.arready) begin
-                force soc.data_axi.rready = '1;
-                release soc.data_axi.arvalid;
-                release soc.data_axi.araddr;
+                soc.data_axi.rready = '1;
+                soc.data_axi.arvalid = '0;
+                soc.data_axi.araddr = 'x;
                 break;
             end
         end
 
+        @(posedge clk);
         while (!(soc.data_axi.rvalid && soc.data_axi.rready))
             @(posedge clk);
+        assert(soc.data_axi.rvalid && soc.data_axi.rready) else $error("[%t] ????", $time);
         assert(soc.data_axi.rresp == AXI4LITE_RESP_OKAY) else $error("[%t] Expected rresp OKAY for read at %h, but got %h", $time, addr, soc.data_axi.rresp);
         assert(soc.data_axi.rdata == data) else $error("[%t] Expected to read %h at %h, but got %h", $time, data, addr, soc.data_axi.rdata);
-        @(posedge clk);
-        release soc.data_axi.rready;
+        soc.data_axi.rready = '0;
     endtask
 
     initial begin
         #2; @(posedge clk);
 
         #750;
+        @(posedge clk);
 
-        // FIXME: Uncomment the checks after the axi4lite ethernet is back to not being hardwired as an echo server        
-//        assert(soc.core.regs.xreg[1] == eth_addr);
-//        assert(soc.core.regs.xreg[2] == 'h0242fd4152a1);
-//        assert(soc.core.regs.xreg[3] == 'h6d169d272206);
-//        assert(soc.core.regs.xreg[4] == 'h0);
-//        assert(soc.core.regs.xreg[5] == 'h0);
-//        assert(soc.core.regs.xreg[6] == 'h0242fd4152a1);
-//        assert(soc.core.regs.xreg[7] == 'h6d169d272206);
+        assert(soc.core.regs.xreg[1] == eth_addr);
+        assert(soc.core.regs.xreg[2] == 'h0242fd4152a1);
+        assert(soc.core.regs.xreg[3] == 'h6d169d272206);
+        assert(soc.core.regs.xreg[4] == 'h0);
+        assert(soc.core.regs.xreg[5] == 'h0);
+        assert(soc.core.regs.xreg[6] == 'h0242fd4152a1);
+        assert(soc.core.regs.xreg[7] == 'h6d169d272206);
 
-//        axi4_read_expect_data(.addr(eth_addr), .data('h0242fd4152a1));
-//        axi4_read_expect_data(.addr(eth_addr+8), .data('h6d169d272206));
+        axi4_read_expect_data(.addr(eth_addr), .data('h0242fd4152a1));
+        axi4_read_expect_data(.addr(eth_addr+8), .data('h6d169d272206));
         $finish();
     end
 endmodule
