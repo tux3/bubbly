@@ -1,5 +1,5 @@
-use crate::socket::send_pong;
-use crate::{log_msg_udp, IcmpSocket, IcmpType, ReadableSocket};
+use crate::log_msg_udp;
+use crate::socket::{send_pong, IcmpSocket, IcmpType, ReadableSocket};
 
 pub fn handle_ping(sock: &mut IcmpSocket) {
     let payload = match sock.peek_recv_buf() {

@@ -1,7 +1,7 @@
 use crate::ethernet_mmio::*;
-use crate::iface::SocketToken;
+use crate::iface::{MmioInterface, SocketToken};
+use crate::log_msg_udp;
 use crate::socket::{send_udp, Socket, UdpSocket};
-use crate::{log_msg_udp, MmioInterface};
 use riscv::register::mcycle;
 
 const DHCP_MAGIC: [u8; 4] = [0x63, 0x82, 0x53, 0x63];

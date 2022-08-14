@@ -1,7 +1,7 @@
 use crate::ethernet_mmio::eth_mmio_set_tx_src_mac;
-use crate::leds::{toggle_led, LED};
+use crate::leds::{set_led, toggle_led, LED};
 use crate::mtime::{msecs_to_mtime, read_mtime, write_mtime, write_mtimecmp};
-use crate::{log_msg_udp, main, netboot, set_led, SRAM_BASE, SRAM_SIZE};
+use crate::{log_msg_udp, main, netboot, SRAM_BASE, SRAM_SIZE};
 use core::hint::unreachable_unchecked;
 use core::sync::atomic::{AtomicBool, Ordering};
 use riscv::register::{self, mtvec::TrapMode};

@@ -1,5 +1,6 @@
 use crate::ethernet_mmio::eth_mmio_get_ip_dscp_ecn_src_ip;
-use crate::{log_msg_udp, send_udp, ReadableSocket};
+use crate::log_msg_udp;
+use crate::socket::{send_udp, ReadableSocket};
 
 macro_rules! LOCAL_DOMAIN {
     () => {

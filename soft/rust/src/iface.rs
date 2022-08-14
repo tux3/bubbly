@@ -1,9 +1,9 @@
 use crate::ethernet_mmio::{
     eth_mmio_get_tx_src_mac, ip_discard_recv_packet, ip_finish_recv_packet, ip_start_recv_packet,
 };
-use crate::socket::{ReadableSocket, Socket};
-use crate::start_and_traps::clear_pending_interrupts;
-use crate::{log_msg_udp, unmask_interrupts, IcmpSocket, UdpSocket, ETHERNET_RX_MASK};
+use crate::log_msg_udp;
+use crate::socket::{IcmpSocket, ReadableSocket, Socket, UdpSocket};
+use crate::start_and_traps::{clear_pending_interrupts, unmask_interrupts, ETHERNET_RX_MASK};
 use core::any::TypeId;
 use tinyvec::ArrayVec;
 
@@ -62,7 +62,7 @@ impl<'s, const NSOCKS: usize> MmioInterface<'s, NSOCKS> {
     // Returns true iff we did get a packet. Only gets one packet at a time.
     pub fn poll_wait(&mut self) -> bool {
         if self.poll() {
-            return true;
+            true
         } else {
             unsafe { riscv::asm::wfi() };
 

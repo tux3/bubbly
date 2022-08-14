@@ -1,7 +1,8 @@
 use crate::ethernet_mmio::eth_mmio_reset_state;
+use crate::leds::{set_led, LED};
 use crate::socket::{send_udp, ReadableSocket};
 use crate::start_and_traps::{clear_pending_interrupts, disable_interrupts, mask_interrupts};
-use crate::{log_msg_udp, set_led, LED, RX_BUF_SIZE, SRAM_BASE, SRAM_SIZE};
+use crate::{log_msg_udp, RX_BUF_SIZE, SRAM_BASE, SRAM_SIZE};
 use core::mem::transmute;
 use lzss::{Lzss, SliceReader, SliceWriter};
 use riscv::register;
