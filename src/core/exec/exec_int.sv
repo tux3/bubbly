@@ -154,6 +154,10 @@ always_ff @(posedge clk) begin
     end
 end
 
+generate if (`WITH_BITMANIP_ZBS && `XLEN != 64)
+    $error("Bitmanip Zbs is only implemented for RV64");
+endgenerate
+
 always_ff @(posedge clk) begin
     exec_int_exception <= '0;
     exec_int_trap_cause <= 'x;
@@ -172,10 +176,18 @@ always_ff @(posedge clk) begin
                 3'b000: begin // ADDI
                     exec_int_result <= $signed(rs1_data) + $signed(i_imm);
                 end
-                3'b001: begin // SLLI
-                    exec_int_exception <= i_imm[31:26] != '0;
-                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-                    exec_int_result <= rs1_data << i_imm[25:20];
+                3'b001: begin
+                    if (`WITH_BITMANIP_ZBS && funct7[6:1] == 'b001010) begin // BSETI
+                        exec_int_result <= rs1_data | (64'b1 << i_imm[25:20]);
+                    end else if (`WITH_BITMANIP_ZBS && funct7[6:1] == 'b010010) begin // BCLRI
+                        exec_int_result <= rs1_data & ~(64'b1 << i_imm[25:20]);
+                    end else if (`WITH_BITMANIP_ZBS && funct7[6:1] == 'b011010) begin // BINVI
+                        exec_int_result <= rs1_data ^ (64'b1 << i_imm[25:20]);
+                    end else begin // SLLI
+                        exec_int_exception <= i_imm[31:26] != '0;
+                        exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                        exec_int_result <= rs1_data << i_imm[25:20];
+                    end
                 end
                 3'b010: begin // SLTI
                     exec_int_result <= $signed(rs1_data) < $signed(i_imm);
@@ -187,9 +199,13 @@ always_ff @(posedge clk) begin
                     exec_int_result <= $signed(rs1_data) ^ $signed(i_imm);
                 end
                 3'b101: begin // SRLI/SRAI
-                    exec_int_exception <= i_imm[31] != 1'b0 || i_imm[29:26] != 4'b0000;
-                    exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-                    exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> i_imm[25:20];
+                    if (`WITH_BITMANIP_ZBS && funct7[6:1] == 'b010010) begin // BEXTI
+                        exec_int_result <= rs1_data[i_imm[25:20]];
+                    end else begin
+                        exec_int_exception <= i_imm[31] != 1'b0 || i_imm[29:26] != 4'b0000;
+                        exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                        exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> i_imm[25:20];
+                    end
                 end
                 3'b110: begin // ORI
                     exec_int_result <= $signed(rs1_data) | $signed(i_imm);
@@ -222,37 +238,51 @@ always_ff @(posedge clk) begin
                     exec_int_result <= 'x;
                 end
             endcase
-        end else if (opcode == opcodes::OP && funct7 == 1) begin
-            exec_int_result <= 'x; // MULDIV result set later
-        end else if (opcode == opcodes::OP && funct7[4:0] == '0) begin
-            // NOTE: $signed() is okay because:
-            //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
-            unique case (funct3)
-                3'b000: begin // ADD/SUB
-                    exec_int_result <= $signed(rs1_data) + (i_imm[30] ? -$signed(rs2_data) : $signed(rs2_data));
-                end
-                3'b001: begin // SLL
-                    exec_int_result <= rs1_data << rs2_data[$clog2(`XLEN)-1:0];
-                end
-                3'b010: begin // SLT
-                    exec_int_result <= $signed(rs1_data) < $signed(rs2_data);
-                end
-                3'b011: begin // SLTU
-                    exec_int_result <= rs1_data < rs2_data;
-                end
-                3'b100: begin // XOR
-                    exec_int_result <= $signed(rs1_data) ^ $signed(rs2_data);
-                end
-                3'b101: begin // SRL/SRA
-                    exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> rs2_data[$clog2(`XLEN)-1:0];
-                end
-                3'b110: begin // OR
-                    exec_int_result <= $signed(rs1_data) | $signed(rs2_data);
-                end
-                3'b111: begin // AND
-                    exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
-                end
-            endcase
+        end else if (opcode == opcodes::OP) begin
+            if (`WITH_BITMANIP_ZBS && funct7 == 'b0010100 && funct3 == 'b001) begin // BSET
+                exec_int_result <= rs1_data | (64'b1 << rs2_data[$clog2(`XLEN)-1:0]);
+            end else if (`WITH_BITMANIP_ZBS && funct7 == 'b0100100 && funct3 == 'b001) begin // BCLR
+                exec_int_result <= rs1_data & ~(64'b1 << rs2_data[$clog2(`XLEN)-1:0]);
+            end else if (`WITH_BITMANIP_ZBS && funct7 == 'b0100100 && funct3 == 'b101) begin // BEXT
+                exec_int_result <= rs1_data[rs2_data[$clog2(`XLEN)-1:0]];
+            end else if (`WITH_BITMANIP_ZBS && funct7 == 'b0110100 && funct3 == 'b001) begin // BINV
+                exec_int_result <= rs1_data ^ (64'b1 << rs2_data[$clog2(`XLEN)-1:0]);
+            end else if (funct7 == 1) begin
+                exec_int_result <= 'x; // MULDIV result set later
+            end else if (funct7[4:0] == '0) begin
+                // NOTE: $signed() is okay because:
+                //  - the result (unsigned), rs1 and rs2 are all the same size, so we don't require any implicit sign-extension
+                unique case (funct3)
+                    3'b000: begin // ADD/SUB
+                        exec_int_result <= $signed(rs1_data) + (i_imm[30] ? -$signed(rs2_data) : $signed(rs2_data));
+                    end
+                    3'b001: begin // SLL
+                        exec_int_result <= rs1_data << rs2_data[$clog2(`XLEN)-1:0];
+                    end
+                    3'b010: begin // SLT
+                        exec_int_result <= $signed(rs1_data) < $signed(rs2_data);
+                    end
+                    3'b011: begin // SLTU
+                        exec_int_result <= rs1_data < rs2_data;
+                    end
+                    3'b100: begin // XOR
+                        exec_int_result <= $signed(rs1_data) ^ $signed(rs2_data);
+                    end
+                    3'b101: begin // SRL/SRA
+                        exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[`XLEN-1] }}, rs1_data} >> rs2_data[$clog2(`XLEN)-1:0];
+                    end
+                    3'b110: begin // OR
+                        exec_int_result <= $signed(rs1_data) | $signed(rs2_data);
+                    end
+                    3'b111: begin // AND
+                        exec_int_result <= $signed(rs1_data) & $signed(rs2_data);
+                    end
+                endcase
+            end else begin
+                exec_int_exception <= '1;
+                exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
+                exec_int_result <= 'x;
+            end
         end else if (opcode == opcodes::OP_32 && funct7 == 1) begin
             exec_int_result <= 'x; // MULDIV result set later
         end else if (opcode == opcodes::OP_32 && funct7[4:0] == '0) begin
