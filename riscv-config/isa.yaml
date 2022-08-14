@@ -1,0 +1,88 @@
+hart_ids: [0]
+hart0:
+    ISA: RV64IMACZicsr_Zbb_Zbs
+    User_Spec_Version: '2.3'
+    pmp_granularity: 1
+    physical_addr_sz: 43
+    supported_xlen:
+      - 64
+    custom_interrupts:
+      - cause_val: 16
+        cause_name: eth_rx_interrupt
+        on_reset_enable: 0
+        priv_mode : M
+      - cause_val: 17
+        cause_name: platform_interrupt0
+        on_reset_enable: 0
+        priv_mode : M
+      - cause_val: 18
+        cause_name: platform_interrupt1
+        on_reset_enable: 0
+        priv_mode : M
+      - cause_val: 19
+        cause_name: platform_interrupt2
+        on_reset_enable: 0
+        priv_mode : M
+      - cause_val: 20
+        cause_name: platform_interrupt3
+        on_reset_enable: 0
+        priv_mode : M
+    mepc:
+        rv32:
+            accessible: false
+        rv64:
+            accessible: true
+            type:
+                warl:
+                    dependency_fields: []
+                    legal:
+                      - "mepc[63:0] bitmask [0xFFFFFFFFFFFFFFFE, 0x0000000000000000]"
+                    wr_illegal:
+                      - "Unchanged"
+        reset-val: 0
+    mtval:
+        rv32:
+            accessible: false
+        rv64:
+            accessible: true
+            type:
+                warl:
+                    dependency_fields: []
+                    legal:
+                      - mtval[63:0] in [0x0000000000000000:0xFFFFFFFFFFFFFFFF]
+                    wr_illegal:
+                      - Unchanged
+        reset-val: 0
+    mcause:
+        rv32:
+            accessible: false
+        rv64:
+            accessible: true
+        reset-val: 0
+    mcycle:
+        rv32:
+            accessible: false
+        rv64:
+            accessible: true
+            type: 
+                warl:
+                    dependency_fields: []
+                    legal:
+                      - mcycle[63:0] in [0x0000000000000000:0xFFFFFFFFFFFFFFFF]
+                    wr_illegal:
+                      - Unchanged
+        reset-val: 0
+    minstret:
+        rv32:
+            accessible: false
+        rv64:
+            accessible: true
+            type: 
+                warl:
+                    dependency_fields: []
+                    legal:
+                      - minstret[63:0] in [0x0000000000000000:0xFFFFFFFFFFFFFFFF]
+                    wr_illegal:
+                      - Unchanged
+        reset-val: 0
+
