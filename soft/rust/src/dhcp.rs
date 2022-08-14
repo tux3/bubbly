@@ -331,7 +331,7 @@ pub fn get_ethernet_dhcp_lease<'b>(
 }
 
 pub fn configure_dhcp() {
-    let mut dhcp_rx_buf = [0u8; 500];
+    let mut dhcp_rx_buf = [0u8; 1024];
     let mut iface = MmioInterface::new();
 
     if let Ok(lease) = get_ethernet_dhcp_lease(&mut iface, &mut dhcp_rx_buf) {
