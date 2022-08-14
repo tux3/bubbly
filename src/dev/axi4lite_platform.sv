@@ -105,6 +105,7 @@ module axi4lite_platform #(
             wdata <= 'x;
             wstrb <= 'x;
 
+            outputs_reg <= '0;
             mtime <= '0;
             mtimecmp <= '0;
         end else begin
