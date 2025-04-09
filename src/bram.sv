@@ -13,6 +13,10 @@ module bram_block #(
 );
     logic [data_width-1:0] mem [(1<<addr_width)-1:0];
 
+	// FIXME: We can't have another driver for an always_ff value...
+	// Really I shouldn't be using this bram_block thing,
+	// I should just instantiate a memory directly
+	// And for caches specifically, I need the valid bits in FFs, so I can clear them on reset
     `ifndef SYNTHESIS
     initial begin
         for (int i = 0; i<(1<<data_width); i = i+1)
@@ -36,14 +40,14 @@ module bram_block #(
             always_ff @(posedge clk)
                 conflict <= write_enable && raddr == waddr;
 
-            always_ff @(posedge clk)
+            always @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end else begin
             always_ff @(posedge clk)
                 rdata <= mem[raddr];
 
-            always_ff @(posedge clk)
+            always @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end
