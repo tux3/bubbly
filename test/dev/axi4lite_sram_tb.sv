@@ -274,6 +274,7 @@ module axi4lite_sram_tb;
 
         start_async_read_no_rready(.addr(addr));
 
+        #0.1; // If the write side is updating shadow_buf, we read-after-write
         expected_data = shadow_buf[addr*8 +: 64];
 
         while (!(bus.rvalid && bus.rready))
@@ -413,6 +414,7 @@ module axi4lite_sram_tb;
 
                 start_async_read_no_rready(.addr(raddr));
 
+                #0.1; // If the write side is updating shadow_buf, we read-after-write
                 expected_read_addrs.push_back(raddr);
                 expected_read_values.push_back(shadow_buf[raddr*8 +: 64]);
             end
