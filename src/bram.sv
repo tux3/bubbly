@@ -36,14 +36,14 @@ module bram_block #(
             always_ff @(posedge clk)
                 conflict <= write_enable && raddr == waddr;
 
-            always_ff @(posedge clk)
+            always @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end else begin
             always_ff @(posedge clk)
                 rdata <= mem[raddr];
 
-            always_ff @(posedge clk)
+            always @(posedge clk)
                 if (write_enable)
                     mem[waddr] <= wdata;
         end
