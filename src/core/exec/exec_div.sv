@@ -3,7 +3,7 @@
 `define EXEC_DIV_LOG2_CASE(N) else if (n[`XLEN-1:N] == 1'b1) exec_div_log2 = N+1
 
 function [$clog2(`XLEN):0] exec_div_log2(input [`XLEN-1:0] n);
-    unique if ('0) begin end
+    unique0 if ('0) begin end
     `EXEC_DIV_LOG2_CASE(63); `EXEC_DIV_LOG2_CASE(62); `EXEC_DIV_LOG2_CASE(61); `EXEC_DIV_LOG2_CASE(60);
     `EXEC_DIV_LOG2_CASE(59); `EXEC_DIV_LOG2_CASE(58); `EXEC_DIV_LOG2_CASE(57); `EXEC_DIV_LOG2_CASE(56);
     `EXEC_DIV_LOG2_CASE(55); `EXEC_DIV_LOG2_CASE(54); `EXEC_DIV_LOG2_CASE(53); `EXEC_DIV_LOG2_CASE(52);
