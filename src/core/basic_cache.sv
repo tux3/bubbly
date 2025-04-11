@@ -38,7 +38,6 @@ generate
 		$error("basic_cache's entry_size is inconsistent with other params");
 endgenerate
 
-wire [basic_cache_params::bram_blocks-1:0] write_mask = {basic_cache_params::bram_blocks{write_enable}};
 logic [basic_cache_params::bram_addr_width-1:0] line_waddr;
 logic [basic_cache_params::entry_size-1:0] line_wdata;
 logic [basic_cache_params::bram_addr_width-1:0] line_raddr;
@@ -57,7 +56,7 @@ always_comb begin: bram_io
 	line_raddr = raddr[0 +: basic_cache_params::bram_addr_width];
 end
 
-logic [basic_cache_params::entry_size-1:0] mem [(1<<basic_cache_params::bram_addr_width-1):0];
+logic [basic_cache_params::entry_size-1:0] mem [(1<<basic_cache_params::bram_addr_width)-1:0];
 
 generate
 if (CHECK_TAG_EARLY) begin
