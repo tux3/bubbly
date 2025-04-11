@@ -4,7 +4,8 @@
 module basic_soc#(
     parameter RESET_PC = `RESET_PC,
     parameter GPIO_OUTPUTS = 4,
-    parameter SRAM_SIZE_KB = 8
+    parameter SRAM_SIZE_KB = 8,
+    parameter SRAM_INIT_FILE = ""
 ) (
     input clk,
     input rst,
@@ -128,7 +129,8 @@ assign sram_axi.aclk = clk;
 assign sram_axi.aresetn = !rst;
 axi4lite_sram #(
     .ADDR_MASK({4'b0000, {(`ALEN-4){1'b1}}}),
-    .SIZE_KB(SRAM_SIZE_KB)
+    .SIZE_KB(SRAM_SIZE_KB),
+    .MEM_INIT_FILE(SRAM_INIT_FILE)
 ) axi4lite_sram (
     .bus(sram_axi)
 );

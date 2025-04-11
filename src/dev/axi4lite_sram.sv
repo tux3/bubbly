@@ -3,7 +3,8 @@
 
 module axi4lite_sram #(
     parameter SIZE_KB = 4,
-    parameter ADDR_MASK = {`ALEN{1'b1}}
+    parameter ADDR_MASK = {`ALEN{1'b1}},
+    parameter string MEM_INIT_FILE = ""
 ) (
     axi4lite.slave bus
 );
@@ -26,8 +27,18 @@ logic [data_width-1:0] mem [mem_num_entries-1:0];
 
 `ifndef SYNTHESIS
 initial begin
-    for (int i = 0; i<mem_num_entries; i = i+1)
-        mem[i] = '0;
+    if (MEM_INIT_FILE != "") begin
+        automatic int mem_init_bytes_read;
+        automatic int init_fd = $fopen(MEM_INIT_FILE, "rb");  // Open in binary read mode
+        if (init_fd == 0) begin
+            $fatal("Failed to open axi4lite SRAM memory init file.");
+        end
+        mem_init_bytes_read = $fread(mem, init_fd);
+        $fclose(init_fd);
+    end else begin
+        for (int i = 0; i<mem_num_entries; i = i+1)
+            mem[i] = '0;
+    end
 end
 `endif
 
@@ -200,28 +211,29 @@ generate
         reg [data_width-1:0] written_data;
         reg [data_width-1:0] rdata_reg;
         assign rdata = rw_conflict ? written_data : rdata_reg;
-        always_ff @(posedge bus.aclk)
-            rdata_reg <= mem[mem_read_index];
-
+        
         always_ff @(posedge bus.aclk)
             rw_conflict <= write_enable && mem_read_index == mem_write_index;
 
         for (i=0; i<data_width/8; i=i+1) begin
+            always_ff @(posedge bus.aclk)
+                rdata_reg[i * 8 +: 8] <= mem[mem_read_index][(7-i) * 8 +: 8];
+        
             always @(posedge bus.aclk) begin
                 if (write_enable && wstrb[i]) begin
-                    mem[mem_write_index][i * 8 +: 8] <= wdata[i * 8 +: 8];
+                    mem[mem_write_index][(7-i) * 8 +: 8] <= wdata[i * 8 +: 8];
                     written_data[i * 8 +: 8] <= wdata[i * 8 +: 8];
                 end
             end
         end
     end else begin
-        always_ff @(posedge bus.aclk)
-            rdata <= mem[mem_read_index];
-
         for (i=0; i<data_width/8; i=i+1) begin
+            always_ff @(posedge bus.aclk)
+                rdata[i * 8 +: 8] <= mem[mem_read_index][(7-i) * 8 +: 8];
+            
             always @(posedge bus.aclk)
                 if (write_enable && wstrb[i])
-                    mem[mem_write_index][i * 8 +: 8] <= wdata[i * 8 +: 8];
+                    mem[mem_write_index][(7-i) * 8 +: 8] <= wdata[i * 8 +: 8];
         end
     end
 endgenerate
