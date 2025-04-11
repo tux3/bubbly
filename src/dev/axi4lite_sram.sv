@@ -10,29 +10,26 @@ module axi4lite_sram #(
 
 // Note: We don't support misaligned read/writes. We could, but instead let's let the busmasters take care of it for all the devices.
 
-// Each BRAM block is 512B and 8-bit wide (on iCE40), we need 64bit wide ports
 localparam data_width = 64;
-localparam bram_block_size_bits = 4096; // iCE40 BRAM
-localparam bram_block_data_width = 8;
-localparam bram_block_addr_width = $clog2(bram_block_size_bits / bram_block_data_width);
-localparam bram_addr_width = bram_block_addr_width;
-localparam per_bram_blocks = data_width / bram_block_data_width;
-localparam per_bram_bits = per_bram_blocks * bram_block_size_bits;
-localparam per_bram_full_addr_width = $clog2(per_bram_bits / 8);
-localparam total_bram_count = SIZE_KB*1024*8 / per_bram_bits;
+localparam mem_num_entries = (SIZE_KB * 1024) / (data_width/8);
+localparam mem_addr_width = $clog2(SIZE_KB * 1024) - $clog2(data_width/8);
+localparam read_after_write = 1;
 
 generate
-	if ((SIZE_KB * 1024 * 8) % per_bram_bits != 0)
-		$error("SRAM size must be a multiple of per_bram_bits");
-    if (`ALEN < per_bram_full_addr_width + $clog2(total_bram_count))
+    if (`ALEN < mem_addr_width)
         $error("`ALEN too small for a SIZE_KB SRAM");
-    if (bram_addr_width != per_bram_full_addr_width-$clog2(data_width/8))
-        $error("Inconsistent BRAM addr width");
-    if (bram_block_data_width != 8)
-        $error("AXI4 write strobes (per-byte) won't work with BRAM block size != 8");
+    if (data_width != 64)
+        $error("Data width not fully parametrized. It must also match the AXI4 data width.");
 endgenerate
 
-wire [data_width-1:0] bram_rdata [total_bram_count-1:0];
+logic [data_width-1:0] mem [mem_num_entries-1:0];
+
+`ifndef SYNTHESIS
+initial begin
+    for (int i = 0; i<mem_num_entries; i = i+1)
+        mem[i] = '0;
+end
+`endif
 
 wire clk = bus.aclk;
 wire rst = !bus.aresetn;
@@ -42,20 +39,19 @@ reg [`ALEN-1:0] raddr_buf;
 wire [`ALEN-1:0] bus_araddr_masked = bus.araddr & ADDR_MASK;
 wire [`ALEN-1:0] raddr = ((bus.arvalid && bus.arready) ? bus_araddr_masked : raddr_buf);
 
-wire [(`ALEN-per_bram_full_addr_width)-1:0] bram_read_index = raddr[`ALEN-1:per_bram_full_addr_width];
-wire [(`ALEN-per_bram_full_addr_width)-1:0] bram_buf_read_index = raddr_buf[`ALEN-1:per_bram_full_addr_width];
-wire [bram_addr_width-1:0] bram_read_addr = bus_araddr_masked[per_bram_full_addr_width-1:$clog2(data_width/8)];
+wire [(`ALEN-$clog2(data_width/8))-1:0] mem_read_index = raddr[`ALEN-1:$clog2(data_width/8)];
+wire [(`ALEN-$clog2(data_width/8))-1:0] mem_buf_read_index = raddr_buf[`ALEN-1:$clog2(data_width/8)];
 
 reg rdata_available;
 reg [data_width-1:0] rdata_buf;
 reg [data_width-1:0] rdata_pending_buf;
-wire [data_width-1:0] rdata = bram_rdata[bram_buf_read_index];
-wire invalid_read_index = bram_read_index >= total_bram_count;
+logic [data_width-1:0] rdata;
+wire invalid_read_index = mem_read_index >= mem_num_entries;
 wire misaligned_read = |raddr[0 +: $clog2(data_width/8)];
 
 assign bus.arready = !read_pending;
 
-// Note: The BRAM output is registered, so this is comb
+// Note: The bram output is registered, so this is comb
 always_comb begin
     if (read_pending)
         bus.rdata = rdata_pending_buf;
@@ -123,17 +119,16 @@ logic wpending;
 wire awhandshaked = (bus.awvalid && bus.awready) || awpending;
 wire whandshaked = (bus.wvalid && bus.wready) || wpending;
 
-reg [`ALEN-per_bram_full_addr_width-1:0] waddr_buf;
+reg [(`ALEN-$clog2(data_width/8))-1:0] waddr_buf;
 reg [data_width-1:0] wdata_buf;
 reg [data_width/8-1:0] wstrb_buf;
-wire [`ALEN-per_bram_full_addr_width-1:0] waddr = (awpending ? waddr_buf : bus.awaddr) & ADDR_MASK;
+wire [`ALEN-1:0] waddr = (awpending ? waddr_buf : bus.awaddr) & ADDR_MASK;
 wire [data_width-1:0] wdata = wpending ? wdata_buf : bus.wdata;
 wire [data_width/8-1:0] wstrb = wpending ? wstrb_buf : bus.wstrb;
 
-wire [(`ALEN-per_bram_full_addr_width)-1:0] bram_write_index = waddr[`ALEN-per_bram_full_addr_width-1:per_bram_full_addr_width];
-wire [bram_addr_width-1:0] bram_write_addr = waddr[per_bram_full_addr_width-1:$clog2(data_width/8)];
+wire [(`ALEN-$clog2(data_width/8))-1:0] mem_write_index = waddr[`ALEN-1:$clog2(data_width/8)];
 
-wire invalid_write_index = bram_write_index >= total_bram_count;
+wire invalid_write_index = mem_write_index >= mem_num_entries;
 wire misaligned_write = |waddr[0 +: $clog2(data_width/8)];
 wire write_error = invalid_write_index || misaligned_write;
 
@@ -199,21 +194,36 @@ always_ff @(posedge clk) begin
 end
 
 genvar i;
-generate for (i=0; i<total_bram_count; i=i+1) begin
-    bram #(
-        .read_after_write(1),
-        .blocks(per_bram_blocks),
-        .block_addr_width(bram_block_addr_width),
-        .block_data_width(bram_block_data_width)
-    ) bram_slice (
-        .clk(bus.aclk),
-    	.write_mask(wstrb & {per_bram_blocks{write_enable && bram_write_index == i}}),
-        .waddr(bram_write_addr),
-        .raddr(bram_read_addr),
-        .wdata(wdata),
-        .rdata(bram_rdata[i])
-    );
-end
+generate
+    if (read_after_write) begin
+        reg rw_conflict;
+        reg [data_width-1:0] written_data;
+        reg [data_width-1:0] rdata_reg;
+        assign rdata = rw_conflict ? written_data : rdata_reg;
+        always_ff @(posedge bus.aclk)
+            rdata_reg <= mem[mem_read_index];
+
+        always_ff @(posedge bus.aclk)
+            rw_conflict <= write_enable && mem_read_index == mem_write_index;
+
+        for (i=0; i<data_width/8; i=i+1) begin
+            always @(posedge bus.aclk) begin
+                if (write_enable && wstrb[i]) begin
+                    mem[mem_write_index][i * 8 +: 8] <= wdata[i * 8 +: 8];
+                    written_data[i * 8 +: 8] <= wdata[i * 8 +: 8];
+                end
+            end
+        end
+    end else begin
+        always_ff @(posedge bus.aclk)
+            rdata <= mem[mem_read_index];
+
+        for (i=0; i<data_width/8; i=i+1) begin
+            always @(posedge bus.aclk)
+                if (write_enable && wstrb[i])
+                    mem[mem_write_index][i * 8 +: 8] <= wdata[i * 8 +: 8];
+        end
+    end
 endgenerate
 
 `ifndef SYNTHESIS
