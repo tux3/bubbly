@@ -294,7 +294,10 @@ always_ff @(posedge clk) begin
                     end else begin  // SRLIW/SRAIW
                         exec_int_exception <= i_imm[31] != 1'b0 || i_imm[29:25] != 5'b00000;
                         exec_int_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
-                        exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> i_imm[24:20];
+                        // This is subtle: The W shifts are defined to always sign-extend the 32-bit result to 64-bit
+                        // But SRLIW still doesn't propagate the sign bit when shifting right.
+                        // So there is a special case _only_ when SRLIW shifting a signed value by zero.
+                        exec_int_result <= signed'(32'( {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> i_imm[24:20] ));
                     end
                 end
                 default: begin
@@ -418,7 +421,10 @@ always_ff @(posedge clk) begin
                         exec_int_result <= $signed({ rs1_data[31:0] << rs2_data[4:0] });
                     end
                     3'b101: begin // SRLW/SRAW
-                        exec_int_result <= {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> rs2_data[4:0];
+                        // This is subtle: The W shifts are defined to always sign-extend the 32-bit result to 64-bit
+                        // But SRLW still doesn't propagate the sign bit when shifting right.
+                        // So there is a special case _only_ when SRLW shifting a signed value by zero.
+                        exec_int_result <= signed'(32'( {{`XLEN{ i_imm[30] & rs1_data[31] }}, rs1_data[31:0]} >> rs2_data[4:0] ));
                     end
                     default: begin
                         exec_int_exception <= '1;
