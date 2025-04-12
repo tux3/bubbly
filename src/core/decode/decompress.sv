@@ -189,7 +189,7 @@ always_comb begin
                 expanded = {12'b0000_0000_0001, 5'b00000, 3'b000, 5'b00000, opcodes::SYSTEM, 2'b11};
             end else if (c_instr[12] == 1 && rd_rs1 != '0 && rs2 == '0) begin // JALR
                 expanded = {12'b0000_0000_0000, rd_rs1, 3'b000, 5'b00001, opcodes::JALR, 2'b11};
-            end else if (c_instr[12] == 1 && rd_rs1 != '0 && rs2 != '0) begin // ADD
+            end else if (c_instr[12] == 1 && rs2 != '0) begin // ADD (HINT if rd_rs1 == 0)
                 expanded = {7'b0000000, rs2, rd_rs1, 3'b000, rd_rs1, opcodes::OP, 2'b11};
             end else begin
                 expanded = 'x;
