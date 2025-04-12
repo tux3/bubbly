@@ -134,6 +134,8 @@ always_comb begin
         trap_mtval = '0;
     end else if (exec_trap_cause == trap_causes::EXC_INSTR_ADDR_MISALIGNED) begin
         trap_mtval = exec_branch_target;
+    end else if (exec_trap_cause == trap_causes::EXC_BREAKPOINT) begin
+        trap_mtval = trap_mepc;
     end else if (exec_trap_cause == trap_causes::EXC_INSTR_ACCESS_FAULT
                 || exec_trap_cause == trap_causes::EXC_INSTR_PAGE_FAULT) begin
         trap_mtval = exec_trap_instr_addr;

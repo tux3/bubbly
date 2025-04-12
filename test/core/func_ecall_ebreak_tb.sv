@@ -73,7 +73,7 @@ module func_ecall_ebreak_tb;
 
         assert($signed(soc.core.regs.xreg[1]) == trap_causes::EXC_ENV_CALL_MMODE);
         assert($signed(soc.core.regs.xreg[2]) == trap_causes::EXC_BREAKPOINT);
-        assert($signed(soc.core.regs.xreg[3]) == '0);
+        assert($signed(soc.core.regs.xreg[3]) == 'h1C);
         assert($signed(soc.core.regs.xreg[4]) == 'h1C);
         assert($signed(soc.core.regs.xreg[30]) == 1);
         assert($signed(soc.core.regs.xreg[31]) == 1);
