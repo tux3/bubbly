@@ -39,8 +39,8 @@ module decode_explode(
     // Note: decode_rsX_data don't check the exec comb bypass (they're 1 cycle late), and may be invalid as a result
     output logic [`XLEN-1:0] decode_rs1_data,
     output logic [`XLEN-1:0] decode_rs2_data,
-    output logic rs1_mul_sign,
-    output logic rs2_mul_sign,
+    output logic rs1_mul_signed,
+    output logic rs2_mul_signed,
     output logic [6:0] funct7,
     output logic [31:20] i_imm,
     output logic [11:0] s_imm,
@@ -154,8 +154,8 @@ module decode_explode_impl(
     output reg [4:0] rs2,
     output reg [`XLEN-1:0] decode_rs1_data,
     output reg [`XLEN-1:0] decode_rs2_data,
-    output reg rs1_mul_sign,
-    output reg rs2_mul_sign,
+    output reg rs1_mul_signed,
+    output reg rs2_mul_signed,
     output reg [6:0] funct7,
     output reg [31:20] i_imm,
     output reg [11:0] s_imm,
@@ -174,6 +174,8 @@ always_comb begin
     decode_reg_read2_sel = rs2_comb;
 end
 
+// Careful with these, exec can bypass the decode rsX value at the last moment
+// We can't use these to compute other bits, exec would have to recompute them on bypass
 logic [`XLEN-1:0] decode_rs1_data_comb;
 logic [`XLEN-1:0] decode_rs2_data_comb;
 
@@ -220,8 +222,8 @@ always @(posedge clk) begin
     decode_rs1_data <= decode_rs1_data_comb;
     decode_rs2_data <= decode_rs2_data_comb;
 
-    rs1_mul_sign <= funct3_comb[1:0] == 'b11 ? '0 : decode_rs1_data_comb[`XLEN-1];
-    rs2_mul_sign <= funct3_comb[1] ? '0 : decode_rs2_data_comb[`XLEN-1];
+    rs1_mul_signed <= funct3_comb[1:0] != 'b11;
+    rs2_mul_signed <= funct3_comb[1] == 0;
 end
 
 always @(posedge clk) begin

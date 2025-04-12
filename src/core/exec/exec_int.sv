@@ -11,8 +11,8 @@ module exec_int(
     input [4:0] rs2,
     input [`XLEN-1:0] rs1_data,
     input [`XLEN-1:0] rs2_data,
-    input rs1_mul_sign,
-    input rs2_mul_sign,
+    input rs1_mul_signed,
+    input rs2_mul_signed,
     input [6:0] funct7,
     input [31:20] i_imm,
     input [31:12] u_imm,
@@ -138,8 +138,8 @@ always_ff @(posedge clk) begin
         mul_result_rr <= 'x;
     end else if (input_valid && input_is_int) begin
         if (is_muldiv) begin
-            mul_result_high <= (rs1_mul_sign ? ({ -rs2_data }) : '0)
-                              + (rs2_mul_sign ? ({ -rs1_data }) : '0);
+            mul_result_high <= ((rs1_mul_signed & rs1_data[`XLEN-1]) ? -rs2_data : 64'b0)
+                              + ((rs2_mul_signed & rs2_data[`XLEN-1]) ? -rs1_data : 64'b0);
             mul_result_ll <= rs1_data[63:32] * rs2_data[63:32];
             mul_result_lr <= rs1_data[63:32] * rs2_data[31:0];
             mul_result_rl <= rs1_data[31:0] * rs2_data[63:32];

@@ -84,8 +84,8 @@ module decode(
     // Note: decode_rsX_data don't check the exec comb bypass (they're 1 cycle late), and may be invalid as a result
     output logic [`XLEN-1:0] decode_rs1_data,
     output logic [`XLEN-1:0] decode_rs2_data,
-    output logic rs1_mul_sign,
-    output logic rs2_mul_sign,
+    output logic rs1_mul_signed,
+    output logic rs2_mul_signed,
     output logic [6:0] funct7,
     output logic [31:20] i_imm,
     output logic [11:0] s_imm,
