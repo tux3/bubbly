@@ -143,24 +143,50 @@ always_ff @(posedge clk) begin
         amo_op_store_data <= 'x;
     end else if (input_valid && input_is_mem) begin
         amo_op_reg <= is_amo && amo_is_op ? funct7[6:2] : 'x;
-        amo_op_store_data <= is_amo && amo_is_op ? rs2_data : 'x;
+        // On RV64, we always ignore the high bits of rs2 for word-sized AMO ops
+        if (is_amo && amo_is_op)
+            amo_op_store_data <= access_size_comb == SIZE_WORD ? {32'bx , rs2_data[31:0]} : rs2_data;
+        else
+            amo_op_store_data <= 'x;
     end else if (waiting_amo_op_load && !lsu_stall_next) begin
-        unique case (amo_op_reg)
-            'b00001: amo_op_store_data <= amo_op_store_data; // AMOSWAP
-            'b00000: amo_op_store_data <= amo_op_store_data + loaded_data; // AMOADD
-            'b00100: amo_op_store_data <= amo_op_store_data ^ loaded_data; // AMOXOR
-            'b01100: amo_op_store_data <= amo_op_store_data & loaded_data; // AMOAND
-            'b01000: amo_op_store_data <= amo_op_store_data | loaded_data; // AMOOR
-            'b10000: amo_op_store_data <= ($signed(amo_op_store_data) < $signed(loaded_data))
-                                        ? amo_op_store_data : loaded_data; // AMOMIN
-            'b10100: amo_op_store_data <= ($signed(amo_op_store_data) > $signed(loaded_data))
-                                        ? amo_op_store_data : loaded_data; // AMOMAX
-            'b11000: amo_op_store_data <= amo_op_store_data < loaded_data
-                                        ? amo_op_store_data : loaded_data; // AMOMINU
-            'b11100: amo_op_store_data <= amo_op_store_data > loaded_data
-                                        ? amo_op_store_data : loaded_data; // AMOMAXU
-            default: amo_op_store_data <= 'x;
-        endcase
+        if (access_size == SIZE_WORD) begin
+            amo_op_store_data[`XLEN-1:32] <= 'x;
+            unique case (amo_op_reg)
+                'b00001: amo_op_store_data[31:0] <= amo_op_store_data[31:0]; // AMOSWAP.W
+                'b00000: amo_op_store_data[31:0] <= amo_op_store_data[31:0] + loaded_uword; // AMOADD.W
+                'b00100: amo_op_store_data[31:0] <= amo_op_store_data[31:0] ^ loaded_uword; // AMOXOR.W
+                'b01100: amo_op_store_data[31:0] <= amo_op_store_data[31:0] & loaded_uword; // AMOAND.W
+                'b01000: amo_op_store_data[31:0] <= amo_op_store_data[31:0] | loaded_uword; // AMOOR.W
+                'b10000: amo_op_store_data[31:0] <= ($signed(amo_op_store_data[31:0]) < $signed(loaded_uword))
+                                                    ? amo_op_store_data[31:0] : loaded_uword; // AMOMIN.W
+                'b10100: amo_op_store_data[31:0] <= ($signed(amo_op_store_data[31:0]) > $signed(loaded_uword))
+                                                    ? amo_op_store_data[31:0] : loaded_uword; // AMOMAX.W
+                'b11000: amo_op_store_data[31:0] <= amo_op_store_data[31:0] < loaded_uword
+                                                    ? amo_op_store_data[31:0] : loaded_uword; // AMOMINU.W
+                'b11100: amo_op_store_data[31:0] <= amo_op_store_data[31:0] > loaded_uword
+                                                    ? amo_op_store_data[31:0] : loaded_uword; // AMOMAXU.W
+                default: amo_op_store_data[31:0] <= 'x;
+            endcase
+        end else if (access_size == SIZE_DWORD) begin
+            unique case (amo_op_reg)
+                'b00001: amo_op_store_data <= amo_op_store_data; // AMOSWAP
+                'b00000: amo_op_store_data <= amo_op_store_data + lsu_load_data; // AMOADD
+                'b00100: amo_op_store_data <= amo_op_store_data ^ lsu_load_data; // AMOXOR
+                'b01100: amo_op_store_data <= amo_op_store_data & lsu_load_data; // AMOAND
+                'b01000: amo_op_store_data <= amo_op_store_data | lsu_load_data; // AMOOR
+                'b10000: amo_op_store_data <= ($signed(amo_op_store_data) < $signed(lsu_load_data))
+                                            ? amo_op_store_data : lsu_load_data; // AMOMIN
+                'b10100: amo_op_store_data <= ($signed(amo_op_store_data) > $signed(lsu_load_data))
+                                            ? amo_op_store_data : lsu_load_data; // AMOMAX
+                'b11000: amo_op_store_data <= amo_op_store_data < lsu_load_data
+                                            ? amo_op_store_data : lsu_load_data; // AMOMINU
+                'b11100: amo_op_store_data <= amo_op_store_data > lsu_load_data
+                                            ? amo_op_store_data : lsu_load_data; // AMOMAXU
+                default: amo_op_store_data <= 'x;
+            endcase
+        end else begin
+            amo_op_store_data <= 'x;
+        end
     end
 end
 
