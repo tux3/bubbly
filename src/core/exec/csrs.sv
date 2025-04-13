@@ -63,8 +63,8 @@ wire [`INTR_LEN-1:0] mip_ormask = {platform_ints_buf, 8'b0, mtime_int_buf, 7'b0}
 // The timer interrupt is special, because it clear itself via mtimecmp, not by writing mip
 wire [`INTR_LEN-1:0] mip_keepmask = {int_andmask[`INTR_LEN-1:8], mtime_int_buf, int_andmask[6:0]};
 
-//                                64             A C     I   M
-wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b10100000100010000000000000};
+//                                64             ABC     I   M
+wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b11100000100010000000000000};
 wire [CSR_SIZE_XLEN-1:0] mstatus_andmask = {
 //   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR   TW    TVM   MXR    SUM  MPRV
         1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,

@@ -19,6 +19,7 @@
 `define MARCHID 64'h0
 `define MIMPID 64'h0
 
+`define WITH_BITMANIP_ZBA 1
 `define WITH_BITMANIP_ZBB 1
 `define WITH_BITMANIP_ZBS 1
 

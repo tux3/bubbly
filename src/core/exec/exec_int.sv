@@ -263,7 +263,9 @@ always_ff @(posedge clk) begin
                     exec_int_result <= $signed({ $signed(rs1_data[31:0]) + $signed(i_imm) });
                 end
                 3'b001: begin
-                    if (`WITH_BITMANIP_ZBB && funct7 == 'b0110000 && rs2 == '0) begin // CLZW
+                    if (`WITH_BITMANIP_ZBA && funct7[6:1] == 'b000010) begin          // SLLI.UW
+                        exec_int_result <= {32'b0, rs1_data[31:0]} << i_imm[25:20];
+                    end else if (`WITH_BITMANIP_ZBB && funct7 == 'b0110000 && rs2 == '0) begin // CLZW
                         unique if (rs1_data[31:0] == '0)
                             exec_int_result <= 32;
                         `define X(N) else if (rs1_data[31 -: N] == 1) exec_int_result <= N-1;
@@ -307,7 +309,13 @@ always_ff @(posedge clk) begin
                 end
             endcase
         end else if (opcode == opcodes::OP) begin
-            if (`WITH_BITMANIP_ZBS && funct7 == 'b0010100 && funct3 == 'b001) begin // BSET
+            if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b010) begin          // SH1ADD
+                exec_int_result <= rs2_data + {rs1_data[`XLEN-2:0], 1'b0};
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b100) begin // SH2ADD
+                exec_int_result <= rs2_data + {rs1_data[`XLEN-3:0], 2'b00};
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b110) begin // SH3ADD
+                exec_int_result <= rs2_data + {rs1_data[`XLEN-4:0], 3'b000};
+            end else if (`WITH_BITMANIP_ZBS && funct7 == 'b0010100 && funct3 == 'b001) begin // BSET
                 exec_int_result <= rs1_data | (64'b1 << rs2_data[$clog2(`XLEN)-1:0]);
             end else if (`WITH_BITMANIP_ZBS && funct7 == 'b0100100 && funct3 == 'b001) begin // BCLR
                 exec_int_result <= rs1_data & ~(64'b1 << rs2_data[$clog2(`XLEN)-1:0]);
@@ -401,6 +409,14 @@ always_ff @(posedge clk) begin
         end else if (opcode == opcodes::OP_32) begin
             if (funct7 == 1) begin
                 exec_int_result <= 'x; // MULDIV result set later
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0000100 && funct3 == 'b000) begin // ADD.UW
+                exec_int_result <= rs2_data + {32'b0, rs1_data[31:0]};
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b010) begin // SH1ADD.UW
+                exec_int_result <= rs2_data + {31'b0, rs1_data[31:0], 1'b0};
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b100) begin // SH2ADD.UW
+                exec_int_result <= rs2_data + {30'b0, rs1_data[31:0], 2'b00};
+            end else if (`WITH_BITMANIP_ZBA && funct7 == 'b0010000 && funct3 == 'b110) begin // SH3ADD.UW
+                exec_int_result <= rs2_data + {29'b0, rs1_data[31:0], 3'b000};
             end else if (`WITH_BITMANIP_ZBB && funct7 == 'b0000100 && rs2 == '0 && funct3 == 'b100) begin // ZEXT.H
                 exec_int_result <= rs1_data[15:0];
             end else if (`WITH_BITMANIP_ZBB && funct7 == 'b0110000 && funct3 == 'b001) begin: rolw // ROLW

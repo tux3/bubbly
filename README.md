@@ -1,6 +1,6 @@
 ## Bubbly CPU
 
-This is a 64-bit RISC-V CPU. It supports the RV64IMACZicsr_Zbb_Zbs ISA and extensions. And yes... the pipeline is full of bubbles.  
+This is a 64-bit RISC-V CPU. It supports the RV64IMACBZicsr ISA and extensions. And yes... the pipeline is full of bubbles.  
 It passes the [RISC-V Architecture Tests](https://github.com/riscv-non-isa/riscv-arch-test), but most likely still contains bugs, it's just a hobby CPU!  
 
 The core has small data and instruction caches, and 43 usable physical address bits.  
