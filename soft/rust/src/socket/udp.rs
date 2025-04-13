@@ -72,7 +72,7 @@ impl<'b> UdpSocket<'b> {
         }
 
         // OK to split because we checked ip hdr len (enforced by hardware)
-        let (hdr_ports, _rest): (&[u8; 6], _) = payload_start.split_array_ref();
+        let (hdr_ports, _rest): (&[u8; 6], _) = payload_start.split_first_chunk().unwrap();
         let src_port = u16::from_be_bytes([hdr_ports[0], hdr_ports[1]]);
         let dst_port = u16::from_be_bytes([hdr_ports[2], hdr_ports[3]]);
         let udp_len = u16::from_be_bytes([hdr_ports[4], hdr_ports[5]]);
@@ -102,7 +102,7 @@ impl<'b> UdpSocket<'b> {
 }
 
 impl<'b> From<UdpSocket<'b>> for Socket<'b> {
-    fn from(s: UdpSocket<'b>) -> Socket {
+    fn from(s: UdpSocket<'b>) -> Socket<'b> {
         Socket::Udp(s)
     }
 }

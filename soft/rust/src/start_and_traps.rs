@@ -75,7 +75,7 @@ pub fn enable_interrupts() -> bool {
 #[naked]
 unsafe extern "C" fn trap_handler_asm() {
     unsafe {
-        core::arch::asm!(
+        core::arch::naked_asm!(
             "addi sp, sp, -128",
             "sd ra, 0(sp)",
             "sd t0, 8(sp)",
@@ -113,7 +113,6 @@ unsafe extern "C" fn trap_handler_asm() {
             "ld a7, 120(sp)",
             "addi sp, sp, 128",
             "mret",
-            options(noreturn)
         )
     };
 }

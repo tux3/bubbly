@@ -19,7 +19,7 @@ pub fn handle_request(sock: &mut dyn ReadableSocket) {
         sock.clear_recv_buf();
         return;
     }
-    let (hdr, mut qdata): (&[u8; 12], _) = payload.split_array_ref();
+    let (hdr, mut qdata): (&[u8; 12], _) = payload.split_first_chunk().unwrap();
     let ident = u16::from_be_bytes([hdr[0], hdr[1]]);
     let flags = u16::from_be_bytes([hdr[2], hdr[3]]);
     // Ignore recursion desired and reserved fields

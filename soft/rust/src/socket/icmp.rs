@@ -53,7 +53,7 @@ impl<'b> IcmpSocket<'b> {
         }
 
         // OK to split because we checked ip hdr len (enforced by hardware)
-        let (hdr_data, _rest): (&[u8; 8], _) = payload_start.split_array_ref();
+        let (hdr_data, _rest): (&[u8; 8], _) = payload_start.split_first_chunk().unwrap();
         let icmp_type = hdr_data[0];
         let icmp_code = hdr_data[1];
         let checksum = u16::from_be_bytes([hdr_data[2], hdr_data[3]]);
@@ -114,7 +114,7 @@ impl<'b> IcmpSocket<'b> {
 }
 
 impl<'b> From<IcmpSocket<'b>> for Socket<'b> {
-    fn from(s: IcmpSocket<'b>) -> Socket {
+    fn from(s: IcmpSocket<'b>) -> Socket<'b> {
         Socket::Icmp(s)
     }
 }

@@ -30,7 +30,7 @@ impl<'s, const NSOCKS: usize> MmioInterface<'s, NSOCKS> {
     }
 
     #[allow(dead_code)]
-    pub fn sockets(&'s mut self) -> impl Iterator<Item = &mut dyn ReadableSocket> {
+    pub fn sockets(&'s mut self) -> impl Iterator<Item = &'s mut dyn ReadableSocket> {
         self.sockets
             .iter_mut()
             .filter_map(|s| s.as_mut().map(|s| s as &mut dyn ReadableSocket))

@@ -1,10 +1,9 @@
 #![no_std]
 #![no_main]
 #![feature(split_array)]
-#![feature(panic_info_message)]
 #![feature(naked_functions)]
-#![feature(asm_const)]
 #![feature(concat_bytes)]
+#![feature(let_chains)]
 #![warn(unsafe_op_in_unsafe_fn)]
 #![allow(clippy::unusual_byte_groupings)]
 
