@@ -130,6 +130,8 @@ always @(posedge clk) begin
                 {7'b0001000, 5'b00101}: begin // WFI
                     // Stall instruction until interrupted.
                     // No timeout/maximum wait duration! Better enable the timer interrupt :)
+                    exec_system_exception <= privilege_mode == priv_levels::USER;
+                    exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
                 end
                 default: begin
                     exec_system_exception <= '1;
@@ -140,7 +142,7 @@ always @(posedge clk) begin
             exec_system_exception <= '1;
             exec_system_trap_cause <= trap_causes::EXC_ILLEGAL_INSTR;
         end
-        
+
         // We do a stupid trick where all of this process's variables don't depend on input_valid
         // That works great because everything else is single-cycle. Execpt WFI, where we'd output garbage for subsequent cycles.
         if (exec_system_blocked_on_wfi) begin

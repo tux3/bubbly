@@ -1,34 +1,34 @@
 `include "../params.svh"
 
 module csrs(
-    input clk,
-    input rst,
+    input  clk,
+    input  rst,
 
-    input inst_retired,
+    input  inst_retired,
 
-    input exec_csr_instr_valid,
-    input [11:0] exec_csr_addr,
-    input [2:0] exec_csr_funct3,
-    input [4:0] exec_csr_rd,
-    input [4:0] exec_csr_rs1_uimm,
-    input [`XLEN-1:0] exec_csr_rs1_data,
+    input  exec_csr_instr_valid,
+    input  [11:0] exec_csr_addr,
+    input  [2:0] exec_csr_funct3,
+    input  [4:0] exec_csr_rd,
+    input  [4:0] exec_csr_rs1_uimm,
+    input  [`XLEN-1:0] exec_csr_rs1_data,
     output logic exec_csr_exception,
     output logic [3:0] exec_csr_trap_cause,
     output logic [`XLEN-1:0] exec_csr_result,
 
     // Interrupt lines
-    input mtime_int,
-    input [`PLATFORM_INTR_LEN-1:0] platform_ints,
+    input  mtime_int,
+    input  [`PLATFORM_INTR_LEN-1:0] platform_ints,
 
-    input trap_do_update,
-    input [`XLEN-1:0] trap_mcause,
-    input [`ALEN-1:0] trap_mepc,
-    input [`XLEN-1:0] trap_mtval,
+    input  trap_do_update,
+    input  [`XLEN-1:0] trap_mcause,
+    input  [`ALEN-1:0] trap_mepc,
+    input  [`XLEN-1:0] trap_mtval,
 
-    input xret_do_update,
-    input xret_completing,
-    input [`XLEN-1:0] xret_new_mstatus,
-    input [1:0] xret_new_privilege_mode,
+    input  xret_do_update,
+    input  xret_completing,
+    input  [`XLEN-1:0] xret_new_mstatus,
+    input  [1:0] xret_new_privilege_mode,
 
     output reg [1:0] privilege_mode,
     output [`XLEN-1:0] mstatus,
@@ -66,14 +66,14 @@ wire [`INTR_LEN-1:0] mip_keepmask = {int_andmask[`INTR_LEN-1:8], mtime_int_buf, 
 //                                64             ABC     I   M
 wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b11100000100010000000000000};
 wire [CSR_SIZE_XLEN-1:0] mstatus_andmask = {
-//   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR   TW    TVM   MXR    SUM  MPRV
-        1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+//   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR    TW   TVM   MXR    SUM  MPRV
+        1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0,
 //   16  XS    FS    MPP    VS    SPP  MPIE  UBE   SPIE  WPRI  MIE   WPRI   SIE  WPRI
         2'b0, 2'b0, 2'b11, 2'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0
 };
 wire [CSR_SIZE_XLEN-1:0] mstatus_ormask = {
 //   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR   TW    TVM   MXR    SUM  MPRV
-        1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+        1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0,
 //   16  XS    FS    MPP   VS    SPP  MPIE  UBE   SPIE  WPRI  MIE   WPRI   SIE  WPRI
         2'b0, 2'b0, 2'b11, 2'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0
 };
