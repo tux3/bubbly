@@ -164,9 +164,10 @@ always_comb begin
             if (xret_level == priv_levels::MACHINE) begin
                 exec_system_will_do_xret = privilege_mode == priv_levels::MACHINE;
                 exec_system_new_privilege_mode_comb = mstatus[12:11]; // MPP
+                // xret_level is M, so we don't touch MPRV
                 exec_system_new_mstatus_comb = {
                     mstatus[`XLEN-1:13],
-                    priv_levels::MACHINE,   // MPP set to smallest supported (M)
+                    priv_levels::USER,      // MPP set to smallest supported (U)
                     mstatus[10:8],
                     1'b1,                   // MPIE set to 1
                     mstatus[6:4],
