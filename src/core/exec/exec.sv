@@ -35,7 +35,7 @@ module exec #(
     input [12:1] b_imm,
     input [31:12] u_imm,
     input [20:1] j_imm,
-    
+
     output logic [`ALEN-1:0] exec_mepc_approximate, // Note guaranteed to be up to date, used to predict xRET
 
     output logic exec_exception,
@@ -100,8 +100,6 @@ wire [`XLEN-1:0] exec_system_result;
 wire exec_system_would_do_wfi;
 wire exec_system_blocked_on_wfi;
 wire exec_system_will_do_xret;
-wire [`XLEN-1:0] exec_system_new_mstatus_comb;
-wire [1:0] exec_system_new_privilege_mode_comb;
 exec_system exec_system(
     .*
 );
@@ -177,8 +175,6 @@ csrs csrs(
     .trap_mtval,
     .xret_do_update(exec_system_will_do_xret),
     .xret_completing(exec_is_xret && !exec_exception),
-    .xret_new_mstatus(exec_system_new_mstatus_comb),
-    .xret_new_privilege_mode(exec_system_new_privilege_mode_comb),
     .*
 );
 

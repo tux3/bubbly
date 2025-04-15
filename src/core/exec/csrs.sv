@@ -27,8 +27,6 @@ module csrs(
 
     input  xret_do_update,
     input  xret_completing,
-    input  [`XLEN-1:0] xret_new_mstatus,
-    input  [1:0] xret_new_privilege_mode,
 
     output reg [1:0] privilege_mode,
     output [`XLEN-1:0] mstatus,
@@ -203,8 +201,17 @@ always @(posedge clk) begin
         end
 
         if (xret_do_update) begin
-            csr_mstatus <= xret_new_mstatus;
-            privilege_mode <= xret_new_privilege_mode;
+            privilege_mode <= csr_mstatus[12:11]; // MPP;
+            // xret_level is M, so we don't touch MPRV
+            csr_mstatus <= {
+                csr_mstatus[`XLEN-1:13],
+                priv_levels::USER,          // MPP set to smallest supported (U)
+                csr_mstatus[10:8],
+                1'b1,                       // MPIE set to 1
+                csr_mstatus[6:4],
+                csr_mstatus[7],             // MIE set to MPIE
+                csr_mstatus[2:0]
+            };
         end
 
         if (trap_do_update) begin
