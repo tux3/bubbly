@@ -65,6 +65,8 @@ wire [`INTR_LEN-1:0] mip_keepmask = {int_andmask[`INTR_LEN-1:8], mtime_int_buf, 
 
 //                                64             ABC     I   M
 wire [`XLEN-1:0] misa_value = {2'b10, 36'b0, 26'b11100000100010000000000000};
+
+// FIXME: MPP here allows writing 'b10, even though we don't yet support S mode!
 wire [CSR_SIZE_XLEN-1:0] mstatus_andmask = {
 //   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR    TW   TVM   MXR    SUM  MPRV
         1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0,
@@ -75,7 +77,7 @@ wire [CSR_SIZE_XLEN-1:0] mstatus_ormask = {
 //   63  SD      WPRI      MBE   SBE   SXL   UXL    WPRI     TSR   TW    TVM   MXR    SUM  MPRV
         1'b0, {25{1'b0}}, 1'b0, 1'b0, 2'b0, 2'b0, {9{1'b0}}, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0,
 //   16  XS    FS    MPP   VS    SPP  MPIE  UBE   SPIE  WPRI  MIE   WPRI   SIE  WPRI
-        2'b0, 2'b0, 2'b11, 2'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0
+        2'b0, 2'b0, 2'b00, 2'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0
 };
 
 //    CSR name       addr   size            init            AND write mask      OR write mask
