@@ -131,7 +131,10 @@ wire is_read_instr = (exec_csr_funct3 != CSR_FUNCT3_CSRRW && exec_csr_funct3 != 
 
 logic csr_bad_addr;
 wire write_exception = is_write_instr && is_readonly_csr;
-assign exec_csr_exception = csr_bad_addr || write_exception;
+// A CSR instr is always doing either a read or a write, so permission errors always apply to CSR instrs
+wire privilege_exception = exec_csr_addr[9:8] > privilege_mode;
+// exec_csr_exception is an input of exec_system, which only checks it for actual CSR instructions
+assign exec_csr_exception = csr_bad_addr || write_exception || privilege_exception;
 assign exec_csr_trap_cause = trap_causes::EXC_ILLEGAL_INSTR;
 
 // Reads
