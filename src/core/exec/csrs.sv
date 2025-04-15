@@ -212,7 +212,7 @@ always @(posedge clk) begin
             if (!xret_completing)
                 csr_mepc <= trap_mepc;
 
-            // NOTE: This assumes we're taking a trap into M mode (we only have M mode for now)
+            // NOTE: This assumes we're taking a trap into M mode (we don't have S mode yet)
             csr_mstatus <= {
                 csr_mstatus[`XLEN-1:13],
                 privilege_mode,     // MPP
@@ -222,11 +222,20 @@ always @(posedge clk) begin
                 1'b0,               // MIE
                 csr_mstatus[2:0]
             };
+
+            // No delegation to S mode yet, so all traps go to M mode
+            privilege_mode <= priv_levels::MACHINE;
         end
     end
 end
 
 `undef CSR_X_REG_LIST
 `undef CSR_X_VIRTUAL_LIST
+
+`ifndef SYNTHESIS
+always @(posedge clk) begin
+    assert property (!xret_do_update || !trap_do_update); // Can't both take an xRET and trap at the same time
+end
+`endif
 
 endmodule
