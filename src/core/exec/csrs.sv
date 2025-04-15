@@ -127,7 +127,7 @@ wire is_readonly_csr = exec_csr_addr[11:10] == 'b11;
 // CSRRS/C with a zero rs1/uimm are specified to not perform a write at all (so OK on a readonly CSR, for example)
 wire is_write_instr = (exec_csr_funct3 == CSR_FUNCT3_CSRRW || exec_csr_funct3 == CSR_FUNCT3_CSRRWI) || exec_csr_rs1_uimm != '0;
 // CSR_FUNCT3_CSRRW/I with rd==0 does not read at all
-wire is_read_instr = (exec_csr_funct3 != CSR_FUNCT3_CSRRW || exec_csr_funct3 != CSR_FUNCT3_CSRRWI) || exec_csr_rd != '0;
+wire is_read_instr = (exec_csr_funct3 != CSR_FUNCT3_CSRRW && exec_csr_funct3 != CSR_FUNCT3_CSRRWI) || exec_csr_rd != '0;
 
 logic csr_bad_addr;
 wire write_exception = is_write_instr && is_readonly_csr;
