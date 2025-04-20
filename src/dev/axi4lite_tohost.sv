@@ -14,7 +14,7 @@ module axi4lite_tohost #(
     localparam COMMAND_BIT_POS = 48;
     localparam DEVICE_CHAR = 8'h01;    // Device 1 is the blocking character device
     localparam COMMAND_WRITE_CHAR = 8'h01; // Device command 1 writes a character
-    
+
     // Writes
     logic waddr_bad;
     logic [`ALEN-1:0] waddr;
@@ -23,6 +23,8 @@ module axi4lite_tohost #(
 
     wire [7:0] w_device = wdata[DEVICE_BIT_POS +: 8];
     wire [7:0] w_command = wdata[COMMAND_BIT_POS +: 8];
+
+    string line_buffer = "";
 
     always @(posedge bus.aclk) begin
         if (!bus.aresetn) begin
@@ -53,7 +55,13 @@ module axi4lite_tohost #(
 
                 if (waddr == 'h0) begin
                     if (w_device == DEVICE_CHAR && w_command == COMMAND_WRITE_CHAR) begin
-                        $write("%c", bus.wdata[7:0]);
+                        if (bus.wdata[7:0] == 'h0A) begin
+                            $display("tohost dbg msg: %s", line_buffer);
+                            $fflush();
+                            line_buffer = "";
+                        end else begin
+                            line_buffer = {line_buffer, string'(bus.wdata[7:0])};
+                        end
                         bus.bresp <= AXI4LITE_RESP_OKAY;
                     end else begin
                         bus.bresp <= AXI4LITE_RESP_SLVERR; // Unsupported command
@@ -64,7 +72,7 @@ module axi4lite_tohost #(
             end
         end
     end
-    
+
     // Reads
     wire [`ALEN-1:0] araddr_comb = bus.araddr & ADDR_MASK;
     always @(posedge bus.aclk) begin
