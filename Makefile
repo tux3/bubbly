@@ -37,7 +37,7 @@ ${BINDIR}/${PRJ}.json: SRCFILES=$(shell ${SV_AUTO_ORDER} ${SRCFILES_UNORDERED})
 .PHONY: test test_questa test_avhdl test_rs all clean mrproper vivado bitstream program
 
 all: ${BINDIR}/${PRJ}.xpr
-	#
+
 
 clean:
 	rm -rf ${BINDIR}
@@ -66,20 +66,20 @@ ${BINDIR}/${PRJ}.xpr: edalize_build.py
 	make -C ${BINDIR} ${PRJ}.xpr
 
 vivado: ${BINDIR}/${PRJ}.xpr
-	#
+
 
 ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit: ${BINDIR}/${PRJ}.xpr ${SRCFILES_UNORDERED}
 	./tools/build_bitstream.tcl ${BINDIR}/${PRJ}.xpr ${IMPL_RUN}
 
 bitstream: ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit
-	#
+
 
 program: ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit
 	./tools/program_bitstream.tcl "$^"
 
 
 test: test_questa test_rs
-	#
+
 
 test_rs:
 	make -C test_rs
