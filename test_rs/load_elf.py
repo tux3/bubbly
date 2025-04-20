@@ -15,7 +15,7 @@ def base_virtual_addr(elf):
             continue
         if segment.virtual_size == 0:
             continue
-        if base_addr:
+        if base_addr is not None:
             base_addr = min(base_addr, segment.virtual_address)
         else:
             base_addr = segment.virtual_address

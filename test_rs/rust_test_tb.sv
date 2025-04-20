@@ -2,9 +2,9 @@
 `include "axi/axi4lite.svh"
 
 module rust_test_tb #(
-    parameter BIN_BASE_VADDR    = 64'h8000000000,
-    parameter ENTRY_POINT_VADDR = 64'h8000000000,
-    parameter BIN_SIZE          = 64'h7C00,
+    parameter BIN_BASE_VADDR    = 64'h0,
+    parameter ENTRY_POINT_VADDR = 64'h0,
+    parameter BIN_SIZE          = 64'h8000,
     parameter INPUT_FILE        = "test_loaded.bin"
 ) ();
     timeunit 100ns;
@@ -32,7 +32,7 @@ module rust_test_tb #(
     wire [`XLEN-1:0] reg_read_data;
     wire success_gpio, fail_gpio;
 
-    basic_soc #(
+    test_soc #(
         .RESET_PC      (ENTRY_POINT_VADDR     ),
         .GPIO_OUTPUTS  (2                     ),
         .SRAM_SIZE_KB  (BIN_SIZE/1024 + 1 + 32),
