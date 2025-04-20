@@ -1,4 +1,6 @@
 #![no_std]
+#![no_main]
+#![feature(naked_functions)]
 
 mod start;
 mod dbg_print;

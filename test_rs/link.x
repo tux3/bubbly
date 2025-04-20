@@ -12,13 +12,23 @@ SECTIONS
     KEEP(*(.start));
   } > RAM
 
+  .text :
+  {
+    *(.text .text.*);
+  } > RAM
+
   .trap_handler : ALIGN(4)
   {
     *(.trap_handler .trap_handler.*);
   } > RAM
 
-  .text :
+  .data :
   {
-    *(.text .text.*);
+    *(.data .data.*);
+  } > RAM
+
+  .rodata :
+  {
+    *(.rodata .rodata.*);
   } > RAM
 }
