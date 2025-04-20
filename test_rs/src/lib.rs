@@ -1,10 +1,13 @@
 #![no_std]
 #![no_main]
 #![feature(naked_functions)]
+#![feature(macro_metavar_expr_concat)]
 
 mod start;
 mod dbg_print;
 pub use dbg_print::{debug_println};
+mod trap;
+pub use trap::{set_direct_trap_handler, increment_mepc};
 
 use core::hint::unreachable_unchecked;
 use core::panic::PanicInfo;
@@ -39,4 +42,10 @@ pub fn report_fail() {
 /// Report test success by setting the success GPIO pin
 pub fn report_success() {
     unsafe { core::ptr::write_volatile(GPIO_PTR_SUCCESS, 1u8) };
+}
+
+pub fn fatal(msg: &str) -> ! {
+    debug_println(msg);
+    report_fail();
+    halt();
 }
