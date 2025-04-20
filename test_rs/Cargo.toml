@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 riscv = "0.13.0"
+trap_handler_macro = { path = "trap_handler_macro" }
 
 [profile.release]
 panic = "abort"
@@ -13,3 +14,7 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 overflow-checks = false
+
+[lints.clippy]
+# This is very low-level test code, most of our functions will be unsafe :)
+missing_safety_doc = "allow"

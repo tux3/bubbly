@@ -84,6 +84,16 @@ name = "test_rs"
 version = "0.1.0"
 dependencies = [
  "riscv",
+ "trap_handler_macro",
+]
+
+[[package]]
+name = "trap_handler_macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

@@ -12,5 +12,5 @@ pub fn debug_println(str: &str) {
     for c in str.as_bytes() {
         debug_print_byte(*c);
     }
-    debug_print_byte('\n' as u8);
+    debug_print_byte(b'\n');
 }

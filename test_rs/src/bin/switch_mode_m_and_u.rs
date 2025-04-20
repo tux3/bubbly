@@ -6,7 +6,8 @@
 use core::arch::asm;
 use riscv::interrupt::Exception;
 use riscv::register::mstatus::MPP;
-use test_rs::{debug_println, fatal, halt, increment_mepc, report_fail, report_success, set_direct_trap_handler, trap_handler, trap_save_and_call};
+use test_rs::{debug_println, fatal, halt, increment_mepc, report_fail, report_success, set_direct_trap_handler};
+use trap_handler_macro::trap_handler;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn main() {
@@ -45,7 +46,8 @@ pub unsafe extern "C" fn user_func() {
     halt();
 }
 
-trap_handler!(trap_handler_from_m, {
+#[trap_handler]
+unsafe fn trap_handler_from_m() {
     debug_println("Trap handler from M");
 
     let mcause = riscv::register::mcause::read();
@@ -59,9 +61,10 @@ trap_handler!(trap_handler_from_m, {
     } else {
         fatal("Expected MachineEnvCall")
     }
-});
+}
 
-trap_handler!(trap_handler_from_u, {
+#[trap_handler]
+unsafe fn trap_handler_from_u() {
     debug_println("Trap handler from U");
 
     let mcause = riscv::register::mcause::read();
@@ -76,9 +79,10 @@ trap_handler!(trap_handler_from_u, {
     } else {
         fatal("Expected UserEnvCall")
     }
-});
+}
 
-trap_handler!(trap_handler_from_u_expect_illegal_instruction, {
+#[trap_handler]
+unsafe fn trap_handler_from_u_expect_illegal_instruction() {
     debug_println("Trap handler from U, expecting illegal instruction");
 
     let mcause = riscv::register::mcause::read();
@@ -98,4 +102,4 @@ trap_handler!(trap_handler_from_u_expect_illegal_instruction, {
     } else {
         fatal("Expected IllegalInstruction")
     }
-});
+}

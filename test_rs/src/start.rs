@@ -2,7 +2,7 @@ use crate::{debug_println, halt, report_fail, SRAM_BASE, SRAM_SIZE};
 use crate::trap::set_direct_trap_handler;
 
 unsafe extern "C" {
-    fn main() -> ();
+    fn main();
 }
 
 
