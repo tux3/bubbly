@@ -117,7 +117,7 @@ class Simulator:
         load_elf(test_elf_path, test_path)
 
         log_file = os.path.join(self.work_dir, f"transcript_{test_name}.log")
-        vsim_save_wave = ["-wlf", "wave.wlf"] if SAVE_WAVEFORM else []
+        vsim_save_wave = ["-wlf", f"{self.work_dir}/wave_{test_name}.wlf"] if SAVE_WAVEFORM else []
         vsim_do_wave = "add wave -r /*; " if SAVE_WAVEFORM else ""
         vsim_do = ["-do", f"{vsim_do_wave}run -all"]
 
