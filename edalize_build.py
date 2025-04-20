@@ -4,6 +4,8 @@ import os
 import glob
 import subprocess
 
+from edalize.edatool import get_edatool
+
 build_dir = 'build'
 base_dir = os.getcwd()
 os.makedirs(build_dir, exist_ok=True)

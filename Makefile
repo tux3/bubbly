@@ -61,7 +61,8 @@ ${BINDIR}/${PRJ}.json: ${SRCFILES_UNORDERED} Makefile
 	yosys -f "verilog -sv -I ${SRCDIR}" -p "synth_${FPGA_FAMILY} -top top -json ${BINDIR}/${PRJ}.json -blif ${BINDIR}/${PRJ}.blif" ${SRCFILES}
 
 ${BINDIR}/${PRJ}.xpr: edalize_build.py
-	./edalize_build.py
+	uv sync
+	uv run ./edalize_build.py
 	make -C ${BINDIR} ${PRJ}.xpr
 
 vivado: ${BINDIR}/${PRJ}.xpr

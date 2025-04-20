@@ -1,0 +1,8 @@
+[project]
+name = "bubbly"
+version = "0.1.0"
+description = "Bubbly CPU"
+requires-python = ">=3.8,<4"
+dependencies = [
+    "edalize~=0.6",
+]
