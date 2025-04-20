@@ -34,7 +34,7 @@ test_questa test_avhdl: TESTSRC=$(shell ${SV_AUTO_ORDER} --absolute $(filter-out
 test_questa test_avhdl: SRCFILES=$(shell ${SV_AUTO_ORDER} --absolute ${SRCFILES_UNORDERED})
 ${BINDIR}/${PRJ}.json: SRCFILES=$(shell ${SV_AUTO_ORDER} ${SRCFILES_UNORDERED})
 
-.PHONY: test test_questa test_avhdl all clean mrproper vivado bitstream program
+.PHONY: test test_questa test_avhdl test_rs all clean mrproper vivado bitstream program
 
 all: ${BINDIR}/${PRJ}.xpr
 	#
@@ -77,8 +77,12 @@ bitstream: ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit
 program: ${BINDIR}/${PRJ}.runs/${IMPL_RUN}/top.bit
 	./tools/program_bitstream.tcl "$^"
 
-test: test_questa
+
+test: test_questa test_rs
 	#
+
+test_rs:
+	make -C test_rs
 
 test_questa:
 	@# If either is undefined then sv_auto_order must have failed, most likely due to a parse error
