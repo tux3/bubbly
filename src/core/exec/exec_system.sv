@@ -51,7 +51,7 @@ assign exec_csr_rs1_uimm = rs1;
 assign exec_csr_rs1_data = rs1_data;
 
 wire input_is_wfi = funct7 == 7'b0001000 && rs2 == 5'b00101 && {rs1, funct3, rd} == '0;
-assign exec_system_would_do_wfi = input_valid_unless_mispredict && input_is_system && input_is_wfi;
+assign exec_system_would_do_wfi = input_valid_unless_mispredict && input_is_system && input_is_wfi && privilege_mode != priv_levels::USER;
 always_ff @(posedge clk) begin
     if (rst) begin
         exec_system_output_valid <= '0;
@@ -59,7 +59,7 @@ always_ff @(posedge clk) begin
     end else begin
         exec_system_output_valid <= input_valid && input_is_system && !input_is_wfi;
         if (input_valid)
-            exec_system_blocked_on_wfi <= input_is_system && input_is_wfi;
+            exec_system_blocked_on_wfi <= input_is_system && input_is_wfi && privilege_mode != priv_levels::USER;
         else if (exec_interrupt)
             exec_system_blocked_on_wfi <= 0;
     end
